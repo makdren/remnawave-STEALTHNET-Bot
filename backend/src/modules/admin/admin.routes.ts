@@ -939,6 +939,12 @@ const updateSettingsSchema = z.object({
   cryptopayTestnet: z.boolean().optional(),
   heleketMerchantId: z.string().max(500).nullable().optional(),
   heleketApiKey: z.string().max(500).nullable().optional(),
+  groqApiKey: z.string().max(500).nullable().optional(),
+  groqModel: z.string().max(100).nullable().optional(),
+  groqFallback1: z.string().max(100).nullable().optional(),
+  groqFallback2: z.string().max(100).nullable().optional(),
+  groqFallback3: z.string().max(100).nullable().optional(),
+  aiSystemPrompt: z.string().max(5000).nullable().optional(),
   botButtons: z.string().max(10000).nullable().optional(),
   botButtonsPerRow: z.union([z.literal(1), z.literal(2), z.number().int().min(1).max(2)]).optional(),
   botEmojis: z.union([z.string().max(15000), z.record(z.object({ unicode: z.string().max(20).optional(), tgEmojiId: z.string().max(50).optional() }))]).nullable().optional(),
@@ -971,6 +977,8 @@ const updateSettingsSchema = z.object({
   yandexMetrikaId: z.string().max(100).nullable().optional(),
   autoBroadcastCron: z.string().max(100).nullable().optional(),
   adminFrontNotificationsEnabled: z.boolean().optional(),
+  skipEmailVerification: z.boolean().optional(),
+  useRemnaSubscriptionPage: z.boolean().optional(),
 });
 
 adminRouter.patch("/settings", async (req, res) => {
@@ -1216,6 +1224,30 @@ adminRouter.patch("/settings", async (req, res) => {
     const val = updates.heleketApiKey ?? "";
     await prisma.systemSetting.upsert({ where: { key: "heleket_api_key" }, create: { key: "heleket_api_key", value: val }, update: { value: val } });
   }
+  if (updates.groqApiKey !== undefined) {
+    const val = updates.groqApiKey ?? "";
+    await prisma.systemSetting.upsert({ where: { key: "groq_api_key" }, create: { key: "groq_api_key", value: val }, update: { value: val } });
+  }
+  if (updates.groqModel !== undefined) {
+    const val = updates.groqModel ?? "llama3-8b-8192";
+    await prisma.systemSetting.upsert({ where: { key: "groq_model" }, create: { key: "groq_model", value: val }, update: { value: val } });
+  }
+  if (updates.groqFallback1 !== undefined) {
+    const val = updates.groqFallback1 ?? "";
+    await prisma.systemSetting.upsert({ where: { key: "groq_fallback_1" }, create: { key: "groq_fallback_1", value: val }, update: { value: val } });
+  }
+  if (updates.groqFallback2 !== undefined) {
+    const val = updates.groqFallback2 ?? "";
+    await prisma.systemSetting.upsert({ where: { key: "groq_fallback_2" }, create: { key: "groq_fallback_2", value: val }, update: { value: val } });
+  }
+  if (updates.groqFallback3 !== undefined) {
+    const val = updates.groqFallback3 ?? "";
+    await prisma.systemSetting.upsert({ where: { key: "groq_fallback_3" }, create: { key: "groq_fallback_3", value: val }, update: { value: val } });
+  }
+  if (updates.aiSystemPrompt !== undefined) {
+    const val = updates.aiSystemPrompt ?? "";
+    await prisma.systemSetting.upsert({ where: { key: "ai_system_prompt" }, create: { key: "ai_system_prompt", value: val }, update: { value: val } });
+  }
   if (updates.botButtons !== undefined) {
     const val = updates.botButtons ?? "";
     await prisma.systemSetting.upsert({ where: { key: "bot_buttons" }, create: { key: "bot_buttons", value: val }, update: { value: val } });
@@ -1399,6 +1431,22 @@ adminRouter.patch("/settings", async (req, res) => {
     await prisma.systemSetting.upsert({
       where: { key: "admin_front_notifications_enabled" },
       create: { key: "admin_front_notifications_enabled", value: val },
+      update: { value: val },
+    });
+  }
+  if (updates.skipEmailVerification !== undefined) {
+    const val = updates.skipEmailVerification ? "true" : "false";
+    await prisma.systemSetting.upsert({
+      where: { key: "skip_email_verification" },
+      create: { key: "skip_email_verification", value: val },
+      update: { value: val },
+    });
+  }
+  if (updates.useRemnaSubscriptionPage !== undefined) {
+    const val = updates.useRemnaSubscriptionPage ? "true" : "false";
+    await prisma.systemSetting.upsert({
+      where: { key: "use_remna_subscription_page" },
+      create: { key: "use_remna_subscription_page", value: val },
       update: { value: val },
     });
   }

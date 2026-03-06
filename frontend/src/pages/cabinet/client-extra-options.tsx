@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Wifi, Smartphone, Server, CreditCard, Loader2, Wallet } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Wifi, Smartphone, Server, CreditCard, Loader2, Wallet, Layers, Shield, Zap, ArrowLeft } from "lucide-react";
 import { useClientAuth } from "@/contexts/client-auth";
 import { api } from "@/lib/api";
 import type { PublicSellOption } from "@/lib/api";
@@ -9,12 +10,13 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogFooter
 } from "@/components/ui/dialog";
 import { useCabinetMiniapp } from "@/pages/cabinet/cabinet-layout";
 import { openPaymentInBrowser } from "@/lib/open-payment-url";
+import { cn } from "@/lib/utils";
 
 function formatMoney(amount: number, currency: string) {
   return new Intl.NumberFormat("ru-RU", {
@@ -179,6 +181,217 @@ export function ClientExtraOptionsPage() {
     }
   }
 
+  const closePayment = () => {
+    setPayModal(null);
+    setPayError(null);
+  };
+
+  const PaymentContent = () => {
+    if (!payModal) return null;
+    // Оставляем кнопку всегда (даже если баланса нет), просто делаем ее disabled
+    const hasBalance = balance >= payModal.price;
+
+    return (
+      <div className="space-y-6">
+        <div className={cn("rounded-2xl relative overflow-hidden", isMobileOrMiniapp ? "bg-card/40 border border-white/5 p-5" : "bg-background/50 border border-border/50 p-4")}>
+          <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+          <div className="flex justify-between items-center relative z-10">
+             <div className="space-y-1.5">
+                <p className={cn("font-medium", isMobileOrMiniapp ? "text-sm text-muted-foreground" : "text-muted-foreground")}>
+                  {isMobileOrMiniapp ? "Итого к оплате" : "Опция:"}
+                </p>
+                {!isMobileOrMiniapp && <p className="font-bold text-foreground">{payModal.name || optionLabel(payModal)}</p>}
+                {isMobileOrMiniapp && (
+                   <span className="text-3xl font-black text-primary">{formatMoney(payModal.price, payModal.currency)}</span>
+                )}
+             </div>
+             {!isMobileOrMiniapp && (
+                <div className="text-right">
+                   <span className="font-bold text-xl text-primary">{formatMoney(payModal.price, payModal.currency)}</span>
+                </div>
+             )}
+          </div>
+        </div>
+
+        <div className={cn("space-y-3", isMobileOrMiniapp ? "pb-24" : "")}>
+          <div className="flex items-center gap-2 pt-2 pb-1">
+            <Wallet className={cn("text-primary", isMobileOrMiniapp ? "h-5 w-5" : "h-4 w-4")} />
+            <span className={cn("font-bold", isMobileOrMiniapp ? "text-lg" : "text-sm")}>Способ оплаты</span>
+          </div>
+
+          {payError && (
+            <div className={cn("p-4 bg-destructive/10 border border-destructive/20 text-destructive text-center font-bold", isMobileOrMiniapp ? "rounded-2xl text-sm" : "rounded-xl text-sm mb-4")}>
+              {payError}
+            </div>
+          )}
+
+          <div className="space-y-3">
+            {/* Оплата с баланса (теперь показывается всегда, но дизейблится) */}
+            <Button
+              size="lg"
+              onClick={() => startBalancePayment(payModal)}
+              disabled={payLoading || !hasBalance}
+              className={cn("w-full shadow-lg border-0 group relative overflow-hidden", isMobileOrMiniapp ? "justify-between px-6 h-16 rounded-2xl bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400" : "gap-2 h-14 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300")}
+            >
+              {!isMobileOrMiniapp && <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />}
+              {isMobileOrMiniapp ? (
+                  <>
+                  <div className="flex items-center gap-3">
+                    {payLoading ? <Loader2 className="h-6 w-6 text-white animate-spin" /> : <Wallet className="h-6 w-6 text-white" />}
+                    <span className="text-base font-bold text-white">Оплатить с баланса</span>
+                  </div>
+                  <span className="text-white/80 font-mono font-medium bg-black/20 px-2 py-1 rounded-lg">
+                    {formatMoney(balance, payModal.currency)}
+                  </span>
+                  </>
+              ) : (
+                  <>
+                  {payLoading ? <Loader2 className="h-5 w-5 animate-spin relative z-10" /> : <Wallet className="h-5 w-5 relative z-10" />}
+                  <span className="text-base font-semibold relative z-10">Оплатить с баланса</span>
+                  <span className="opacity-90 font-medium ml-1 bg-black/10 px-2 py-0.5 rounded-md relative z-10">
+                    ({formatMoney(balance, payModal.currency)})
+                  </span>
+                  </>
+              )}
+            </Button>
+
+            {yoomoneyEnabled && payModal?.currency.toUpperCase() === "RUB" && (
+               <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={() => startYoomoneyPayment(payModal)}
+                  disabled={payLoading}
+                  className={cn("w-full", isMobileOrMiniapp ? "justify-start gap-4 px-6 h-16 rounded-2xl border-white/5 bg-card/40 hover:bg-card/60" : "gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative")}
+               >
+                  {isMobileOrMiniapp ? (
+                     <>
+                     <div className="p-2 rounded-xl bg-purple-500/10">
+                        {payLoading ? <Loader2 className="h-6 w-6 animate-spin text-purple-500" /> : <CreditCard className="h-6 w-6 text-purple-500" />}
+                     </div>
+                     <span className="text-base font-bold">ЮMoney / Карты</span>
+                     </>
+                  ) : (
+                     <>
+                     <div className="absolute left-6 p-1.5 rounded-lg bg-purple-500/10 group-hover:bg-purple-500/20 transition-colors">
+                        {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-purple-500" /> : <CreditCard className="h-5 w-5 text-purple-500" />}
+                     </div>
+                     <span className="text-base font-medium">💳 ЮMoney</span>
+                     </>
+                  )}
+               </Button>
+            )}
+
+            {yookassaEnabled && payModal?.currency.toUpperCase() === "RUB" && (
+               <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={() => startYookassaPayment(payModal)}
+                  disabled={payLoading}
+                  className={cn("w-full", isMobileOrMiniapp ? "justify-start gap-4 px-6 h-16 rounded-2xl border-white/5 bg-card/40 hover:bg-card/60" : "gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative")}
+               >
+                  {isMobileOrMiniapp ? (
+                     <>
+                     <div className="p-2 rounded-xl bg-blue-500/10">
+                        {payLoading ? <Loader2 className="h-6 w-6 animate-spin text-blue-500" /> : <CreditCard className="h-6 w-6 text-blue-500" />}
+                     </div>
+                     <span className="text-base font-bold">СБП / Карты РФ</span>
+                     </>
+                  ) : (
+                     <>
+                     <div className="absolute left-6 p-1.5 rounded-lg bg-blue-500/10 group-hover:bg-blue-500/20 transition-colors">
+                        {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-blue-500" /> : <CreditCard className="h-5 w-5 text-blue-500" />}
+                     </div>
+                     <span className="text-base font-medium">💳 СБП / Карты РФ</span>
+                     </>
+                  )}
+               </Button>
+            )}
+
+            {cryptopayEnabled && (
+               <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={() => startCryptopayPayment(payModal)}
+                  disabled={payLoading}
+                  className={cn("w-full", isMobileOrMiniapp ? "justify-start gap-4 px-6 h-16 rounded-2xl border-white/5 bg-card/40 hover:bg-card/60" : "gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative")}
+               >
+                  {isMobileOrMiniapp ? (
+                     <>
+                     <div className="p-2 rounded-xl bg-yellow-500/10">
+                        {payLoading ? <Loader2 className="h-6 w-6 animate-spin text-yellow-500" /> : <Zap className="h-6 w-6 text-yellow-500" />}
+                     </div>
+                     <span className="text-base font-bold">Crypto Bot</span>
+                     </>
+                  ) : (
+                     <>
+                     <div className="absolute left-6 p-1.5 rounded-lg bg-yellow-500/10 group-hover:bg-yellow-500/20 transition-colors">
+                        {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-yellow-500" /> : <Zap className="h-5 w-5 text-yellow-500" />}
+                     </div>
+                     <span className="text-base font-medium">⚡ Crypto Bot (Криптовалюта)</span>
+                     </>
+                  )}
+               </Button>
+            )}
+
+            {heleketEnabled && (
+               <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={() => startHeleketPayment(payModal)}
+                  disabled={payLoading}
+                  className={cn("w-full", isMobileOrMiniapp ? "justify-start gap-4 px-6 h-16 rounded-2xl border-white/5 bg-card/40 hover:bg-card/60" : "gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative")}
+               >
+                  {isMobileOrMiniapp ? (
+                     <>
+                     <div className="p-2 rounded-xl bg-orange-500/10">
+                        {payLoading ? <Loader2 className="h-6 w-6 animate-spin text-orange-500" /> : <Zap className="h-6 w-6 text-orange-500" />}
+                     </div>
+                     <span className="text-base font-bold">Heleket</span>
+                     </>
+                  ) : (
+                     <>
+                     <div className="absolute left-6 p-1.5 rounded-lg bg-orange-500/10 group-hover:bg-orange-500/20 transition-colors">
+                        {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-orange-500" /> : <Zap className="h-5 w-5 text-orange-500" />}
+                     </div>
+                     <span className="text-base font-medium">⚡ Heleket (Криптовалюта)</span>
+                     </>
+                  )}
+               </Button>
+            )}
+
+            {plategaMethods.map((m) => (
+               <Button
+                  key={m.id}
+                  size="lg"
+                  variant="outline"
+                  onClick={() => startPlategaPayment(payModal, m.id)}
+                  disabled={payLoading}
+                  className={cn("w-full", isMobileOrMiniapp ? "justify-start gap-4 px-6 h-16 rounded-2xl border-white/5 bg-card/40 hover:bg-card/60" : "gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative")}
+               >
+                  {isMobileOrMiniapp ? (
+                     <>
+                     <div className="p-2 rounded-xl bg-green-500/10">
+                        {payLoading ? <Loader2 className="h-6 w-6 animate-spin text-green-500" /> : <CreditCard className="h-6 w-6 text-green-500" />}
+                     </div>
+                     <span className="text-base font-bold">{m.label}</span>
+                     </>
+                  ) : (
+                     <>
+                     <div className="absolute left-6 p-1.5 rounded-lg bg-green-500/10 group-hover:bg-green-500/20 transition-colors">
+                        {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-green-500" /> : <CreditCard className="h-5 w-5 text-green-500" />}
+                     </div>
+                     <span className="text-base font-medium">💳 {m.label}</span>
+                     </>
+                  )}
+               </Button>
+            ))}
+          </div>
+          {isMobileOrMiniapp && <div className="h-8" />}
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -202,95 +415,199 @@ export function ClientExtraOptionsPage() {
     );
   }
 
-  return (
-    <div className="space-y-6 w-full min-w-0 overflow-hidden">
-      <div className="min-w-0">
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight truncate">Доп. опции</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Доп. трафик, устройства или серверы — применяются к вашей подписке после оплаты.
-        </p>
-      </div>
+  const trafficOptions = options.filter(o => o.kind === "traffic");
+  const deviceOptions = options.filter(o => o.kind === "devices");
+  const serverOptions = options.filter(o => o.kind === "servers");
 
-      <div className={isMobileOrMiniapp ? "space-y-3" : "grid gap-4 sm:grid-cols-2"}>
-        {options.map((opt) => (
-          <Card key={`${opt.kind}-${opt.id}`} className="overflow-hidden">
-            <CardContent className="p-3 sm:p-4 flex flex-row items-center justify-between gap-2 sm:gap-4 min-w-0">
-              <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                <span className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  {optionIcon(opt)}
-                </span>
+  return (
+    <>
+      <AnimatePresence mode="wait">
+        {isMobileOrMiniapp && payModal ? (
+          <motion.div
+            key="payment-view"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2 }}
+            className="flex flex-col w-full rounded-[2.5rem] border border-white/10 dark:border-white/5 bg-slate-50/60 dark:bg-slate-950/60 backdrop-blur-[32px] shadow-2xl relative"
+          >
+            <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-border/50 bg-background/30 backdrop-blur-md z-10 transition-colors rounded-t-[2.5rem]">
+              <div className="flex items-center gap-3 min-w-0">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="shrink-0 h-9 w-9 rounded-full bg-background/50 hover:bg-background/80 transition-transform hover:scale-105" 
+                  onClick={closePayment}
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium truncate text-sm sm:text-base">{opt.name || optionLabel(opt)}</p>
-                  {!isMobileOrMiniapp && <p className="text-sm text-muted-foreground">{optionLabel(opt)}</p>}
+                  <h2 className="text-sm sm:text-base font-bold truncate text-foreground">Оплата опции</h2>
+                  <p className="text-[11px] font-medium text-muted-foreground truncate">{payModal.name || optionLabel(payModal)}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="font-semibold text-sm sm:text-base tabular-nums whitespace-nowrap">{formatMoney(opt.price, opt.currency)}</span>
-                <Button onClick={() => setPayModal(opt)} size="sm" className="gap-1.5 shrink-0">
-                  <CreditCard className="h-4 w-4" />
-                  Купить
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+            </div>
 
-      <Dialog open={!!payModal} onOpenChange={(open) => !open && setPayModal(null)}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto pb-[env(safe-area-inset-bottom)]">
-          <DialogHeader>
-            <DialogTitle>Способ оплаты</DialogTitle>
-            <DialogDescription>
-              {payModal && (
-                <>
-                  {payModal.name || optionLabel(payModal)} — {formatMoney(payModal.price, payModal.currency)}
-                </>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-2 py-2">
-            {payModal && balance >= payModal.price && (
-              <Button onClick={() => startBalancePayment(payModal)} disabled={payLoading} variant="default" className="w-full gap-2" type="button">
-                {payLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
-                Оплатить с баланса ({formatMoney(balance, payModal.currency)})
-              </Button>
+            <div className="p-4 sm:p-6 pb-8">
+               <PaymentContent />
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="options-list"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-8 max-w-6xl mx-auto pb-24"
+          >
+            <div className="relative overflow-hidden rounded-3xl bg-card/40 backdrop-blur-2xl border border-border/50 p-8 sm:p-10 shadow-xl">
+              <div className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 rounded-full bg-primary/20 blur-[80px] pointer-events-none" />
+              <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
+                <div className="flex-1">
+                  <h1 className="text-3xl font-bold tracking-tight sm:text-4xl text-foreground flex items-center gap-3">
+                    <Layers className="h-8 w-8 text-primary" />
+                    Доп. опции
+                  </h1>
+                  <p className="mt-3 text-[16px] text-muted-foreground max-w-xl leading-relaxed">
+                    Не хватает трафика, нужны дополнительные устройства или серверы?
+                    Здесь вы можете прокачать вашу текущую подписку. Опции применяются моментально после оплаты.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {trafficOptions.length > 0 && (
+              <section className="space-y-4">
+                <h2 className="flex items-center gap-2 text-lg font-semibold px-2">
+                  <Wifi className="h-5 w-5 text-primary" />
+                  Дополнительный трафик
+                </h2>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {trafficOptions.map((opt) => (
+                    <Card key={`traffic-${opt.id}`} className="rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col group hover:-translate-y-1">
+                      <CardContent className="flex-1 flex flex-col p-5 min-h-0 min-w-0">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary group-hover:scale-110 group-hover:bg-primary/20 transition-all duration-300">
+                            {optionIcon(opt)}
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-lg text-foreground truncate">{opt.name || "Пакет трафика"}</h3>
+                            <p className="text-sm text-muted-foreground truncate">{optionLabel(opt)}</p>
+                          </div>
+                        </div>
+                        <div className="mt-auto space-y-4 pt-4 border-t border-border/50">
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-2xl font-extrabold text-foreground">{formatMoney(opt.price, opt.currency)}</span>
+                          </div>
+                          <Button onClick={() => setPayModal(opt)} className="w-full gap-2 shadow-md hover:scale-[1.02] transition-transform rounded-xl h-12">
+                            <CreditCard className="h-5 w-5" />
+                            Купить пакет
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </section>
             )}
-            {yookassaEnabled && payModal && (
-              <Button onClick={() => startYookassaPayment(payModal)} disabled={payLoading} className="w-full gap-2">
-                {payLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Карта / СБП (ЮKassa)
-              </Button>
+
+            {deviceOptions.length > 0 && (
+              <section className="space-y-4">
+                <h2 className="flex items-center gap-2 text-lg font-semibold px-2">
+                  <Smartphone className="h-5 w-5 text-primary" />
+                  Устройства (Слоты)
+                </h2>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {deviceOptions.map((opt) => (
+                    <Card key={`devices-${opt.id}`} className="rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col group hover:-translate-y-1">
+                      <CardContent className="flex-1 flex flex-col p-5 min-h-0 min-w-0">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary group-hover:scale-110 group-hover:bg-primary/20 transition-all duration-300">
+                            {optionIcon(opt)}
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-lg text-foreground truncate">{opt.name || "Слоты устройств"}</h3>
+                            <p className="text-sm text-muted-foreground truncate">{optionLabel(opt)}</p>
+                          </div>
+                        </div>
+                        <div className="mt-auto space-y-4 pt-4 border-t border-border/50">
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-2xl font-extrabold text-foreground">{formatMoney(opt.price, opt.currency)}</span>
+                          </div>
+                          <Button onClick={() => setPayModal(opt)} className="w-full gap-2 shadow-md hover:scale-[1.02] transition-transform rounded-xl h-12">
+                            <CreditCard className="h-5 w-5" />
+                            Добавить устройства
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </section>
             )}
-            {cryptopayEnabled && payModal && (
-              <Button onClick={() => startCryptopayPayment(payModal)} disabled={payLoading} className="w-full gap-2">
-                {payLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Crypto Bot — криптовалюта
-              </Button>
+
+            {serverOptions.length > 0 && (
+              <section className="space-y-4">
+                <h2 className="flex items-center gap-2 text-lg font-semibold px-2">
+                  <Server className="h-5 w-5 text-primary" />
+                  Дополнительные серверы
+                </h2>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {serverOptions.map((opt) => (
+                    <Card key={`servers-${opt.id}`} className="rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col group hover:-translate-y-1">
+                      <CardContent className="flex-1 flex flex-col p-5 min-h-0 min-w-0">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary group-hover:scale-110 group-hover:bg-primary/20 transition-all duration-300">
+                            {optionIcon(opt)}
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-lg text-foreground truncate">{opt.name || "Доп. сервер"}</h3>
+                            <p className="text-sm text-muted-foreground truncate">{optionLabel(opt)}</p>
+                          </div>
+                        </div>
+                        <div className="mt-auto space-y-4 pt-4 border-t border-border/50">
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-2xl font-extrabold text-foreground">{formatMoney(opt.price, opt.currency)}</span>
+                          </div>
+                          <Button onClick={() => setPayModal(opt)} className="w-full gap-2 shadow-md hover:scale-[1.02] transition-transform rounded-xl h-12">
+                            <CreditCard className="h-5 w-5" />
+                            Купить сервер
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </section>
             )}
-            {heleketEnabled && payModal && (
-              <Button onClick={() => startHeleketPayment(payModal)} disabled={payLoading} className="w-full gap-2">
-                {payLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Heleket — криптовалюта
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {!isMobileOrMiniapp && (
+        <Dialog open={!!payModal} onOpenChange={(open) => { if (!open && !payLoading) closePayment(); }}>
+          <DialogContent className="w-full max-w-md mx-auto sm:rounded-3xl p-5 sm:p-6 border border-border/50 bg-card/60 backdrop-blur-3xl shadow-2xl" showCloseButton={!payLoading} onOpenAutoFocus={(e) => e.preventDefault()}>
+            <DialogHeader className="mb-4 text-center sm:text-left">
+              <DialogTitle className="text-2xl font-bold flex items-center justify-center sm:justify-start gap-2">
+                <div className="p-2 bg-primary/10 rounded-xl">
+                  <Shield className="h-6 w-6 text-primary" />
+                </div>
+                Оплата опции
+              </DialogTitle>
+              <DialogDescription className="hidden" />
+            </DialogHeader>
+
+            <PaymentContent />
+
+            <DialogFooter className="mt-4 sm:justify-center border-t border-border/50 pt-4">
+              <Button variant="ghost" onClick={closePayment} disabled={payLoading} className="rounded-xl hover:bg-background/50 hover:text-foreground text-muted-foreground transition-colors">
+                Отмена
               </Button>
-            )}
-            {yoomoneyEnabled && payModal && (
-              <Button variant="outline" onClick={() => startYoomoneyPayment(payModal)} disabled={payLoading} className="w-full gap-2">
-                {payLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                ЮMoney (карта)
-              </Button>
-            )}
-            {plategaMethods.map((m) => payModal && (
-              <Button key={m.id} variant="outline" onClick={() => startPlategaPayment(payModal, m.id)} disabled={payLoading} className="w-full">
-                {m.label}
-              </Button>
-            ))}
-          </div>
-          {payError && <p className="text-sm text-destructive">{payError}</p>}
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setPayModal(null)}>Отмена</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   );
 }

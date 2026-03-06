@@ -127,11 +127,13 @@ model TicketMessage {
   ticketId  String   @map("ticket_id")
   authorType String  @map("author_type") @db.VarChar(20) // client | support
   content   String   @db.Text
+  isRead    Boolean  @default(false) @map("is_read")
   createdAt DateTime @default(now()) @map("created_at")
 
   ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 
   @@index([ticketId])
+  @@index([isRead])
   @@map("ticket_messages")
 }
 

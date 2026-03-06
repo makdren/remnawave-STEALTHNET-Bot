@@ -14,6 +14,7 @@ type ClientAuthState = {
   miniappAuthAttempted: boolean;
   /** Включена 2FA: после пароля/Telegram нужен ввод кода. Временный токен для POST /client/auth/2fa-login */
   pending2FAToken: string | null;
+  isNewTelegramUser: boolean;
 };
 
 type ClientAuthValue = {
@@ -28,6 +29,7 @@ type ClientAuthValue = {
   submit2FACode: (code: string) => Promise<void>;
   /** Отменить шаг 2FA и вернуться к форме входа */
   clearPending2FA: () => void;
+  clearNewTelegramUser: () => void;
   logout: () => void;
   refreshProfile: () => Promise<void>;
 };
@@ -48,8 +50,12 @@ function saveState(token: string | null, client: ClientProfile | null) {
   else localStorage.removeItem(STORAGE_CLIENT);
 }
 
+function isAuthResponse(res: any): res is ClientAuthResponse {
+  return !!res && typeof res.token === "string" && !!res.client;
+}
+
 export function ClientAuthProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<ClientAuthState>(() => ({ ...loadState(), miniappAuthLoading: false, miniappAuthAttempted: false, pending2FAToken: null }));
+  const [state, setState] = useState<ClientAuthState>(() => ({ ...loadState(), miniappAuthLoading: false, miniappAuthAttempted: false, pending2FAToken: null, isNewTelegramUser: false }));
   const miniappAttemptedRef = useRef(false);
 
   // Сразу раскрываем Mini App на весь экран (до авторизации)
@@ -69,13 +75,14 @@ export function ClientAuthProvider({ children }: { children: React.ReactNode }) 
     api
       .clientAuthByTelegramMiniapp(initData)
       .then((res) => {
-        if ("requires2FA" in res && res.requires2FA) {
-          setState((prev) => ({ ...prev, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: res.tempToken }));
-          return;
-        }
-        const auth = res as { token: string; client: ClientProfile };
-        setState({ token: auth.token, client: auth.client, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: null });
-        saveState(auth.token, auth.client);
+      if ("requires2FA" in res && res.requires2FA) {
+        setState((prev) => ({ ...prev, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: res.tempToken }));
+        return;
+      }
+      if (isAuthResponse(res)) {
+        setState({ token: res.token, client: res.client, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: null, isNewTelegramUser: false });
+        saveState(res.token, res.client);
+      }
       })
       .catch(() => {
         setState((prev) => ({ ...prev, miniappAuthLoading: false, miniappAuthAttempted: true }));
@@ -92,7 +99,7 @@ export function ClientAuthProvider({ children }: { children: React.ReactNode }) 
         return next;
       });
     } catch {
-      setState({ token: null, client: null, miniappAuthLoading: false, miniappAuthAttempted: false, pending2FAToken: null });
+      setState({ token: null, client: null, miniappAuthLoading: false, miniappAuthAttempted: false, pending2FAToken: null, isNewTelegramUser: false });
       saveState(null, null);
     }
   }, [state.token]);
@@ -103,9 +110,10 @@ export function ClientAuthProvider({ children }: { children: React.ReactNode }) 
       setState((prev) => ({ ...prev, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: res.tempToken }));
       return;
     }
-    const auth = res as ClientAuthResponse;
-    setState({ token: auth.token, client: auth.client, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: null });
-    saveState(auth.token, auth.client);
+    if (isAuthResponse(res)) {
+      setState({ token: res.token, client: res.client, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: null, isNewTelegramUser: false });
+      saveState(res.token, res.client);
+    }
   }, []);
 
   const register = useCallback(
@@ -129,9 +137,10 @@ export function ClientAuthProvider({ children }: { children: React.ReactNode }) 
         setState((prev) => ({ ...prev, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: res.tempToken }));
         return;
       }
-      const authRes = res as ClientAuthResponse;
-      setState({ token: authRes.token, client: authRes.client, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: null });
-      saveState(authRes.token, authRes.client);
+      if (isAuthResponse(res)) {
+        setState({ token: res.token, client: res.client, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: null, isNewTelegramUser: false });
+        saveState(res.token, res.client);
+      }
     },
     []
   );
@@ -154,8 +163,9 @@ export function ClientAuthProvider({ children }: { children: React.ReactNode }) 
         setState((prev) => ({ ...prev, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: res.tempToken }));
         return;
       }
-      if ("token" in res && res.token) {
-        setState({ token: res.token, client: res.client, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: null });
+      if (isAuthResponse(res)) {
+        const justCreated = res.client && res.client.createdAt && (Date.now() - new Date(res.client.createdAt).getTime()) < 15000;
+        setState({ token: res.token, client: res.client, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: null, isNewTelegramUser: !!justCreated });
         saveState(res.token, res.client);
       }
     },
@@ -168,9 +178,10 @@ export function ClientAuthProvider({ children }: { children: React.ReactNode }) 
       setState((prev) => ({ ...prev, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: res.tempToken }));
       return;
     }
-    const auth = res as ClientAuthResponse;
-    setState({ token: auth.token, client: auth.client, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: null });
-    saveState(auth.token, auth.client);
+    if (isAuthResponse(res)) {
+      setState({ token: res.token, client: res.client, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: null, isNewTelegramUser: false });
+      saveState(res.token, res.client);
+    }
   }, []);
 
   const verifyLinkEmail = useCallback(async (verificationToken: string) => {
@@ -179,9 +190,10 @@ export function ClientAuthProvider({ children }: { children: React.ReactNode }) 
       setState((prev) => ({ ...prev, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: res.tempToken }));
       return;
     }
-    const auth = res as ClientAuthResponse;
-    setState({ token: auth.token, client: auth.client, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: null });
-    saveState(auth.token, auth.client);
+    if (isAuthResponse(res)) {
+      setState({ token: res.token, client: res.client, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: null, isNewTelegramUser: false });
+      saveState(res.token, res.client);
+    }
   }, []);
 
   const submit2FACode = useCallback(async (code: string) => {
@@ -196,8 +208,12 @@ export function ClientAuthProvider({ children }: { children: React.ReactNode }) 
     setState((prev) => ({ ...prev, pending2FAToken: null }));
   }, []);
 
+  const clearNewTelegramUser = useCallback(() => {
+    setState(prev => ({ ...prev, isNewTelegramUser: false }));
+  }, []);
+
   const logout = useCallback(() => {
-    setState({ token: null, client: null, miniappAuthLoading: false, miniappAuthAttempted: false, pending2FAToken: null });
+    setState({ token: null, client: null, miniappAuthLoading: false, miniappAuthAttempted: false, pending2FAToken: null, isNewTelegramUser: false });
     saveState(null, null);
   }, []);
 
@@ -210,6 +226,7 @@ export function ClientAuthProvider({ children }: { children: React.ReactNode }) 
     verifyLinkEmail,
     submit2FACode,
     clearPending2FA,
+    clearNewTelegramUser,
     logout,
     refreshProfile,
   };

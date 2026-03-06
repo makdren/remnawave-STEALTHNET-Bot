@@ -888,6 +888,14 @@ export const api = {
     return request("/client/profile", { method: "PATCH", body: JSON.stringify(data), token });
   },
 
+  async clientChangePassword(token: string, data: { currentPassword: string; newPassword: string }): Promise<{ message: string }> {
+    return request("/client/change-password", { method: "POST", body: JSON.stringify(data), token });
+  },
+
+  async clientSetPassword(token: string, data: { newPassword: string }): Promise<{ message: string }> {
+    return request("/client/set-password", { method: "POST", body: JSON.stringify(data), token });
+  },
+
   /** Запросить код для привязки Telegram через бота (без авторизации по токену не нужен) */
   async clientLinkTelegramRequest(token: string): Promise<{ code: string; expiresAt: string; botUsername: string | null }> {
     return request("/client/link-telegram-request", { method: "POST", token });
@@ -915,6 +923,10 @@ export const api = {
   /** Список тикетов клиента (доступно при включённой тикет-системе) */
   async getTickets(token: string): Promise<{ items: { id: string; subject: string; status: string; createdAt: string; updatedAt: string }[] }> {
     return request("/client/tickets", { token });
+  },
+  /** Количество непрочитанных сообщений от поддержки */
+  async getUnreadTicketsCount(token: string): Promise<{ count: number }> {
+    return request("/client/tickets/unread-count", { token });
   },
   /** Один тикет с сообщениями */
   async getTicket(token: string, id: string): Promise<{
@@ -948,6 +960,14 @@ export const api = {
     data: { content: string }
   ): Promise<{ id: string; authorType: string; content: string; createdAt: string }> {
     return request(`/client/tickets/${ticketId}/messages`, { method: "POST", body: JSON.stringify(data), token });
+  },
+
+  /** AI Чат (Groq) */
+  async chatAi(
+    token: string,
+    data: { messages: { role: "user" | "assistant" | "system"; content: string }[] }
+  ): Promise<{ reply: string }> {
+    return request("/client/ai/chat", { method: "POST", body: JSON.stringify(data), token });
   },
 
   // ——— Промо-группы (админ) ———
@@ -1123,6 +1143,12 @@ export type UpdateSettingsPayload = {
   cryptopayTestnet?: boolean;
   heleketMerchantId?: string | null;
   heleketApiKey?: string | null;
+  groqApiKey?: string | null;
+  groqModel?: string | null;
+  groqFallback1?: string | null;
+  groqFallback2?: string | null;
+  groqFallback3?: string | null;
+  aiSystemPrompt?: string | null;
   botButtons?: string | null;
   botButtonsPerRow?: 1 | 2;
   botEmojis?: Record<string, { unicode?: string; tgEmojiId?: string }> | string | null;
@@ -1154,6 +1180,8 @@ export type UpdateSettingsPayload = {
   yandexMetrikaId?: string | null;
   autoBroadcastCron?: string | null;
   adminFrontNotificationsEnabled?: boolean;
+  skipEmailVerification?: boolean;
+  useRemnaSubscriptionPage?: boolean;
 };
 
 export interface ClientRecord {
@@ -1241,6 +1269,12 @@ export interface AdminSettings {
   cryptopayTestnet?: boolean;
   heleketMerchantId?: string | null;
   heleketApiKey?: string | null;
+  groqApiKey?: string | null;
+  groqModel?: string | null;
+  groqFallback1?: string | null;
+  groqFallback2?: string | null;
+  groqFallback3?: string | null;
+  aiSystemPrompt?: string | null;
   /** Кнопки главного меню бота: порядок, видимость, текст, стиль, ключ эмодзи, в один ряд */
   botButtons?: { id: string; visible: boolean; label: string; order: number; style?: string; emojiKey?: string; onePerRow?: boolean }[];
   /** Кнопок в ряд в главном меню: 1 или 2 (по умолчанию 1) */
@@ -1292,6 +1326,10 @@ export interface AdminSettings {
   autoBroadcastCron?: string | null;
   /** Фронтовые всплывающие уведомления в панели админа включены */
   adminFrontNotificationsEnabled?: boolean;
+  /** Регистрация без подтверждения почты */
+  skipEmailVerification?: boolean;
+  /** Кнопка VPN в боте ведёт на страницу подписки Remna */
+  useRemnaSubscriptionPage?: boolean;
 }
 
 /** Конфиг страницы подписки (формат как sub.stealthnet.app) */
@@ -1790,4 +1828,6 @@ export interface PublicConfig {
   showSingboxEnabled?: boolean;
   googleAnalyticsId?: string | null;
   yandexMetrikaId?: string | null;
+  skipEmailVerification?: boolean;
+  useRemnaSubscriptionPage?: boolean;
 }

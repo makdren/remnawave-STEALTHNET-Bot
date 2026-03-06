@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { RefreshCw, Download, Upload, Link2, Settings2, Gift, Users, ArrowLeftRight, Mail, MessageCircle, CreditCard, ChevronDown, Copy, Check, Bot, FileJson, Palette, Wallet, Package, Plus, Trash2, KeyRound, Loader2 } from "lucide-react";
+import { RefreshCw, Download, Upload, Link2, Settings2, Gift, Users, ArrowLeftRight, Mail, MessageCircle, CreditCard, ChevronDown, Copy, Check, Bot, FileJson, Palette, Wallet, Package, Plus, Trash2, KeyRound, Loader2, Sparkles } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ACCENT_PALETTES } from "@/contexts/theme";
@@ -413,6 +413,8 @@ export function SettingsPage() {
         smtpPassword: settings.smtpPassword && settings.smtpPassword !== "********" ? settings.smtpPassword : undefined,
         smtpFromEmail: settings.smtpFromEmail ?? null,
         smtpFromName: settings.smtpFromName ?? null,
+        skipEmailVerification: settings.skipEmailVerification ?? false,
+        useRemnaSubscriptionPage: settings.useRemnaSubscriptionPage ?? false,
         publicAppUrl: settings.publicAppUrl ?? null,
         telegramBotToken: settings.telegramBotToken ?? null,
         telegramBotUsername: settings.telegramBotUsername ?? null,
@@ -431,6 +433,12 @@ export function SettingsPage() {
         cryptopayTestnet: settings.cryptopayTestnet ?? false,
         heleketMerchantId: settings.heleketMerchantId ?? null,
         heleketApiKey: settings.heleketApiKey && settings.heleketApiKey !== "********" ? settings.heleketApiKey : undefined,
+        groqApiKey: settings.groqApiKey && settings.groqApiKey !== "********" ? settings.groqApiKey : undefined,
+        groqModel: settings.groqModel ?? undefined,
+        groqFallback1: settings.groqFallback1 ?? undefined,
+        groqFallback2: settings.groqFallback2 ?? undefined,
+        groqFallback3: settings.groqFallback3 ?? undefined,
+        aiSystemPrompt: settings.aiSystemPrompt ?? undefined,
         botButtons: settings.botButtons != null ? JSON.stringify(settings.botButtons) : undefined,
         botButtonsPerRow: settings.botButtonsPerRow ?? 1,
         botEmojis: settings.botEmojis != null ? settings.botEmojis : undefined,
@@ -510,6 +518,10 @@ export function SettingsPage() {
           <TabsTrigger value="bot" className="gap-2 py-3 px-4 rounded-xl">
             <Bot className="h-4 w-4 shrink-0" />
             Бот
+          </TabsTrigger>
+          <TabsTrigger value="ai" className="gap-2 py-3 px-4 rounded-xl">
+            <Sparkles className="h-4 w-4 shrink-0" />
+            AI Чат
           </TabsTrigger>
           <TabsTrigger value="mail-telegram" className="gap-2 py-3 px-4 rounded-xl">
             <Mail className="h-4 w-4 shrink-0" />
@@ -690,7 +702,7 @@ export function SettingsPage() {
                       </Label>
                     </div>
                   )}
-                  <p className="text-xs text-muted-foreground">Фото или GIF в приветственном сообщении Telegram-бота. Если не задан — используется логотип сайта</p>
+                  <p className="text-xs text-muted-foreground">Фото или GIF в приветственном сообщении Telegram-бота. Используется только это изображение; логотип сайта в боте не подставляется</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Favicon</Label>
@@ -1473,6 +1485,44 @@ export function SettingsPage() {
                 </p>
               </CardHeader>
               <CardContent>
+                <div className="p-4 rounded-lg border bg-muted/40 mb-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="useRemnaSubscriptionPage"
+                      checked={settings.useRemnaSubscriptionPage ?? false}
+                      onChange={(e) => setSettings((s) => (s ? { ...s, useRemnaSubscriptionPage: e.target.checked } : s))}
+                      className="rounded border"
+                    />
+                    <Label htmlFor="useRemnaSubscriptionPage" className="cursor-pointer">
+                      Использовать страницу подписки Remna
+                    </Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Если включено — кнопка «Подключиться к VPN» в боте ведёт на страницу подписки из Remna, а не на кабинет.
+                  </p>
+                  <div className="flex items-center gap-2 pt-1">
+                    <Button
+                      type="button"
+                      disabled={saving}
+                      onClick={async () => {
+                        setSaving(true);
+                        setMessage("");
+                        try {
+                          await api.updateSettings(token, { useRemnaSubscriptionPage: settings.useRemnaSubscriptionPage ?? false });
+                          setMessage("Сохранено");
+                        } catch {
+                          setMessage("Ошибка сохранения");
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                    >
+                      {saving ? "Сохранение…" : "Сохранить"}
+                    </Button>
+                    {message && <span className="text-sm text-muted-foreground">{message}</span>}
+                  </div>
+                </div>
                 <SubscriptionPageEditor
                   currentConfigJson={settings?.subscriptionPageConfig ?? null}
                   defaultConfig={defaultSubpageConfig}
@@ -2026,6 +2076,135 @@ export function SettingsPage() {
             </Card>
           </TabsContent>
 
+          <TabsContent value="ai">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5" />
+                  AI Чат (Groq)
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Настройки умного AI-ассистента для встроенного чата поддержки на сайте и в мини-аппе. 
+                  Интеграция работает через API <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" className="text-primary underline">Groq</a>, предоставляющего доступ к открытым моделям (Llama 3, Mixtral) с высочайшей скоростью.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Groq API Key</Label>
+                    <Input
+                      type="password"
+                      value={settings.groqApiKey ?? ""}
+                      onChange={(e) => setSettings((s) => (s ? { ...s, groqApiKey: e.target.value || null } : s))}
+                      placeholder="gsk_..."
+                    />
+                    <p className="text-xs text-muted-foreground">Ключ из консоли Groq. Если не указан, чат будет работать в заглушечном (тестовом) режиме.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Модель (Model)</Label>
+                    <select
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      value={settings.groqModel ?? "llama3-8b-8192"}
+                      onChange={(e) => setSettings((s) => (s ? { ...s, groqModel: e.target.value } : s))}
+                    >
+                      <option value="llama3-8b-8192">llama3-8b-8192</option>
+                      <option value="llama3-70b-8192">llama3-70b-8192</option>
+                      <option value="llama-3.1-8b-instant">llama-3.1-8b-instant</option>
+                      <option value="llama-3.1-70b-versatile">llama-3.1-70b-versatile</option>
+                      <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile</option>
+                      <option value="deepseek-r1-distill-llama-70b">deepseek-r1-distill-llama-70b</option>
+                      <option value="deepseek-r1-distill-qwen-32b">deepseek-r1-distill-qwen-32b</option>
+                      <option value="qwen-2.5-32b">qwen-2.5-32b</option>
+                      <option value="qwen-2.5-coder-32b">qwen-2.5-coder-32b</option>
+                      <option value="llama-3.1-8b-instant">llama-3.1-8b-instant</option>
+                      <option value="llama3-70b-8192">llama3-70b-8192</option>
+                      <option value="llama3-8b-8192">llama3-8b-8192</option>
+                      <option value="mixtral-8x7b-32768">mixtral-8x7b-32768</option>
+                      <option value="gemma2-9b-it">gemma2-9b-it</option>
+                    </select>
+                    <p className="text-xs text-muted-foreground">Выберите модель. Рекомендуется Llama 3.3 70B или DeepSeek R1 70B.</p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Резервные модели (Fallback)</Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    В бесплатном аккаунте Groq жёсткие лимиты (Rate Limits). Если основная модель не ответит из-за превышения лимитов, мы автоматически переключимся на следующую по списку.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <select
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background disabled:opacity-50"
+                      value={settings.groqFallback1 ?? ""}
+                      onChange={(e) => setSettings((s) => (s ? { ...s, groqFallback1: e.target.value || null } : s))}
+                    >
+                      <option value="">-- Без резерва 1 --</option>
+                      <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile</option>
+                      <option value="deepseek-r1-distill-llama-70b">deepseek-r1-distill-llama-70b</option>
+                      <option value="deepseek-r1-distill-qwen-32b">deepseek-r1-distill-qwen-32b</option>
+                      <option value="qwen-2.5-32b">qwen-2.5-32b</option>
+                      <option value="qwen-2.5-coder-32b">qwen-2.5-coder-32b</option>
+                      <option value="llama-3.1-8b-instant">llama-3.1-8b-instant</option>
+                      <option value="llama3-70b-8192">llama3-70b-8192</option>
+                      <option value="llama3-8b-8192">llama3-8b-8192</option>
+                      <option value="mixtral-8x7b-32768">mixtral-8x7b-32768</option>
+                      <option value="gemma2-9b-it">gemma2-9b-it</option>
+                    </select>
+                    <select
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background disabled:opacity-50"
+                      value={settings.groqFallback2 ?? ""}
+                      onChange={(e) => setSettings((s) => (s ? { ...s, groqFallback2: e.target.value || null } : s))}
+                    >
+                      <option value="">-- Без резерва 2 --</option>
+                      <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile</option>
+                      <option value="deepseek-r1-distill-llama-70b">deepseek-r1-distill-llama-70b</option>
+                      <option value="deepseek-r1-distill-qwen-32b">deepseek-r1-distill-qwen-32b</option>
+                      <option value="qwen-2.5-32b">qwen-2.5-32b</option>
+                      <option value="qwen-2.5-coder-32b">qwen-2.5-coder-32b</option>
+                      <option value="llama-3.1-8b-instant">llama-3.1-8b-instant</option>
+                      <option value="llama3-70b-8192">llama3-70b-8192</option>
+                      <option value="llama3-8b-8192">llama3-8b-8192</option>
+                      <option value="mixtral-8x7b-32768">mixtral-8x7b-32768</option>
+                      <option value="gemma2-9b-it">gemma2-9b-it</option>
+                    </select>
+                    <select
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background disabled:opacity-50"
+                      value={settings.groqFallback3 ?? ""}
+                      onChange={(e) => setSettings((s) => (s ? { ...s, groqFallback3: e.target.value || null } : s))}
+                    >
+                      <option value="">-- Без резерва 3 --</option>
+                      <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile</option>
+                      <option value="deepseek-r1-distill-llama-70b">deepseek-r1-distill-llama-70b</option>
+                      <option value="deepseek-r1-distill-qwen-32b">deepseek-r1-distill-qwen-32b</option>
+                      <option value="qwen-2.5-32b">qwen-2.5-32b</option>
+                      <option value="qwen-2.5-coder-32b">qwen-2.5-coder-32b</option>
+                      <option value="llama-3.1-8b-instant">llama-3.1-8b-instant</option>
+                      <option value="llama3-70b-8192">llama3-70b-8192</option>
+                      <option value="llama3-8b-8192">llama3-8b-8192</option>
+                      <option value="mixtral-8x7b-32768">mixtral-8x7b-32768</option>
+                      <option value="gemma2-9b-it">gemma2-9b-it</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Системный промпт (System Prompt)</Label>
+                  <textarea
+                    className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    value={settings.aiSystemPrompt ?? ""}
+                    onChange={(e) => setSettings((s) => (s ? { ...s, aiSystemPrompt: e.target.value } : s))}
+                    placeholder="Ты — лучший менеджер техподдержки VPN-сервиса..."
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Эта инструкция задаёт роль, тон и поведение бота. Опишите здесь, как именно он должен отвечать клиентам.
+                  </p>
+                </div>
+                <div className="pt-2 border-t">
+                  <Button type="submit" disabled={saving} className="min-w-[140px]">
+                    {saving ? "Сохранение…" : "Сохранить"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="mail-telegram">
             <Card>
               <CardHeader>
@@ -2038,6 +2217,21 @@ export function SettingsPage() {
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/40">
+                  <input
+                    type="checkbox"
+                    id="skipEmailVerification"
+                    checked={settings.skipEmailVerification ?? false}
+                    onChange={(e) => setSettings((s) => (s ? { ...s, skipEmailVerification: e.target.checked } : s))}
+                    className="rounded border"
+                  />
+                  <Label htmlFor="skipEmailVerification" className="cursor-pointer">
+                    Регистрация без подтверждения почты
+                  </Label>
+                  <span className="text-xs text-muted-foreground ml-2">
+                    (если включено — пользователь регистрируется сразу, письмо не отправляется)
+                  </span>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Хост SMTP</Label>

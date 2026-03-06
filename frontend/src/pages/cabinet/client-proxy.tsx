@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import { Globe, Calendar, CreditCard, Loader2, Copy, Check, ChevronDown } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Globe, Calendar, CreditCard, Loader2, Copy, Check, ChevronDown, Wallet, Shield, Zap, ArrowLeft } from "lucide-react";
 import { useClientAuth } from "@/contexts/client-auth";
 import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,15 +10,16 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogFooter
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCabinetMiniapp } from "@/pages/cabinet/cabinet-layout";
 import { openPaymentInBrowser } from "@/lib/open-payment-url";
+import { cn } from "@/lib/utils";
 
-type ProxyTariff = { id: string; name: string; proxyCount: number; durationDays: number; price: number; currency: string };
+type ProxyTariff = { id: string; name: string; description?: string; proxyCount: number; durationDays: number; price: number; currency: string };
 type ProxyCategory = { id: string; name: string; sortOrder: number; tariffs: ProxyTariff[] };
 type ProxySlot = {
   id: string;
@@ -101,7 +102,7 @@ export function ClientProxyPage() {
       setYookassaEnabled(Boolean(c.yookassaEnabled));
       setCryptopayEnabled(Boolean(c.cryptopayEnabled));
       setHeleketEnabled(Boolean(c.heleketEnabled));
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -243,278 +244,568 @@ export function ClientProxyPage() {
     }
   }
 
+  const closePayment = () => {
+    setPayModal(null);
+    setPayError(null);
+  };
+
+  const PaymentContent = () => {
+    if (!payModal) return null;
+    const hasBalance = client ? client.balance >= payModal.price : false;
+
+    return (
+      <div className="space-y-6">
+        <div className={cn("rounded-2xl relative overflow-hidden", isMobileOrMiniapp ? "bg-card/40 border border-white/5 p-5" : "bg-background/50 border border-border/50 p-4")}>
+          <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+          <div className="flex justify-between items-start gap-4 relative z-10">
+            <div className="space-y-1.5">
+              <p className={cn("font-medium", isMobileOrMiniapp ? "text-sm text-muted-foreground" : "text-muted-foreground")}>
+                {isMobileOrMiniapp ? "Итого к оплате" : "Тариф:"}
+              </p>
+              {!isMobileOrMiniapp && <p className="font-bold text-foreground">{payModal.name}</p>}
+              {isMobileOrMiniapp && (
+                <span className="text-3xl font-black text-primary">{formatMoney(payModal.price, payModal.currency)}</span>
+              )}
+            </div>
+            {!isMobileOrMiniapp && (
+              <div className="text-right">
+                <span className="font-bold text-xl text-primary">{formatMoney(payModal.price, payModal.currency)}</span>
+              </div>
+            )}
+          </div>
+          
+          {isMobileOrMiniapp && (
+            <div className="mt-4 pt-4 border-t border-white/5 grid grid-cols-2 gap-3 relative z-10">
+              <div className="bg-background/40 rounded-2xl p-3 border border-white/5">
+                <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider mb-1">Прокси</p>
+                <div className="flex items-center gap-1.5 font-bold text-sm">
+                  <Globe className="h-4 w-4 text-primary" />
+                  {payModal.proxyCount} шт.
+                </div>
+              </div>
+              <div className="bg-background/40 rounded-2xl p-3 border border-white/5">
+                <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider mb-1">Срок</p>
+                <div className="flex items-center gap-1.5 font-bold text-sm">
+                  <Calendar className="h-4 w-4 text-primary" />
+                  {payModal.durationDays} дн.
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className={cn("space-y-3", isMobileOrMiniapp ? "pb-6" : "")}>
+          <div className="flex items-center gap-2 pt-2 pb-1">
+            <Wallet className={cn("text-primary", isMobileOrMiniapp ? "h-5 w-5" : "h-4 w-4")} />
+            <span className={cn("font-bold", isMobileOrMiniapp ? "text-lg" : "text-sm")}>Способ оплаты</span>
+          </div>
+
+          {payError && (
+            <div className={cn("p-4 bg-destructive/10 border border-destructive/20 text-destructive text-center font-bold", isMobileOrMiniapp ? "rounded-2xl text-sm" : "rounded-xl text-sm mb-4")}>
+              {payError}
+            </div>
+          )}
+
+          <div className="space-y-3">
+            {client && (
+              <Button
+                size="lg"
+                onClick={() => payByBalance(payModal)}
+                disabled={payLoading || !hasBalance}
+                className={cn("w-full shadow-lg border-0 group relative overflow-hidden", isMobileOrMiniapp ? "justify-between px-6 h-16 rounded-2xl bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400" : "gap-2 h-14 rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300")}
+              >
+                {!isMobileOrMiniapp && <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />}
+                
+                {isMobileOrMiniapp ? (
+                  <>
+                    <div className="flex items-center gap-3">
+                      {payLoading ? <Loader2 className="h-6 w-6 text-white animate-spin" /> : <Wallet className="h-6 w-6 text-white" />}
+                      <span className="text-base font-bold text-white">Оплатить с баланса</span>
+                    </div>
+                    <span className="text-white/80 font-mono font-medium bg-black/20 px-2 py-1 rounded-lg">
+                      {formatMoney(client.balance, payModal.currency)}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    {payLoading ? <Loader2 className="h-5 w-5 animate-spin relative z-10" /> : <Wallet className="h-5 w-5 relative z-10" />}
+                    <span className="text-base font-semibold relative z-10">Оплатить с баланса</span>
+                    <span className="opacity-90 font-medium ml-1 bg-black/10 px-2 py-0.5 rounded-md relative z-10">
+                      ({formatMoney(client.balance, payModal.currency)})
+                    </span>
+                  </>
+                )}
+              </Button>
+            )}
+
+            {cryptopayEnabled && (
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => startCryptopayPayment(payModal)}
+                disabled={payLoading}
+                className={cn("w-full", isMobileOrMiniapp ? "justify-start gap-4 px-6 h-16 rounded-2xl border-white/5 bg-card/40 hover:bg-card/60" : "gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative")}
+              >
+                {isMobileOrMiniapp ? (
+                  <>
+                    <div className="p-2 rounded-xl bg-yellow-500/10">
+                      {payLoading ? <Loader2 className="h-6 w-6 animate-spin text-yellow-500" /> : <Zap className="h-6 w-6 text-yellow-500" />}
+                    </div>
+                    <span className="text-base font-bold">Crypto Bot</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="absolute left-6 p-1.5 rounded-lg bg-yellow-500/10 group-hover:bg-yellow-500/20 transition-colors">
+                      {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-yellow-500" /> : <Zap className="h-5 w-5 text-yellow-500" />}
+                    </div>
+                    <span className="text-base font-medium">⚡ Crypto Bot (Криптовалюта)</span>
+                  </>
+                )}
+              </Button>
+            )}
+
+            {heleketEnabled && (
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => startHeleketPayment(payModal)}
+                disabled={payLoading}
+                className={cn("w-full", isMobileOrMiniapp ? "justify-start gap-4 px-6 h-16 rounded-2xl border-white/5 bg-card/40 hover:bg-card/60" : "gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative")}
+              >
+                {isMobileOrMiniapp ? (
+                  <>
+                    <div className="p-2 rounded-xl bg-orange-500/10">
+                      {payLoading ? <Loader2 className="h-6 w-6 animate-spin text-orange-500" /> : <Zap className="h-6 w-6 text-orange-500" />}
+                    </div>
+                    <span className="text-base font-bold">Heleket</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="absolute left-6 p-1.5 rounded-lg bg-orange-500/10 group-hover:bg-orange-500/20 transition-colors">
+                      {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-orange-500" /> : <Zap className="h-5 w-5 text-orange-500" />}
+                    </div>
+                    <span className="text-base font-medium">⚡ Heleket (Криптовалюта)</span>
+                  </>
+                )}
+              </Button>
+            )}
+
+            {yookassaEnabled && payModal.currency.toUpperCase() === "RUB" && (
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => startYookassaPayment(payModal)}
+                disabled={payLoading}
+                className={cn("w-full", isMobileOrMiniapp ? "justify-start gap-4 px-6 h-16 rounded-2xl border-white/5 bg-card/40 hover:bg-card/60" : "gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative")}
+              >
+                 {isMobileOrMiniapp ? (
+                  <>
+                    <div className="p-2 rounded-xl bg-green-500/10">
+                      {payLoading ? <Loader2 className="h-6 w-6 animate-spin text-green-500" /> : <CreditCard className="h-6 w-6 text-green-500" />}
+                    </div>
+                    <span className="text-base font-bold">СБП / Карты РФ</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="absolute left-6 p-1.5 rounded-lg bg-green-500/10 group-hover:bg-green-500/20 transition-colors">
+                      {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-green-500" /> : <CreditCard className="h-5 w-5 text-green-500" />}
+                    </div>
+                    <span className="text-base font-medium">💳 СБП</span>
+                  </>
+                )}
+              </Button>
+            )}
+
+            {yoomoneyEnabled && payModal.currency.toUpperCase() === "RUB" && (
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => startYoomoneyPayment(payModal)}
+                disabled={payLoading}
+                className={cn("w-full", isMobileOrMiniapp ? "justify-start gap-4 px-6 h-16 rounded-2xl border-white/5 bg-card/40 hover:bg-card/60" : "gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative")}
+              >
+                 {isMobileOrMiniapp ? (
+                  <>
+                    <div className="p-2 rounded-xl bg-green-500/10">
+                      {payLoading ? <Loader2 className="h-6 w-6 animate-spin text-green-500" /> : <CreditCard className="h-6 w-6 text-green-500" />}
+                    </div>
+                    <span className="text-base font-bold">ЮMoney / Карты</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="absolute left-6 p-1.5 rounded-lg bg-green-500/10 group-hover:bg-green-500/20 transition-colors">
+                      {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-green-500" /> : <CreditCard className="h-5 w-5 text-green-500" />}
+                    </div>
+                    <span className="text-base font-medium">💳 Карты</span>
+                  </>
+                )}
+              </Button>
+            )}
+
+            {plategaMethods.map((m) => (
+              <Button
+                key={m.id}
+                size="lg"
+                variant="outline"
+                onClick={() => startPlategaPayment(payModal, m.id)}
+                disabled={payLoading}
+                className={cn("w-full", isMobileOrMiniapp ? "justify-start gap-4 px-6 h-16 rounded-2xl border-white/5 bg-card/40 hover:bg-card/60" : "gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative")}
+              >
+                {isMobileOrMiniapp ? (
+                  <>
+                    <div className="p-2 rounded-xl bg-green-500/10">
+                      {payLoading ? <Loader2 className="h-6 w-6 animate-spin text-green-500" /> : <CreditCard className="h-6 w-6 text-green-500" />}
+                    </div>
+                    <span className="text-base font-bold">{m.label}</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="absolute left-6 p-1.5 rounded-lg bg-green-500/10 group-hover:bg-green-500/20 transition-colors">
+                      {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-green-500" /> : <CreditCard className="h-5 w-5 text-green-500" />}
+                    </div>
+                    <span className="text-base font-medium">💳 {m.label}</span>
+                  </>
+                )}
+              </Button>
+            ))}
+          </div>
+          {isMobileOrMiniapp && <div className="h-8" />}
+        </div>
+      </div>
+    );
+  };
+
   const flatTariffs = categories.flatMap((c) => c.tariffs.map((t) => ({ ...t, categoryName: c.name })));
 
   return (
-    <div className="space-y-6 w-full min-w-0 overflow-hidden">
-      <div className="min-w-0">
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight truncate">Прокси</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Покупка прокси и управление активными слотами.
-        </p>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="tariffs" className="gap-2">
-            <Globe className="h-4 w-4" /> Купить
-          </TabsTrigger>
-          <TabsTrigger value="my" className="gap-2">
-            Мои прокси
-            {slots.length > 0 && (
-              <span className="rounded-full bg-primary/20 px-1.5 py-0.5 text-xs font-medium">
-                {slots.length}
-              </span>
-            )}
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="tariffs" className="mt-4">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : flatTariffs.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center text-muted-foreground">
-                Тарифы прокси пока не настроены. Обратитесь в поддержку.
-              </CardContent>
-            </Card>
-          ) : isMobileOrMiniapp ? (
-            <div className="space-y-1">
-              {categories.filter((c) => c.tariffs.length > 0).map((cat, catIndex) => (
-                <Collapsible
-                  key={cat.id}
-                  open={expandedCategoryId === cat.id}
-                  onOpenChange={(open) => setExpandedCategoryId(open ? cat.id : null)}
+    <div className="space-y-8 max-w-6xl mx-auto">
+      <AnimatePresence mode="wait">
+        {isMobileOrMiniapp && payModal ? (
+          <motion.div
+            key="payment-view"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2 }}
+            className="flex flex-col w-full rounded-[2.5rem] border border-white/10 dark:border-white/5 bg-slate-50/60 dark:bg-slate-950/60 backdrop-blur-[32px] shadow-2xl relative"
+          >
+            <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-border/50 bg-background/30 backdrop-blur-md z-10 transition-colors rounded-t-[2.5rem]">
+              <div className="flex items-center gap-3 min-w-0">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="shrink-0 h-9 w-9 rounded-full bg-background/50 hover:bg-background/80 transition-transform hover:scale-105" 
+                  onClick={closePayment}
                 >
-                  <motion.div
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.25, delay: catIndex * 0.03 }}
-                    className="rounded-xl border bg-card overflow-hidden"
-                  >
-                    <CollapsibleTrigger asChild>
-                      <button
-                        type="button"
-                        className="w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left hover:bg-muted/50 active:bg-muted transition-colors"
-                      >
-                        <span className="flex items-center gap-2 font-semibold">
-                          <Globe className="h-4 w-4 text-primary shrink-0" />
-                          {cat.name}
-                        </span>
-                        <ChevronDown
-                          className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 ${expandedCategoryId === cat.id ? "rotate-180" : ""}`}
-                        />
-                      </button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <div className="px-2 pb-3 pt-1 flex flex-col gap-2">
-                        {cat.tariffs.map((t) => (
-                          <Card key={t.id} className="overflow-hidden">
-                            <CardContent className="flex flex-row items-center gap-3 py-2.5 px-3 min-h-0 min-w-0">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold leading-tight truncate">{t.name}</p>
-                                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0 text-xs text-muted-foreground">
-                                  <span className="flex items-center gap-1">
-                                    <Globe className="h-3 w-3 shrink-0 opacity-70" />
-                                    {t.proxyCount} прокси
-                                  </span>
-                                  <span className="flex items-center gap-1">
-                                    <Calendar className="h-3 w-3 shrink-0 opacity-70" />
-                                    {t.durationDays} дн.
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="flex flex-col items-center gap-1 shrink-0">
-                                <span className="text-sm font-semibold tabular-nums whitespace-nowrap">
-                                  {formatMoney(t.price, t.currency)}
-                                </span>
-                                {token ? (
-                                  <Button
-                                    size="sm"
-                                    className="h-7 px-2.5 text-xs gap-1 w-full"
-                                    onClick={() => setPayModal(t)}
-                                  >
-                                    <CreditCard className="h-3 w-3 shrink-0" />
-                                    Оплатить
-                                  </Button>
-                                ) : null}
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    </CollapsibleContent>
-                  </motion.div>
-                </Collapsible>
-              ))}
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-sm sm:text-base font-bold truncate text-foreground">Оплата прокси</h2>
+                  <p className="text-[11px] font-medium text-muted-foreground truncate">{payModal.name}</p>
+                </div>
+              </div>
             </div>
-          ) : (
-            <div className="space-y-8">
-              {categories.filter((c) => c.tariffs.length > 0).map((cat, catIndex) => (
-                <motion.section
-                  key={cat.id}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: catIndex * 0.05 }}
-                >
-                  <h2 className="text-base font-semibold mb-3 flex items-center gap-2">
-                    <Globe className="h-4 w-4 text-primary shrink-0" />
-                    {cat.name}
-                  </h2>
-                  <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
-                    {cat.tariffs.map((t) => (
-                      <Card key={t.id} className="flex flex-col overflow-hidden">
-                        <CardContent className="flex-1 flex flex-col p-4 min-h-0 min-w-0 overflow-hidden">
-                          <p className="text-sm font-semibold leading-tight line-clamp-2">{t.name}</p>
-                          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                            <span>{t.proxyCount} прокси</span>
-                            <span>{t.durationDays} дн.</span>
-                          </div>
-                          <div className="mt-auto pt-3 border-t flex items-center justify-between gap-2">
-                            <span className="text-sm sm:text-base font-semibold tabular-nums truncate">
-                              {formatMoney(t.price, t.currency)}
-                            </span>
-                            {token ? (
-                              <Button size="sm" className="h-6 px-2.5 text-xs shrink-0" onClick={() => setPayModal(t)}>
-                                Оплатить
-                              </Button>
-                            ) : null}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+
+            <div className="p-4 sm:p-6 pb-8">
+               <PaymentContent />
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="content-view"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500"
+          >
+            <div className="relative overflow-hidden rounded-3xl bg-card/40 backdrop-blur-2xl border border-border/50 p-8 sm:p-10 shadow-xl">
+              <div className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 rounded-full bg-primary/20 blur-[80px] pointer-events-none" />
+              <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
+                <div className="flex-1">
+                  <h1 className="text-3xl font-bold tracking-tight sm:text-4xl text-foreground flex items-center gap-3">
+                    <Globe className="h-8 w-8 text-primary" />
+                    Прокси
+                  </h1>
+                  <p className="mt-3 text-[16px] text-muted-foreground max-w-xl leading-relaxed">
+                    Купите персональные прокси для безопасного и анонимного серфинга в интернете. SOCKS5 и HTTP прокси с высокой скоростью и низким пингом.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full max-w-md grid-cols-2 rounded-2xl p-1 bg-muted/50 backdrop-blur-md">
+                <TabsTrigger value="tariffs" className="gap-2 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                  <Globe className="h-4 w-4" /> Купить
+                </TabsTrigger>
+                <TabsTrigger value="my" className="gap-2 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                  Мои прокси
+                  {slots.length > 0 && (
+                    <span className="rounded-full bg-primary/20 px-1.5 py-0.5 text-xs font-medium">
+                      {slots.length}
+                    </span>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="tariffs" className="mt-4">
+                {loading ? (
+                  <div className="flex items-center justify-center py-16">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                   </div>
-                </motion.section>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="my" className="mt-4">
-          {slotsLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : slots.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center text-muted-foreground">
-                У вас пока нет активных прокси. Купите тариф во вкладке «Купить».
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-4">
-              {slots.map((slot) => {
-                const socks5 = `socks5://${slot.login}:${slot.password}@${slot.host}:${slot.socksPort}`;
-                const http = `http://${slot.login}:${slot.password}@${slot.host}:${slot.httpPort}`;
-                const socks5Id = `socks5-${slot.id}`;
-                const httpId = `http-${slot.id}`;
-                return (
-                  <Card key={slot.id} className="overflow-hidden">
-                    <CardContent className="p-4 space-y-3">
-                      <div className="flex items-center justify-between gap-2 text-sm">
-                        <span className="font-medium">Прокси {slot.id.slice(0, 8)}…</span>
-                        <span className="text-muted-foreground">до {formatDate(slot.expiresAt)}</span>
-                      </div>
-                      {slot.trafficLimitBytes && Number(slot.trafficLimitBytes) > 0 && (
-                        <p className="text-xs text-muted-foreground">
-                          Трафик: {formatBytes(slot.trafficUsedBytes)} / {formatBytes(slot.trafficLimitBytes)}
-                        </p>
-                      )}
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <code className="flex-1 truncate text-xs bg-muted px-2 py-1 rounded font-mono">
-                            {socks5}
-                          </code>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="shrink-0 h-7 px-2"
-                            onClick={() => copyToClipboard(socks5, socks5Id)}
-                          >
-                            {copied === socks5Id ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
-                          </Button>
-                        </div>
-                        <div className="flex items-center gap-2 min-w-0">
-                          <code className="flex-1 truncate text-xs bg-muted px-2 py-1 rounded font-mono">
-                            {http}
-                          </code>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="shrink-0 h-7 px-2"
-                            onClick={() => copyToClipboard(http, httpId)}
-                          >
-                            {copied === httpId ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
-                          </Button>
-                        </div>
-                      </div>
+                ) : flatTariffs.length === 0 ? (
+                  <Card className="rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl shadow-sm">
+                    <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-4">
+                      <Globe className="h-12 w-12 opacity-20" />
+                      <p>Тарифы прокси пока не настроены. Обратитесь в поддержку.</p>
                     </CardContent>
                   </Card>
-                );
-              })}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+                ) : isMobileOrMiniapp ? (
+                  <div className="space-y-3">
+                    {categories.filter((c) => c.tariffs.length > 0).map((cat, catIndex) => (
+                      <Collapsible
+                        key={cat.id}
+                        open={expandedCategoryId === cat.id}
+                        onOpenChange={(open) => setExpandedCategoryId(open ? cat.id : null)}
+                      >
+                        <motion.div
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.25, delay: catIndex * 0.03 }}
+                          className="rounded-2xl border border-border/50 bg-card/40 backdrop-blur-md shadow-sm overflow-hidden"
+                        >
+                          <CollapsibleTrigger asChild>
+                            <button
+                              type="button"
+                              className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left hover:bg-muted/50 active:bg-muted transition-colors"
+                            >
+                              <span className="flex items-center gap-2 font-semibold">
+                                <Globe className="h-4 w-4 text-primary shrink-0" />
+                                {cat.name}
+                              </span>
+                              <ChevronDown
+                                className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 ${expandedCategoryId === cat.id ? "rotate-180" : ""}`}
+                              />
+                            </button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <div className="px-3 pb-3 pt-1 flex flex-col gap-3">
+                              {cat.tariffs.map((t) => (
+                                <Card key={t.id} className="rounded-2xl border border-border/50 bg-background/50 backdrop-blur-md shadow-sm hover:shadow-md transition-all duration-300">
+                                  <CardContent className="flex flex-row items-center gap-4 py-4 px-4 min-h-0 min-w-0">
+                                    <div className="flex-1 min-w-0 space-y-1.5">
+                                      <p className="text-[15px] font-bold leading-tight truncate text-foreground">{t.name}</p>
+                                      {t.description?.trim() ? (
+                                        <p className="text-xs text-muted-foreground font-medium line-clamp-2">{t.description}</p>
+                                      ) : null}
+                                      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                                        <span className="flex items-center gap-1.5 bg-background/50 px-2 py-1 rounded-md border border-border/50">
+                                          <Calendar className="h-3 w-3 text-primary" />
+                                          {t.durationDays} дн.
+                                        </span>
+                                        <span className="flex items-center gap-1.5 bg-background/50 px-2 py-1 rounded-md border border-border/50">
+                                          <Globe className="h-3 w-3 text-primary" />
+                                          {t.proxyCount} шт.
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-col items-center justify-center gap-2.5 shrink-0 min-w-[90px]">
+                                      <span className="text-lg font-bold tabular-nums whitespace-nowrap text-foreground" title={formatMoney(t.price, t.currency)}>
+                                        {formatMoney(t.price, t.currency)}
+                                      </span>
+                                      {token ? (
+                                        <Button
+                                          size="sm"
+                                          className="w-full h-9 rounded-xl shadow-md text-xs font-semibold gap-1.5 hover:scale-105 transition-transform"
+                                          onClick={() => setPayModal(t)}
+                                        >
+                                          <CreditCard className="h-3.5 w-3.5 shrink-0" />
+                                          Оплатить
+                                        </Button>
+                                      ) : null}
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              ))}
+                            </div>
+                          </CollapsibleContent>
+                        </motion.div>
+                      </Collapsible>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-10">
+                    {categories.filter((c) => c.tariffs.length > 0).map((cat, catIndex) => (
+                      <motion.section
+                        key={cat.id}
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: catIndex * 0.05 }}
+                      >
+                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                          <Globe className="h-5 w-5 text-primary shrink-0" />
+                          {cat.name}
+                        </h2>
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                          {cat.tariffs.map((t) => (
+                            <Card key={t.id} className="rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col group hover:-translate-y-1">
+                              <CardContent className="flex-1 flex flex-col p-5 min-h-0 min-w-0">
+                                <div className="mb-4">
+                                  <p className="text-lg font-bold leading-tight line-clamp-2 text-foreground group-hover:text-primary transition-colors">{t.name}</p>
+                                  {t.description?.trim() ? (
+                                    <p className="text-sm text-muted-foreground font-medium mt-1.5 line-clamp-2">{t.description}</p>
+                                  ) : null}
+                                </div>
 
-      <Dialog open={!!payModal} onOpenChange={(open) => { if (!open && !payLoading) { setPayModal(null); setPayError(null); } }}>
-        <DialogContent className="max-w-sm" showCloseButton={!payLoading}>
-          <DialogHeader>
-            <DialogTitle>Способ оплаты</DialogTitle>
-            <DialogDescription>
-              {payModal ? `${payModal.name} — ${formatMoney(payModal.price, payModal.currency)}` : ""}
-            </DialogDescription>
-          </DialogHeader>
-          {payModal && (
-            <div className="flex flex-col gap-2 py-2">
-              {client && client.balance >= payModal.price && (
-                <Button
-                  variant="default"
-                  className="justify-start gap-2"
-                  disabled={payLoading}
-                  onClick={() => payByBalance(payModal)}
-                >
-                  {payLoading ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : null}
-                  Оплатить балансом ({formatMoney(client.balance, payModal.currency)})
-                </Button>
-              )}
-              {yoomoneyEnabled && payModal.currency.toUpperCase() === "RUB" && (
-                <Button variant="outline" className="justify-start gap-2" disabled={payLoading} onClick={() => startYoomoneyPayment(payModal)}>
-                  ЮMoney — карта
-                </Button>
-              )}
-              {yookassaEnabled && payModal.currency.toUpperCase() === "RUB" && (
-                <Button variant="outline" className="justify-start gap-2" disabled={payLoading} onClick={() => startYookassaPayment(payModal)}>
-                  ЮKassa — карта / СБП
-                </Button>
-              )}
-              {cryptopayEnabled && (
-                <Button variant="outline" className="justify-start gap-2" disabled={payLoading} onClick={() => startCryptopayPayment(payModal)}>
-                  Crypto Bot — криптовалюта
-                </Button>
-              )}
-              {heleketEnabled && (
-                <Button variant="outline" className="justify-start gap-2" disabled={payLoading} onClick={() => startHeleketPayment(payModal)}>
-                  Heleket — криптовалюта
-                </Button>
-              )}
-              {plategaMethods.map((m) => (
-                <Button key={m.id} variant="outline" disabled={payLoading} onClick={() => startPlategaPayment(payModal, m.id)}>
-                  {m.label}
-                </Button>
-              ))}
-            </div>
-          )}
-          {payError && <p className="text-sm text-destructive">{payError}</p>}
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => { setPayModal(null); setPayError(null); }} disabled={payLoading}>
-              Отмена
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+                                <div className="flex flex-col gap-2.5 mt-auto mb-5 text-sm font-semibold text-muted-foreground">
+                                  <div className="flex items-center gap-3 bg-background/50 px-3 py-2 rounded-xl border border-border/50">
+                                    <div className="bg-primary/20 p-1.5 rounded-lg text-primary">
+                                      <Calendar className="h-4 w-4 shrink-0" />
+                                    </div>
+                                    <span>{t.durationDays} дней</span>
+                                  </div>
+                                  <div className="flex items-center gap-3 bg-background/50 px-3 py-2 rounded-xl border border-border/50">
+                                    <div className="bg-primary/20 p-1.5 rounded-lg text-primary">
+                                      <Globe className="h-4 w-4 shrink-0" />
+                                    </div>
+                                    <span>{t.proxyCount} прокси</span>
+                                  </div>
+                                </div>
+
+                                <div className="pt-4 border-t border-border/50 mt-auto flex flex-col gap-3 min-w-0">
+                                  <span className="text-2xl font-black tabular-nums truncate min-w-0 text-foreground text-center" title={formatMoney(t.price, t.currency)}>
+                                    {formatMoney(t.price, t.currency)}
+                                  </span>
+                                  {token ? (
+                                    <Button
+                                      size="lg"
+                                      className="w-full h-12 rounded-xl shadow-md text-[15px] font-bold gap-2 hover:scale-[1.02] transition-transform"
+                                      onClick={() => setPayModal(t)}
+                                    >
+                                      <CreditCard className="h-5 w-5 shrink-0" />
+                                      Оплатить
+                                    </Button>
+                                  ) : null}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </motion.section>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="my" className="mt-4">
+                {slotsLoading ? (
+                  <div className="flex items-center justify-center py-16">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : slots.length === 0 ? (
+                  <Card className="rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl shadow-sm">
+                    <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-4">
+                      <Globe className="h-12 w-12 opacity-20" />
+                      <p>У вас пока нет активных прокси. Купите тариф во вкладке «Купить».</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {slots.map((slot) => {
+                      const socks5 = `socks5://${slot.login}:${slot.password}@${slot.host}:${slot.socksPort}`;
+                      const http = `http://${slot.login}:${slot.password}@${slot.host}:${slot.httpPort}`;
+                      const socks5Id = `socks5-${slot.id}`;
+                      const httpId = `http-${slot.id}`;
+                      return (
+                        <Card key={slot.id} className="rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
+                          <CardContent className="p-5 space-y-4">
+                            <div className="flex items-start justify-between gap-2 border-b border-border/50 pb-4">
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 bg-primary/20 rounded-xl text-primary group-hover:scale-110 transition-transform">
+                                  <Globe className="h-5 w-5" />
+                                </div>
+                                <div>
+                                  <h3 className="font-semibold text-foreground">Прокси {slot.id.slice(0, 8)}…</h3>
+                                  {slot.trafficLimitBytes && Number(slot.trafficLimitBytes) > 0 ? (
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                      Трафик: {formatBytes(slot.trafficUsedBytes)} / {formatBytes(slot.trafficLimitBytes)}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              </div>
+                              <div className="flex flex-col items-end text-sm shrink-0">
+                                <span className="text-xs text-muted-foreground">Действует до</span>
+                                <span className="font-medium text-foreground">{formatDate(slot.expiresAt)}</span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2 min-w-0 bg-background/50 p-2 rounded-2xl border border-border/50">
+                                <div className="pl-2 font-semibold text-xs text-muted-foreground w-14 shrink-0">SOCKS5</div>
+                                <code className="flex-1 truncate text-xs font-mono select-all text-foreground">
+                                  {socks5}
+                                </code>
+                                <Button
+                                  variant="secondary"
+                                  size="icon"
+                                  className="shrink-0 h-8 w-8 rounded-xl bg-background hover:bg-muted shadow-sm hover:scale-105 transition-transform"
+                                  onClick={() => copyToClipboard(socks5, socks5Id)}
+                                >
+                                  {copied === socks5Id ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                                </Button>
+                              </div>
+
+                              <div className="flex items-center gap-2 min-w-0 bg-background/50 p-2 rounded-2xl border border-border/50">
+                                <div className="pl-2 font-semibold text-xs text-muted-foreground w-14 shrink-0">HTTP</div>
+                                <code className="flex-1 truncate text-xs font-mono select-all text-foreground">
+                                  {http}
+                                </code>
+                                <Button
+                                  variant="secondary"
+                                  size="icon"
+                                  className="shrink-0 h-8 w-8 rounded-xl bg-background hover:bg-muted shadow-sm hover:scale-105 transition-transform"
+                                  onClick={() => copyToClipboard(http, httpId)}
+                                >
+                                  {copied === httpId ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                                </Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {!isMobileOrMiniapp && (
+        <Dialog open={!!payModal} onOpenChange={(open) => { if (!open && !payLoading) closePayment(); }}>
+          <DialogContent className="w-full max-w-md mx-auto sm:rounded-3xl p-5 sm:p-6 border border-border/50 bg-card/60 backdrop-blur-3xl shadow-2xl" showCloseButton={!payLoading} onOpenAutoFocus={(e) => e.preventDefault()}>
+            <DialogHeader className="mb-4 text-center sm:text-left">
+              <DialogTitle className="text-2xl font-bold flex items-center justify-center sm:justify-start gap-2">
+                <div className="p-2 bg-primary/10 rounded-xl">
+                  <Shield className="h-6 w-6 text-primary" />
+                </div>
+                Оплата прокси
+              </DialogTitle>
+              <DialogDescription className="hidden" />
+            </DialogHeader>
+
+            <PaymentContent />
+
+            <DialogFooter className="mt-4 sm:justify-center border-t border-border/50 pt-4">
+              <Button variant="ghost" onClick={closePayment} disabled={payLoading} className="rounded-xl hover:bg-background/50 hover:text-foreground text-muted-foreground transition-colors">
+                Отмена
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

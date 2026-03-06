@@ -18,7 +18,6 @@ import {
   Loader2,
   Users,
   
-  Tag,
   AlertCircle,
   Zap
 } from "lucide-react";
@@ -293,44 +292,54 @@ export function ClientDashboardPage() {
               </div>
 
               <div className="space-y-3 border-t border-border/50 pt-4 mt-2">
-                {subParsed.expireAt && (
-                  <div className="flex items-center gap-3 min-w-0 bg-background/30 p-2.5 rounded-xl border border-border/50">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                      <Calendar className="h-5 w-5" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[11px] uppercase tracking-wider text-muted-foreground">До окончания</p>
-                      <p className="text-[15px] font-semibold truncate text-foreground">{formatDate(subParsed.expireAt)}</p>
-                    </div>
-                  </div>
-                )}
-                {(tariffDisplayName ?? subParsed.productName) && (
-                  <div className="flex items-center gap-3 min-w-0 bg-background/30 p-2.5 rounded-xl border border-border/50">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                {((tariffDisplayName ?? subParsed.productName) || client?.trialUsed) && (
+                  <div className="flex items-center gap-4 bg-background/40 p-3.5 rounded-2xl border border-border/50 transition-colors hover:bg-background/60 shadow-sm">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                       <Package className="h-5 w-5" />
-                    </span>
+                    </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Тариф</p>
-                      <p className="text-[15px] font-semibold truncate text-foreground" title={tariffDisplayName ?? subParsed.productName ?? ""}>{tariffDisplayName ?? subParsed.productName ?? ""}</p>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Тариф</p>
+                      <p className="text-[14px] font-semibold truncate text-foreground" title={((tariffDisplayName ?? subParsed.productName?.trim() ?? "").trim()) || "Триал"}>
+                        {((tariffDisplayName ?? subParsed.productName?.trim() ?? "").trim()) || "Триал"}
+                      </p>
                     </div>
                   </div>
                 )}
-                <div className="flex items-center gap-3 min-w-0 bg-background/30 p-2.5 rounded-xl border border-border/50">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <Wifi className="h-5 w-5" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Трафик</p>
-                    <p className="text-[15px] font-semibold truncate text-foreground">
-                      {subParsed.trafficLimitBytes != null && subParsed.trafficLimitBytes > 0
-                        ? subParsed.trafficUsed != null
-                          ? `${formatBytes(subParsed.trafficUsed)} из ${formatBytes(subParsed.trafficLimitBytes)}`
-                          : `Лимит ${formatBytes(subParsed.trafficLimitBytes)}`
-                        : subParsed.trafficUsed != null
-                          ? `Использовано ${formatBytes(subParsed.trafficUsed)}`
-                          : "Без лимита"}
-                    </p>
+                {subParsed.expireAt && (
+                  <div className="flex items-center gap-4 bg-background/40 p-3.5 rounded-2xl border border-border/50 transition-colors hover:bg-background/60 shadow-sm">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <Calendar className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Действует до</p>
+                      <p className="text-[14px] font-semibold text-foreground">
+                        {formatDate(subParsed.expireAt)}
+                      </p>
+                    </div>
                   </div>
+                )}
+                <div className="bg-background/40 p-3.5 rounded-2xl border border-border/50 space-y-3 transition-colors hover:bg-background/60 shadow-sm">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <Wifi className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Трафик</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[14px] font-semibold text-foreground">
+                          {subParsed.trafficLimitBytes != null && subParsed.trafficLimitBytes > 0
+                            ? `${formatBytes(subParsed.trafficUsed ?? 0)} / ${formatBytes(subParsed.trafficLimitBytes)}`
+                            : "Безлимит"}
+                        </p>
+                        {trafficPercent != null && <span className="text-[12px] font-bold text-muted-foreground">{trafficPercent}%</span>}
+                      </div>
+                    </div>
+                  </div>
+                  {trafficPercent != null && (
+                    <div className="h-2 w-full rounded-full bg-muted/30 overflow-hidden">
+                      <div className="h-full rounded-full bg-primary transition-all duration-500 ease-in-out" style={{ width: `${trafficPercent}%` }} />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -509,32 +518,58 @@ export function ClientDashboardPage() {
                     <span className="h-1.5 w-1.5 rounded-full bg-current" />
                     Активна
                   </span>
+                  {daysLeft != null && (
+                    <span className="text-sm font-semibold text-foreground bg-foreground/5 px-3 py-1.5 rounded-full border border-border/50 shadow-sm">
+                      Осталось {daysLeft} {daysLeft === 1 ? "день" : daysLeft < 5 ? "дня" : "дней"}
+                    </span>
+                  )}
                 </div>
                 {((tariffDisplayName ?? subParsed.productName) || client?.trialUsed) && (
-                  <div className="flex items-center gap-3 text-[15px] font-medium text-foreground bg-background/40 p-3.5 rounded-xl border border-border/50">
-                    <Tag className="h-5 w-5 shrink-0 text-primary" />
-                    <span className="truncate">Тариф: {((tariffDisplayName ?? subParsed.productName?.trim() ?? "").trim()) || "Триал"}</span>
+                  <div className="flex items-center gap-4 bg-background/40 p-4 rounded-2xl border border-border/50 transition-colors hover:bg-background/60 shadow-sm">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <Package className="h-6 w-6" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Тариф</p>
+                      <p className="text-[15px] font-semibold truncate text-foreground">
+                        {((tariffDisplayName ?? subParsed.productName?.trim() ?? "").trim()) || "Триал"}
+                      </p>
+                    </div>
                   </div>
                 )}
                 {subParsed.expireAt && (
-                  <div className="flex items-center gap-3 text-[15px] font-medium text-foreground bg-background/40 p-3.5 rounded-xl border border-border/50">
-                    <Calendar className="h-5 w-5 shrink-0 text-primary" />
-                    <span>До {formatDate(subParsed.expireAt)}</span>
+                  <div className="flex items-center gap-4 bg-background/40 p-4 rounded-2xl border border-border/50 transition-colors hover:bg-background/60 shadow-sm">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <Calendar className="h-6 w-6" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Действует до</p>
+                      <p className="text-[15px] font-semibold text-foreground">
+                        {formatDate(subParsed.expireAt)}
+                      </p>
+                    </div>
                   </div>
                 )}
-                <div className="space-y-3 bg-background/40 p-4 rounded-xl border border-border/50">
-                  <div className="flex items-center justify-between text-[15px] font-medium text-foreground">
-                    <span className="flex items-center gap-3">
-                      <Wifi className="h-5 w-5 shrink-0 text-primary" />
-                      {subParsed.trafficLimitBytes != null && subParsed.trafficLimitBytes > 0
-                        ? `${formatBytes(subParsed.trafficUsed ?? 0)} / ${formatBytes(subParsed.trafficLimitBytes)}`
-                        : "Трафик: Безлимит"}
-                    </span>
-                    {trafficPercent != null && <span className="text-muted-foreground text-[14px]">{trafficPercent}%</span>}
+                <div className="bg-background/40 p-4 rounded-2xl border border-border/50 space-y-3 transition-colors hover:bg-background/60 shadow-sm">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <Wifi className="h-6 w-6" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Трафик</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[15px] font-semibold text-foreground">
+                          {subParsed.trafficLimitBytes != null && subParsed.trafficLimitBytes > 0
+                            ? `${formatBytes(subParsed.trafficUsed ?? 0)} / ${formatBytes(subParsed.trafficLimitBytes)}`
+                            : "Безлимит"}
+                        </p>
+                        {trafficPercent != null && <span className="text-[13px] font-bold text-muted-foreground">{trafficPercent}%</span>}
+                      </div>
+                    </div>
                   </div>
                   {trafficPercent != null && (
-                    <div className="h-2.5 w-full rounded-full bg-muted/50 overflow-hidden">
-                      <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${trafficPercent}%` }} />
+                    <div className="h-2 w-full rounded-full bg-muted/30 overflow-hidden">
+                      <div className="h-full rounded-full bg-primary transition-all duration-500 ease-in-out" style={{ width: `${trafficPercent}%` }} />
                     </div>
                   )}
                 </div>

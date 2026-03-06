@@ -197,6 +197,8 @@ function setToken(userId: number, token: string): void {
 
 // Пользователи, ожидающие ввода промокода
 const awaitingPromoCode = new Set<number>();
+// Активный промокод на скидку (хранится до оплаты)
+const activeDiscountCode = new Map<number, string>();
 
 // Админ: ожидание ввода поиска; последний поиск по userId для пагинации
 const awaitingAdminSearch = new Set<number>();
@@ -762,13 +764,14 @@ bot.command("start", async (ctx) => {
       showTickets: config?.ticketsEnabled === true,
       showExtraOptions: config?.sellOptionsEnabled === true && (config?.sellOptions?.length ?? 0) > 0,
       buttonsPerRow: config?.botButtonsPerRow ?? 1,
+      remnaSubscriptionUrl: config?.useRemnaSubscriptionPage ? vpnUrl : null,
     });
     const isBotAdmin = config?.botAdminTelegramIds?.includes(String(from.id)) ?? false;
     if (isBotAdmin) {
       markup.inline_keyboard.push([{ text: "⚙️ Панель админа", callback_data: "admin:menu" }]);
     }
 
-    const media = logoToMediaSource(config?.logoBot ?? config?.logo);
+    const media = logoToMediaSource(config?.logoBot);
     if (media) {
       const opts = { caption, caption_entities: captionEntities.length ? captionEntities : undefined, reply_markup: markup };
       if (media.isGif) {
@@ -1405,8 +1408,10 @@ bot.on("callback_query:data", async (ctx) => {
         botButtons: config?.botButtons ?? null,
         botBackLabel: config?.botBackLabel ?? null,
         hasSupportLinks,
+        showTickets: config?.ticketsEnabled === true,
         showExtraOptions: config?.sellOptionsEnabled === true && (config?.sellOptions?.length ?? 0) > 0,
         buttonsPerRow: config?.botButtonsPerRow ?? 1,
+        remnaSubscriptionUrl: config?.useRemnaSubscriptionPage ? vpnUrl : null,
       });
       const userId = ctx.from?.id;
       if (userId && config?.botAdminTelegramIds?.includes(String(userId))) {
@@ -1886,7 +1891,9 @@ bot.on("callback_query:data", async (ctx) => {
     if (data.startsWith("pay_tariff_balance:")) {
       const tariffId = data.slice("pay_tariff_balance:".length);
       try {
-        const result = await api.payByBalance(token, { tariffId });
+        const promoCode = activeDiscountCode.get(userId);
+        const result = await api.payByBalance(token, { tariffId, promoCode });
+        if (promoCode) activeDiscountCode.delete(userId);
         await editMessageContent(ctx, `✅ ${result.message}`, backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : "Ошибка оплаты";
@@ -1904,11 +1911,14 @@ bot.on("callback_query:data", async (ctx) => {
         return;
       }
       try {
+        const promoCode = activeDiscountCode.get(userId);
         const payment = await api.createYoomoneyPayment(token, {
           amount: tariff.price,
           paymentType: "AC",
           tariffId: tariff.id,
+          promoCode,
         });
+        if (promoCode) activeDiscountCode.delete(userId);
         const msg = buildPaymentMessage(config, {
           name: tariff.name,
           price: formatMoney(tariff.price, tariff.currency),
@@ -1937,11 +1947,14 @@ bot.on("callback_query:data", async (ctx) => {
         return;
       }
       try {
+        const promoCode = activeDiscountCode.get(userId);
         const payment = await api.createYookassaPayment(token, {
           amount: tariff.price,
           currency: "RUB",
           tariffId: tariff.id,
+          promoCode,
         });
+        if (promoCode) activeDiscountCode.delete(userId);
         const msg = buildPaymentMessage(config, {
           name: tariff.name,
           price: formatMoney(tariff.price, tariff.currency),
@@ -1966,7 +1979,9 @@ bot.on("callback_query:data", async (ctx) => {
         return;
       }
       try {
-        const payment = await api.createCryptopayPayment(token, { amount: tariff.price, currency: tariff.currency, tariffId: tariff.id });
+        const promoCode = activeDiscountCode.get(userId);
+        const payment = await api.createCryptopayPayment(token, { amount: tariff.price, currency: tariff.currency, tariffId: tariff.id, promoCode });
+        if (promoCode) activeDiscountCode.delete(userId);
         const msg = buildPaymentMessage(config, { name: tariff.name, price: formatMoney(tariff.price, tariff.currency), amount: String(tariff.price), currency: tariff.currency, action: "Нажмите кнопку ниже для оплаты через Crypto Bot:" });
         await editMessageContent(ctx, msg.text, payUrlMarkup(payment.payUrl, config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds), msg.entities);
       } catch (e: unknown) {
@@ -2524,7 +2539,11 @@ bot.on("callback_query:data", async (ctx) => {
         return;
       }
       const appUrl = config?.publicAppUrl?.replace(/\/$/, "") ?? null;
-      if (appUrl) {
+      const useRemna = config?.useRemnaSubscriptionPage === true;
+      if (useRemna) {
+        const vpnTitle = titleWithEmoji("SERVERS", "Подключиться к VPN\n\nНажмите кнопку ниже — откроется страница подключения.", config?.botEmojis);
+        await editMessageContent(ctx, vpnTitle.text, openSubscribePageMarkup(appUrl ?? "", config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds, vpnUrl), vpnTitle.entities);
+      } else if (appUrl) {
         const vpnTitle = titleWithEmoji("SERVERS", "Подключиться к VPN\n\nНажмите кнопку ниже — откроется страница с приложениями и кнопкой «Добавить подписку» (как в кабинете).", config?.botEmojis);
         await editMessageContent(ctx, vpnTitle.text, openSubscribePageMarkup(appUrl, config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds), vpnTitle.entities);
       } else {
@@ -2701,7 +2720,8 @@ bot.on("message:text", async (ctx) => {
           : checkResult.discountFixed
             ? `скидка ${checkResult.discountFixed}`
             : "скидка";
-        await ctx.reply(`✅ Промокод «${checkResult.name}» принят! ${desc}.\n\nСкидка будет применена при оплате тарифа. Используйте этот промокод при оплате.`);
+        activeDiscountCode.set(userId, code);
+        await ctx.reply(`✅ Промокод «${checkResult.name}» принят! ${desc}.\n\nСкидка будет автоматически применена при следующей оплате тарифа.`);
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Ошибка активации промокода";

@@ -106,6 +106,8 @@ export function mainMenu(opts: {
   showExtraOptions?: boolean;
   /** Кнопок в ряд: 1 или 2 (по умолчанию 1) */
   buttonsPerRow?: 1 | 2;
+  /** URL страницы подписки Remna (если задан — кнопка VPN ведёт туда) */
+  remnaSubscriptionUrl?: string | null;
 }): InlineMarkup {
   const configButtons = opts.botButtons ?? [];
   const fromConfig = configButtons.length > 0;
@@ -129,7 +131,7 @@ export function mainMenu(opts: {
     .sort((a, b) => a.order - b.order);
   const base = opts.appUrl?.replace(/\/$/, "") ?? "";
   const perRow = opts.buttonsPerRow === 2 ? 2 : 1;
-  const items: { node: InlineButton | WebAppButton; onePerRow: boolean }[] = [];
+  const items: { node: InlineButton | WebAppButton | UrlButton; onePerRow: boolean }[] = [];
   for (const b of list) {
     const iconId = b.iconCustomEmojiId;
     const onePerRow = b.onePerRow === true;
@@ -139,10 +141,16 @@ export function mainMenu(opts: {
         if (iconId) w.icon_custom_emoji_id = iconId;
         items.push({ node: w, onePerRow });
       }
-    } else     if (b.id === "vpn" && base) {
-      const w: WebAppButton = { text: b.label, web_app: { url: `${base}/cabinet/subscribe` } };
-      if (iconId) w.icon_custom_emoji_id = iconId;
-      items.push({ node: w, onePerRow });
+    } else     if (b.id === "vpn" && (opts.remnaSubscriptionUrl || base)) {
+      if (opts.remnaSubscriptionUrl) {
+        const u: UrlButton = { text: b.label, url: opts.remnaSubscriptionUrl };
+        if (iconId) u.icon_custom_emoji_id = iconId;
+        items.push({ node: u, onePerRow });
+      } else {
+        const w: WebAppButton = { text: b.label, web_app: { url: `${base}/cabinet/subscribe` } };
+        if (iconId) w.icon_custom_emoji_id = iconId;
+        items.push({ node: w, onePerRow });
+      }
     } else if (b.id === "tickets" && base) {
       const w: WebAppButton = { text: b.label, web_app: { url: `${base}/cabinet/tickets` } };
       if (iconId) w.icon_custom_emoji_id = iconId;
@@ -151,8 +159,8 @@ export function mainMenu(opts: {
       items.push({ node: btn(b.label, MENU_IDS[b.id], toStyle(b.style), iconId), onePerRow });
     }
   }
-  const rows: (InlineButton | WebAppButton)[][] = [];
-  let currentRow: (InlineButton | WebAppButton)[] = [];
+  const rows: (InlineButton | WebAppButton | UrlButton)[][] = [];
+  let currentRow: (InlineButton | WebAppButton | UrlButton)[] = [];
   for (const { node, onePerRow } of items) {
     if (onePerRow) {
       if (currentRow.length > 0) {
@@ -222,9 +230,19 @@ export function payUrlMarkup(
   };
 }
 
-export function openSubscribePageMarkup(appUrl: string, backLabel?: string | null, backStyle?: string, emojiIds?: InnerEmojiIds): InlineMarkup {
+export function openSubscribePageMarkup(appUrl: string, backLabel?: string | null, backStyle?: string, emojiIds?: InnerEmojiIds, remnaSubscriptionUrl?: string | null): InlineMarkup {
   const base = appUrl.replace(/\/$/, "");
   const back = (backLabel && backLabel.trim()) || DEFAULT_BACK_LABEL;
+  if (remnaSubscriptionUrl) {
+    const connectBtn: UrlButton = { text: "📲 Открыть страницу подключения", url: remnaSubscriptionUrl };
+    if (emojiIds?.connect) connectBtn.icon_custom_emoji_id = emojiIds.connect;
+    return {
+      inline_keyboard: [
+        [connectBtn],
+        [btn(back, "menu:main", resolveStyle(toStyle(backStyle), "danger"), emojiIds?.back)],
+      ],
+    };
+  }
   const connectBtn: WebAppButton = { text: "📲 Открыть страницу подключения", web_app: { url: `${base}/cabinet/subscribe` } };
   if (emojiIds?.connect) connectBtn.icon_custom_emoji_id = emojiIds.connect;
   return {

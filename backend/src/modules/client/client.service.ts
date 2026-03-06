@@ -70,6 +70,7 @@ const SYSTEM_CONFIG_KEYS = [
   "yookassa_shop_id", "yookassa_secret_key",
   "cryptopay_api_token", "cryptopay_testnet",
   "heleket_merchant_id", "heleket_api_key",
+  "groq_api_key", "groq_model", "groq_fallback_1", "groq_fallback_2", "groq_fallback_3", "ai_system_prompt",
   "bot_buttons", "bot_buttons_per_row", "bot_back_label", "bot_menu_texts", "bot_menu_line_visibility", "bot_inner_button_styles",
   "bot_tariffs_text", "bot_tariffs_fields", "bot_payment_text",
   "bot_emojis", // JSON: { "TRIAL": { "unicode": "🎁", "tgEmojiId": "..." }, "PACKAGE": ... } — эмодзи кнопок/текста, TG ID для премиум
@@ -87,6 +88,8 @@ const SYSTEM_CONFIG_KEYS = [
   "sell_options_servers_enabled", "sell_options_servers_products",
   "google_analytics_id", "yandex_metrika_id", // Маркетинг: счётчики для кабинета
   "auto_broadcast_cron", // Расписание авто-рассылки (cron, например "0 9 * * *" = 9:00 каждый день)
+  "skip_email_verification", // Регистрация без подтверждения почты: true/false
+  "use_remna_subscription_page", // Кнопка VPN в боте ведёт на страницу подписки Remna вместо кабинета: true/false
 ];
 
 /** Продукт «Доп. трафик»: объём в ГБ, цена, валюта */
@@ -404,6 +407,14 @@ export async function getSystemConfig() {
     cryptopayTestnet: map.cryptopay_testnet === "true" || map.cryptopay_testnet === "1",
     heleketMerchantId: (map.heleket_merchant_id ?? "").trim() || null,
     heleketApiKey: (map.heleket_api_key ?? "").trim() || null,
+    groqApiKey: (map.groq_api_key ?? "").trim() || null,
+    groqModel: (map.groq_model ?? "").trim() || "llama3-8b-8192",
+    groqFallback1: (map.groq_fallback_1 ?? "").trim() || null,
+    groqFallback2: (map.groq_fallback_2 ?? "").trim() || null,
+    groqFallback3: (map.groq_fallback_3 ?? "").trim() || null,
+    aiSystemPrompt: map.ai_system_prompt || "Ты — лучший менеджер техподдержки VPN-сервиса. Твоя цель — вежливо, быстро и точно помогать пользователям с настройкой VPN, тарифами и решением технических проблем. Отвечай кратко и по делу.",
+    skipEmailVerification: map.skip_email_verification === "true" || map.skip_email_verification === "1",
+    useRemnaSubscriptionPage: map.use_remna_subscription_page === "true" || map.use_remna_subscription_page === "1",
     botButtons: parseBotButtons(map.bot_buttons),
     botButtonsPerRow: map.bot_buttons_per_row === "2" ? 2 : 1,
     botEmojis: parseBotEmojis(map.bot_emojis),
@@ -681,6 +692,8 @@ export async function getPublicConfig() {
     yookassaEnabled: Boolean(full.yookassaShopId?.trim() && full.yookassaSecretKey?.trim()),
     cryptopayEnabled: Boolean((full as { cryptopayApiToken?: string | null }).cryptopayApiToken?.trim()),
     heleketEnabled: Boolean((full as { heleketMerchantId?: string | null }).heleketMerchantId?.trim() && (full as { heleketApiKey?: string | null }).heleketApiKey?.trim()),
+    skipEmailVerification: full.skipEmailVerification ?? false,
+    useRemnaSubscriptionPage: full.useRemnaSubscriptionPage ?? false,
     trialEnabled,
     trialDays,
     botButtons: resolvedButtons,

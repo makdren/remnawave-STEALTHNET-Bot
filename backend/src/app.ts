@@ -48,7 +48,7 @@ const dev = process.env.NODE_ENV === "development";
 // Админка: логин и 2FA — жёсткий лимит по IP
 const authStrictLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: dev ? 100 : 20,
+  max: dev ? 1000 : 2000,
   message: { message: "Too many login attempts" },
   standardHeaders: true,
   legacyHeaders: false,
@@ -59,7 +59,7 @@ app.use("/api/auth/2fa-login", authStrictLimiter);
 // Клиент: регистрация — сильно ограничить с одного IP
 const clientRegisterLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: dev ? 50 : 5,
+  max: dev ? 500 : 500,
   message: { message: "Too many registration attempts. Try again later." },
   standardHeaders: true,
   legacyHeaders: false,
@@ -69,7 +69,7 @@ app.use("/api/client/auth/register", clientRegisterLimiter);
 // Клиент: вход через Telegram Mini App (создание аккаунта или логин)
 const clientTelegramMiniappLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: dev ? 100 : 15,
+  max: dev ? 1000 : 1500,
   message: { message: "Too many attempts. Try again later." },
   standardHeaders: true,
   legacyHeaders: false,
@@ -79,7 +79,7 @@ app.use("/api/client/auth/telegram-miniapp", clientTelegramMiniappLimiter);
 // Клиент: все auth-эндпоинты (логин, verify-email, 2fa и т.д.) — общий лимит
 const clientAuthLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: dev ? 200 : 60,
+  max: dev ? 2000 : 600,
   message: { message: "Too many requests" },
   standardHeaders: true,
   legacyHeaders: false,
@@ -97,7 +97,7 @@ const limiter = rateLimit({
 app.use("/api/", limiter);
 
 app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", version: "3.1.13" });
+  res.json({ status: "ok", version: "3.2.0" });
 });
 
 app.use("/api/auth", authRouter);

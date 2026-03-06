@@ -67,6 +67,8 @@ declare global {
 export function ClientRegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
@@ -82,6 +84,45 @@ export function ClientRegisterPage() {
   const utm = useUtmCapture(searchParams);
   const { register, registerByTelegram } = useClientAuth();
   const navigate = useNavigate();
+
+  function validateEmail(value: string): string {
+    if (!value.trim()) return "Email обязателен";
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(value)) return "Введите корректный email";
+    return "";
+  }
+
+  function validatePassword(value: string): string {
+    if (!value) return "Пароль обязателен";
+    if (value.length < 6) return "Пароль должен быть минимум 6 символов";
+    return "";
+  }
+
+  function handleEmailBlur() {
+    setEmailError(validateEmail(email));
+  }
+
+  function handlePasswordBlur() {
+    setPasswordError(validatePassword(password));
+  }
+
+  function handleEmailChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setEmail(e.target.value);
+    if (emailError) setEmailError("");
+  }
+
+  function handlePasswordChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setPassword(e.target.value);
+    if (passwordError) setPasswordError("");
+  }
+
+  function validateAll(): boolean {
+    const emailErr = validateEmail(email);
+    const passwordErr = validatePassword(password);
+    setEmailError(emailErr);
+    setPasswordError(passwordErr);
+    return !emailErr && !passwordErr;
+  }
 
   useEffect(() => {
     api
@@ -114,7 +155,7 @@ export function ClientRegisterPage() {
         preferredCurrency: defaults.currency,
         referralCode: refCode,
         ...utm,
-      }).then(() => navigate("/cabinet/dashboard", { replace: true }));
+      }).then(() => navigate("/cabinet/onboarding", { replace: true }));
     };
     telegramWidgetRef.current.innerHTML = "";
     telegramWidgetRef.current.appendChild(script);
@@ -124,6 +165,11 @@ export function ClientRegisterPage() {
     e.preventDefault();
     setError("");
     setEmailSent(false);
+    
+    if (!validateAll()) {
+      return;
+    }
+    
     setLoading(true);
     try {
       const result = await register({
@@ -156,8 +202,8 @@ export function ClientRegisterPage() {
       >
         <div className="flex items-center justify-center gap-2 mb-6 min-h-[2.5rem]">
           {brand.logo ? (
-            <span className="flex h-10 items-center justify-center rounded-xl bg-card px-2">
-              <img src={brand.logo} alt="" className="h-9 w-auto object-contain" />
+            <span className="flex items-center justify-center h-11 px-3 rounded-xl dark:bg-transparent bg-zinc-900">
+              <img src={brand.logo} alt="" className="h-8 max-w-[140px] object-contain" />
             </span>
           ) : (
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shrink-0">
@@ -190,10 +236,13 @@ export function ClientRegisterPage() {
                   type="email"
                   placeholder="your@email.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={handleEmailChange}
+                  onBlur={handleEmailBlur}
                   required
                   autoComplete="email"
+                  className={emailError ? "border-destructive focus-visible:ring-destructive" : ""}
                 />
+                {emailError && <p className="text-xs text-destructive">{emailError}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Пароль</Label>
@@ -201,10 +250,16 @@ export function ClientRegisterPage() {
                   id="password"
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={handlePasswordChange}
+                  onBlur={handlePasswordBlur}
                   required
                   autoComplete="new-password"
+                  className={passwordError ? "border-destructive focus-visible:ring-destructive" : ""}
                 />
+                {passwordError && <p className="text-xs text-destructive">{passwordError}</p>}
+                {!passwordError && password && (
+                  <p className="text-xs text-green-500">Пароль принят</p>
+                )}
               </div>
               {emailSent && (
                 <div className="rounded-md bg-green-500/10 text-green-700 dark:text-green-400 text-sm p-3 flex items-center gap-2">
@@ -212,7 +267,7 @@ export function ClientRegisterPage() {
                   На вашу почту отправлена ссылка для подтверждения. Перейдите по ней, чтобы завершить регистрацию.
                 </div>
               )}
-              <Button type="submit" className="w-full" disabled={loading}>
+              <Button type="submit" className="w-full" disabled={loading || !email || !password}>
                 {loading ? "Регистрация…" : "Зарегистрироваться"}
               </Button>
               {telegramBotUsername && (

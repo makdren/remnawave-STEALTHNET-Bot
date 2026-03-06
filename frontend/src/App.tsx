@@ -32,6 +32,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { CabinetLayout } from "@/pages/cabinet/cabinet-layout";
 import { ClientLoginPage } from "@/pages/cabinet/client-login";
 import { ClientRegisterPage } from "@/pages/cabinet/client-register";
+import { ClientOnboardingPage } from "@/pages/cabinet/client-onboarding";
 import { ClientVerifyEmailPage } from "@/pages/cabinet/client-verify-email";
 import { ClientVerifyLinkEmailPage } from "@/pages/cabinet/client-verify-link-email";
 import { ClientDashboardPage } from "@/pages/cabinet/client-dashboard";
@@ -153,6 +154,18 @@ function AppRoutes() {
         <Route path="backup" element={<ForceChangePassword><BackupPage /></ForceChangePassword>} />
         <Route path="tickets" element={<ForceChangePassword><AdminTicketsPage /></ForceChangePassword>} />
       </Route>
+      {/* Онбординг — вне CabinetLayout (без навбара) */}
+      <Route
+        path="/cabinet/onboarding"
+        element={
+          <ClientAuthProvider>
+            <RequireClientAuth>
+              <ClientOnboardingPage />
+            </RequireClientAuth>
+          </ClientAuthProvider>
+        }
+      />
+
       <Route
         path="/cabinet"
         element={

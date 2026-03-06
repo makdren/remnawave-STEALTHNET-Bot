@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { User, Wallet, Copy, Check, CreditCard, Loader2, Link2, Mail, Fingerprint, CalendarDays, Shield, KeyRound, Monitor, Trash2 } from "lucide-react";
+import { User, Wallet, Copy, Check, CreditCard, Loader2, Link2, Mail, Fingerprint, CalendarDays, Shield, KeyRound, Monitor, Trash2, Globe } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useClientAuth } from "@/contexts/client-auth";
 import { useCabinetMiniapp } from "@/pages/cabinet/cabinet-layout";
@@ -71,6 +71,13 @@ export function ClientProfilePage() {
   const [twoFaCode, setTwoFaCode] = useState("");
   const [twoFaLoading, setTwoFaLoading] = useState(false);
   const [twoFaError, setTwoFaError] = useState<string | null>(null);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changePasswordLoading, setChangePasswordLoading] = useState(false);
+  const [changePasswordError, setChangePasswordError] = useState<string | null>(null);
+  const [changePasswordSuccess, setChangePasswordSuccess] = useState(false);
 
   const client = state.client;
   const token = state.token;
@@ -92,7 +99,18 @@ export function ClientProfilePage() {
     if (!token) return;
     setDevicesLoading(true);
     setDevicesError(null);
-    api.getClientDevices(token).then((r) => setDevices(r.devices ?? [])).catch(() => { setDevicesError("Не удалось загрузить устройства"); setDevices([]); }).finally(() => setDevicesLoading(false));
+    api.getClientDevices(token)
+      .then((r) => setDevices(r.devices ?? []))
+      .catch((err) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("Подписка не привязана")) {
+          setDevicesError("NO_SUBSCRIPTION");
+        } else {
+          setDevicesError("Не удалось загрузить устройства");
+        }
+        setDevices([]);
+      })
+      .finally(() => setDevicesLoading(false));
   }, [token]);
 
   async function deleteDevice(hwid: string) {
@@ -171,6 +189,51 @@ export function ClientProfilePage() {
     } finally {
       setTwoFaLoading(false);
     }
+  }
+
+  async function submitChangePassword() {
+    if (!token) return;
+    if (!currentPassword.trim()) {
+      setChangePasswordError("Введите текущий пароль");
+      return;
+    }
+    if (newPassword.length < 6) {
+      setChangePasswordError("Новый пароль должен быть минимум 6 символов");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setChangePasswordError("Пароли не совпадают");
+      return;
+    }
+    setChangePasswordError(null);
+    setChangePasswordLoading(true);
+    try {
+      await api.clientChangePassword(token, {
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      });
+      setChangePasswordSuccess(true);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setTimeout(() => {
+        setChangePasswordOpen(false);
+        setChangePasswordSuccess(false);
+      }, 2000);
+    } catch (e) {
+      setChangePasswordError(e instanceof Error ? e.message : "Ошибка смены пароля");
+    } finally {
+      setChangePasswordLoading(false);
+    }
+  }
+
+  function closeChangePassword() {
+    setChangePasswordOpen(false);
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setChangePasswordError(null);
+    setChangePasswordSuccess(false);
   }
 
   useEffect(() => {
@@ -372,6 +435,8 @@ export function ClientProfilePage() {
 
   if (!client) return null;
   const isMiniapp = useCabinetMiniapp();
+  // Реальный miniapp (TG WebApp) — только если доступен initData
+  const isTgMiniapp = isMiniapp && Boolean((window as { Telegram?: { WebApp?: { initData?: string } } }).Telegram?.WebApp?.initData?.trim());
   const cardClass = isMiniapp ? "min-w-0 overflow-hidden" : "";
 
   return (
@@ -385,14 +450,14 @@ export function ClientProfilePage() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className={`grid gap-6 ${isMiniapp ? "grid-cols-1" : "lg:grid-cols-2"} min-w-0`}
+        className={`grid gap-6 items-stretch ${isMiniapp ? "grid-cols-1" : "lg:grid-cols-2"} min-w-0`}
       >
-        <div className={cn("relative flex flex-col rounded-[2rem] shadow-[0_8px_40px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_40px_rgba(0,0,0,0.3)]", cardClass)}>
+        <div className={cn("relative flex flex-col h-full rounded-[2rem] shadow-[0_8px_40px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_40px_rgba(0,0,0,0.3)]", cardClass)}>
           <div className="absolute inset-0 overflow-hidden rounded-[2rem] border border-white/10 dark:border-white/5 bg-background/40 backdrop-blur-2xl">
             <div className="absolute -top-32 -right-32 h-64 w-64 rounded-full bg-primary/10 blur-[80px] pointer-events-none" />
           </div>
 
-          <div className="relative p-6 sm:p-8 flex flex-col h-full min-w-0">
+          <div className="relative p-6 sm:p-8 flex flex-col flex-1 min-w-0">
             <div className="flex items-center gap-3 mb-6">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
                 <User className="h-5 w-5" />
@@ -478,7 +543,7 @@ export function ClientProfilePage() {
                 </div>
                 {!client.telegramId && (
                   <div className="shrink-0">
-                    {isMiniapp ? (
+                    {isTgMiniapp ? (
                       <Button variant="outline" size="sm" onClick={linkTelegramFromMiniapp} disabled={linkTelegramLoading} className="shadow-sm">
                         {linkTelegramLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Привязать текущий"}
                       </Button>
@@ -490,7 +555,7 @@ export function ClientProfilePage() {
                   </div>
                 )}
               </div>
-              {!isMiniapp && !client.telegramId && linkTelegramCode && (
+              {!isTgMiniapp && !client.telegramId && linkTelegramCode && (
                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="rounded-2xl border border-primary/20 bg-primary/5 p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium">Код привязки</p>
@@ -564,12 +629,12 @@ export function ClientProfilePage() {
           </div>
         </div>
 
-        <div className={cn("relative flex flex-col rounded-[2rem] shadow-[0_8px_40px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_40px_rgba(0,0,0,0.3)]", cardClass)}>
+        <div className={cn("relative flex flex-col h-full rounded-[2rem] shadow-[0_8px_40px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_40px_rgba(0,0,0,0.3)]", cardClass)}>
           <div className="absolute inset-0 overflow-hidden rounded-[2rem] border border-white/10 dark:border-white/5 bg-background/40 backdrop-blur-2xl">
             <div className="absolute -bottom-32 -left-32 h-64 w-64 rounded-full bg-primary/10 blur-[80px] pointer-events-none" />
           </div>
 
-          <div className="relative p-6 sm:p-8 flex flex-col h-full min-w-0">
+          <div className="relative p-6 sm:p-8 flex flex-col flex-1 min-w-0">
             <div className="flex items-center gap-3 mb-6">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/10 text-orange-500 shrink-0">
                 <Shield className="h-5 w-5" />
@@ -580,7 +645,7 @@ export function ClientProfilePage() {
               </div>
             </div>
 
-            <div className="flex-1 space-y-4 min-w-0">
+            <div className="flex-1 flex flex-col gap-4 min-w-0">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-muted/40 border border-border/50 transition-colors hover:bg-muted/60 dark:bg-white/5 dark:border-white/5 dark:hover:bg-white/10">
                 <div className="flex items-center gap-4 min-w-0">
                   <div className="flex h-10 w-10 items-center justify-center shrink-0 rounded-xl bg-primary/10 text-primary">
@@ -603,7 +668,22 @@ export function ClientProfilePage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-muted/40 border border-border/50 overflow-hidden dark:bg-white/5 dark:border-white/5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-muted/40 border border-border/50 transition-colors hover:bg-muted/60 dark:bg-white/5 dark:border-white/5 dark:hover:bg-white/10">
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className="flex h-10 w-10 items-center justify-center shrink-0 rounded-xl bg-primary/10 text-primary">
+                    <KeyRound className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground mb-0.5">Пароль</p>
+                    <p className="font-medium text-sm truncate">Сменить пароль аккаунта</p>
+                  </div>
+                </div>
+                <Button variant="outline" size="sm" className="shadow-sm shrink-0" onClick={() => setChangePasswordOpen(true)}>
+                  Сменить
+                </Button>
+              </div>
+
+              <div className="flex-1 flex flex-col rounded-2xl bg-muted/40 border border-border/50 overflow-hidden dark:bg-white/5 dark:border-white/5">
                 <div className="p-4 border-b border-border/50 dark:border-white/5">
                   <div className="flex items-center gap-4 min-w-0">
                     <div className="flex h-10 w-10 items-center justify-center shrink-0 rounded-xl bg-primary/10 text-primary">
@@ -615,34 +695,62 @@ export function ClientProfilePage() {
                     </div>
                   </div>
                 </div>
-                <div className="p-4 space-y-3">
+                <div className="flex-1 p-4 space-y-3 flex flex-col justify-center">
                   {devicesLoading ? (
-                    <div className="flex items-center justify-center py-6 text-muted-foreground">
-                      <Loader2 className="h-6 w-6 animate-spin" />
+                    <div className="flex items-center justify-center py-8 text-primary/60">
+                      <Loader2 className="h-8 w-8 animate-spin" />
+                    </div>
+                  ) : devicesError === "NO_SUBSCRIPTION" ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-center px-4">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted/50 text-muted-foreground mb-3 border border-border/50">
+                        <Monitor className="h-6 w-6 opacity-60" />
+                      </div>
+                      <p className="text-sm font-medium text-foreground">Устройств пока нет</p>
+                      <p className="text-xs text-muted-foreground mt-1 text-center max-w-[280px]">Выберите и оплатите тариф из каталога, чтобы подключить устройства.</p>
                     </div>
                   ) : devicesError ? (
-                    <p className="text-sm text-destructive">{devicesError}</p>
+                    <div className="flex flex-col items-center justify-center py-8 text-center px-4">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive mb-3">
+                        <Monitor className="h-6 w-6 opacity-80" />
+                      </div>
+                      <p className="text-sm font-medium text-destructive">{devicesError}</p>
+                      <p className="text-xs text-muted-foreground mt-1 text-center max-w-[250px]">Попробуйте обновить страницу или обратитесь в поддержку.</p>
+                    </div>
                   ) : devices.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Привязанных устройств пока нет. Подключитесь к VPN с приложения — устройство появится здесь.</p>
+                    <div className="flex flex-col items-center justify-center py-8 text-center px-4">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted/50 text-muted-foreground mb-3 border border-border/50">
+                        <Monitor className="h-6 w-6 opacity-60" />
+                      </div>
+                      <p className="text-sm font-medium text-foreground">Устройств пока нет</p>
+                      <p className="text-xs text-muted-foreground mt-1 text-center max-w-[280px]">Подключитесь к VPN через приложение, и ваше устройство появится здесь.</p>
+                    </div>
                   ) : (
-                    <>
-                      <p className="text-xs text-muted-foreground">Отключите устройство, чтобы освободить слот для другого:</p>
-                      <ul className="space-y-2">
+                    <div className="flex flex-col h-full">
+                      <p className="text-xs text-muted-foreground mb-3">Отключите устройство, чтобы освободить слот для другого:</p>
+                      <div className="grid grid-cols-1 gap-2">
                         {devices.map((d) => {
                           const label = [d.platform, d.deviceModel].filter(Boolean).join(" · ") || (d.hwid.slice(0, 12) + (d.hwid.length > 12 ? "…" : ""));
                           const isDeleting = deletingHwid === d.hwid;
                           return (
-                            <li key={d.hwid} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl bg-background/50 border border-border/50 dark:bg-white/5 dark:border-white/5">
-                              <span className="text-sm font-medium truncate" title={d.hwid}>{label}</span>
-                              <Button variant="outline" size="sm" className="shrink-0 border-red-500 bg-red-500/15 text-red-600 hover:bg-red-500/25 hover:text-red-700 hover:border-red-500 dark:text-red-400 dark:hover:text-red-300 dark:bg-red-500/20 dark:hover:bg-red-500/30" disabled={isDeleting} onClick={() => deleteDevice(d.hwid)}>
-                                {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                {isDeleting ? "Отключение…" : "Отключить"}
+                            <div key={d.hwid} className="group flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-2xl bg-background/50 border border-border/50 transition-all hover:bg-muted/30 dark:bg-white/5 dark:border-white/5 dark:hover:bg-white/10">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                                  <Monitor className="h-5 w-5" />
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="text-sm font-bold truncate block text-foreground" title={label}>{label}</span>
+                                  <span className="text-[10px] sm:text-xs text-muted-foreground truncate block font-mono mt-0.5">{d.hwid.slice(0, 16)}…</span>
+                                </div>
+                              </div>
+                              <Button variant="outline" size="sm" className="shrink-0 w-full sm:w-auto rounded-xl h-9 px-3 sm:px-4 shadow-sm border-destructive/20 text-destructive bg-destructive/5 hover:bg-destructive hover:text-destructive-foreground hover:border-destructive dark:bg-destructive/10 transition-all" disabled={isDeleting} onClick={() => deleteDevice(d.hwid)}>
+                                {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2 opacity-80" />}
+                                <span>{isDeleting ? "Удаление…" : "Отключить"}</span>
                               </Button>
-                            </li>
+                            </div>
                           );
                         })}
-                      </ul>
-                    </>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
@@ -855,75 +963,108 @@ export function ClientProfilePage() {
       </Dialog>
 
       <Dialog open={topUpModalOpen} onOpenChange={(open) => !topUpLoading && setTopUpModalOpen(open)}>
-        <DialogContent className="max-w-sm" showCloseButton={!topUpLoading} onOpenAutoFocus={(e) => e.preventDefault()}>
-          <DialogHeader>
-            <DialogTitle>Способ оплаты</DialogTitle>
-            <DialogDescription>
-              Пополнение на {topUpAmount ? `${Number(topUpAmount.replace(",", "."))} ${currency.toUpperCase()}` : "—"}
-              {(yoomoneyEnabled || yookassaEnabled) && " (ЮMoney и ЮKassa — только рубли). Crypto Bot и Heleket — USD, RUB, EUR и др."}
+        <DialogContent className="max-w-md p-6 rounded-3xl border border-border/50 bg-card/60 backdrop-blur-3xl shadow-2xl" showCloseButton={!topUpLoading} onOpenAutoFocus={(e) => e.preventDefault()}>
+          <DialogHeader className="mb-4 text-center sm:text-left">
+            <DialogTitle className="text-2xl font-bold flex items-center justify-center sm:justify-start gap-2">
+              <div className="p-2 bg-primary/10 rounded-xl">
+                <Wallet className="h-6 w-6 text-primary" />
+              </div>
+              Способ оплаты
+            </DialogTitle>
+            <DialogDescription className="text-base font-medium mt-2">
+              <div className="flex flex-col gap-2 mt-4 bg-background/50 p-4 rounded-2xl border border-border/50 text-left relative overflow-hidden group">
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="flex justify-between items-center relative z-10">
+                  <span className="text-muted-foreground">К оплате:</span>
+                  <span className="font-bold text-xl text-primary">
+                    {topUpAmount ? formatMoney(Number(topUpAmount.replace(",", ".")), currency.toUpperCase()) : "—"}
+                  </span>
+                </div>
+              </div>
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col gap-2 py-2">
-            {yoomoneyEnabled && (
-              <Button
-                variant="outline"
-                className="justify-start border-white/15 bg-white/5 backdrop-blur-sm hover:bg-white/15 transition-all duration-200"
-                disabled={topUpLoading}
-                onClick={() => startTopUpYoomoneyForm("AC")}
-              >
-                {topUpLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2 shrink-0" /> : <CreditCard className="h-4 w-4 mr-2 shrink-0 text-primary" />}
-                ЮMoney — оплата картой
-              </Button>
-            )}
-            {yookassaEnabled && (
-              <Button
-                variant="outline"
-                className="justify-start border-white/15 bg-white/5 backdrop-blur-sm hover:bg-white/15 transition-all duration-200"
-                disabled={topUpLoading}
-                onClick={() => startTopUpYookassa()}
-              >
-                {topUpLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2 shrink-0" /> : <CreditCard className="h-4 w-4 mr-2 shrink-0 text-primary" />}
-                ЮKassa — карта / СБП
-              </Button>
-            )}
+
+          {topUpError && (
+            <div className="p-3 mb-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm text-center font-medium animate-in fade-in slide-in-from-top-2">
+              {topUpError}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-3">
             {cryptopayEnabled && (
               <Button
+                size="lg"
                 variant="outline"
-                className="justify-start border-white/15 bg-white/5 backdrop-blur-sm hover:bg-white/15 transition-all duration-200"
+                className="w-full gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative"
                 disabled={topUpLoading}
                 onClick={() => startTopUpCryptopay()}
               >
-                {topUpLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2 shrink-0" /> : <CreditCard className="h-4 w-4 mr-2 shrink-0 text-primary" />}
-                Crypto Bot — криптовалюта
+                <div className="absolute left-6 p-1.5 rounded-lg bg-yellow-500/10 group-hover:bg-yellow-500/20 transition-colors">
+                  {topUpLoading ? <Loader2 className="h-5 w-5 animate-spin text-yellow-500" /> : <Globe className="h-5 w-5 text-yellow-500" />}
+                </div>
+                <span className="text-base font-medium">Crypto Bot</span>
               </Button>
             )}
             {heleketEnabled && (
               <Button
+                size="lg"
                 variant="outline"
-                className="justify-start border-white/15 bg-white/5 backdrop-blur-sm hover:bg-white/15 transition-all duration-200"
+                className="w-full gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative"
                 disabled={topUpLoading}
                 onClick={() => startTopUpHeleket()}
               >
-                {topUpLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2 shrink-0" /> : <CreditCard className="h-4 w-4 mr-2 shrink-0 text-primary" />}
-                Heleket — криптовалюта
+                <div className="absolute left-6 p-1.5 rounded-lg bg-orange-500/10 group-hover:bg-orange-500/20 transition-colors">
+                  {topUpLoading ? <Loader2 className="h-5 w-5 animate-spin text-orange-500" /> : <Globe className="h-5 w-5 text-orange-500" />}
+                </div>
+                <span className="text-base font-medium">Heleket</span>
+              </Button>
+            )}
+            {yookassaEnabled && (
+              <Button
+                size="lg"
+                variant="outline"
+                className="w-full gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative"
+                disabled={topUpLoading}
+                onClick={() => startTopUpYookassa()}
+              >
+                <div className="absolute left-6 p-1.5 rounded-lg bg-green-500/10 group-hover:bg-green-500/20 transition-colors">
+                  {topUpLoading ? <Loader2 className="h-5 w-5 animate-spin text-green-500" /> : <CreditCard className="h-5 w-5 text-green-500" />}
+                </div>
+                <span className="text-base font-medium">СБП</span>
+              </Button>
+            )}
+            {yoomoneyEnabled && (
+              <Button
+                size="lg"
+                variant="outline"
+                className="w-full gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative"
+                disabled={topUpLoading}
+                onClick={() => startTopUpYoomoneyForm("AC")}
+              >
+                <div className="absolute left-6 p-1.5 rounded-lg bg-green-500/10 group-hover:bg-green-500/20 transition-colors">
+                  {topUpLoading ? <Loader2 className="h-5 w-5 animate-spin text-green-500" /> : <CreditCard className="h-5 w-5 text-green-500" />}
+                </div>
+                <span className="text-base font-medium">Карты</span>
               </Button>
             )}
             {plategaMethods.map((m) => (
               <Button
                 key={m.id}
+                size="lg"
                 variant="outline"
-                className="justify-start border-white/15 bg-white/5 backdrop-blur-sm hover:bg-white/15 transition-all duration-200"
+                className="w-full gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative"
                 disabled={topUpLoading}
                 onClick={() => startTopUp(m.id)}
               >
-                {topUpLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2 shrink-0" /> : <CreditCard className="h-4 w-4 mr-2 shrink-0 text-primary" />}
-                {m.label}
+                <div className="absolute left-6 p-1.5 rounded-lg bg-green-500/10 group-hover:bg-green-500/20 transition-colors">
+                  {topUpLoading ? <Loader2 className="h-5 w-5 animate-spin text-green-500" /> : <CreditCard className="h-5 w-5 text-green-500" />}
+                </div>
+                <span className="text-base font-medium">{m.label}</span>
               </Button>
             ))}
           </div>
-          {topUpError && <p className="text-sm text-destructive">{topUpError}</p>}
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setTopUpModalOpen(false)} disabled={topUpLoading}>
+          <DialogFooter className="mt-4 sm:justify-center border-t border-border/50 pt-4">
+            <Button variant="ghost" onClick={() => setTopUpModalOpen(false)} disabled={topUpLoading} className="rounded-xl hover:bg-background/50 hover:text-foreground text-muted-foreground transition-colors">
               Отмена
             </Button>
           </DialogFooter>
@@ -931,74 +1072,169 @@ export function ClientProfilePage() {
       </Dialog>
 
       <Dialog open={twoFaEnableOpen} onOpenChange={(open) => !open && closeTwoFaEnable()}>
-        <DialogContent className="max-w-sm" showCloseButton={!twoFaLoading} onOpenAutoFocus={(e) => e.preventDefault()}>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <KeyRound className="h-5 w-5" />
-              Включить 2FA
-            </DialogTitle>
-            <DialogDescription>
-              {twoFaStep === 1
-                ? "Отсканируйте QR-код в приложении-аутентификаторе (Google Authenticator, Authy и т.п.) или введите ключ вручную."
-                : "Введите 6-значный код из приложения для подтверждения."}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-4 py-2">
-            {twoFaLoading && !twoFaSetupData ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : twoFaStep === 1 && twoFaSetupData ? (
-              <>
-                <div className="flex justify-center rounded-xl bg-white p-4 dark:bg-white/95">
-                  <QRCodeSVG value={twoFaSetupData.otpauthUrl} size={200} level="M" />
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden border-border/50 backdrop-blur-3xl" showCloseButton={!twoFaLoading} onOpenAutoFocus={(e) => e.preventDefault()}>
+          <div className="p-6 sm:p-8 flex flex-col items-center text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-primary/10 text-primary mb-6 shadow-inner border border-primary/20">
+              <KeyRound className="h-8 w-8" />
+            </div>
+            <DialogHeader className="p-0 flex flex-col items-center mb-6">
+              <DialogTitle className="text-2xl font-bold tracking-tight">
+                {twoFaStep === 1 ? "Настройка 2FA" : "Подтверждение"}
+              </DialogTitle>
+              <DialogDescription className="text-center text-sm mt-2 max-w-[280px]">
+                {twoFaStep === 1
+                  ? "Отсканируйте QR-код в приложении-аутентификаторе (Google Authenticator, Authy и т.п.)"
+                  : "Введите 6-значный код из вашего приложения для завершения настройки."}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex flex-col gap-6 w-full">
+              {twoFaLoading && !twoFaSetupData ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="h-10 w-10 animate-spin text-primary/60" />
                 </div>
-                <p className="text-xs text-muted-foreground break-all font-mono bg-muted/50 rounded-lg p-2">
-                  Ключ: {twoFaSetupData.secret}
-                </p>
-                <Button onClick={() => setTwoFaStep(2)}>Далее — ввести код</Button>
-              </>
-            ) : twoFaStep === 2 ? (
-              <>
-                <Input
-                  placeholder="000000"
-                  maxLength={6}
-                  value={twoFaCode}
-                  onChange={(e) => setTwoFaCode(e.target.value.replace(/\D/g, ""))}
-                  className="text-center text-lg tracking-[0.4em] font-mono"
-                />
-                <Button onClick={confirmTwoFaEnable} disabled={twoFaLoading || twoFaCode.length !== 6}>
-                  {twoFaLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  Подтвердить
-                </Button>
-              </>
-            ) : null}
-            {twoFaError && <p className="text-sm text-destructive">{twoFaError}</p>}
+              ) : twoFaStep === 1 && twoFaSetupData ? (
+                <div className="flex flex-col items-center gap-6 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="relative p-4 rounded-3xl bg-white shadow-xl ring-1 ring-black/5 dark:ring-white/10 dark:bg-white/95">
+                    <QRCodeSVG value={twoFaSetupData.otpauthUrl} size={180} level="M" />
+                  </div>
+                  <div className="w-full space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider text-left pl-1">Секретный ключ ручного ввода</p>
+                    <div className="flex items-center gap-2 p-1.5 pr-2 rounded-2xl bg-muted/50 border border-border/50">
+                      <div className="flex-1 overflow-x-auto no-scrollbar font-mono text-xs font-bold text-foreground text-center tracking-widest pl-2 select-all whitespace-nowrap">
+                        {twoFaSetupData.secret}
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl shrink-0 hover:bg-background shadow-sm" onClick={() => {
+                        navigator.clipboard.writeText(twoFaSetupData.secret);
+                      }}>
+                        <Copy className="h-4 w-4 opacity-70 cursor-pointer" />
+                      </Button>
+                    </div>
+                  </div>
+                  <Button className="w-full h-12 rounded-2xl font-bold text-base shadow-lg shadow-primary/20" onClick={() => setTwoFaStep(2)}>
+                    Далее — ввести код
+                  </Button>
+                </div>
+              ) : twoFaStep === 2 ? (
+                <div className="flex flex-col gap-6 w-full animate-in fade-in slide-in-from-right-8 duration-300">
+                  <div className="relative w-full">
+                    <Input
+                      placeholder="000 000"
+                      maxLength={6}
+                      value={twoFaCode}
+                      onChange={(e) => setTwoFaCode(e.target.value.replace(/\D/g, ""))}
+                      className="h-16 text-center text-3xl tracking-[0.3em] font-mono font-bold rounded-2xl border-primary/20 bg-primary/5 focus-visible:ring-primary/30"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="flex flex-col gap-3">
+                    <Button className="w-full h-12 rounded-2xl font-bold text-base shadow-lg shadow-primary/20" onClick={confirmTwoFaEnable} disabled={twoFaLoading || twoFaCode.length !== 6}>
+                      {twoFaLoading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : null}
+                      Подтвердить и включить
+                    </Button>
+                    <Button variant="ghost" className="w-full h-10 rounded-xl text-muted-foreground" onClick={() => setTwoFaStep(1)} disabled={twoFaLoading}>
+                      Назад
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+              {twoFaError && (
+                <p className="text-sm font-medium text-destructive animate-in fade-in text-center">{twoFaError}</p>
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>
 
       <Dialog open={twoFaDisableOpen} onOpenChange={(open) => !open && setTwoFaDisableOpen(false)}>
-        <DialogContent className="max-w-sm" showCloseButton={!twoFaLoading} onOpenAutoFocus={(e) => e.preventDefault()}>
-          <DialogHeader>
-            <DialogTitle>Отключить 2FA</DialogTitle>
-            <DialogDescription>
-              Введите 6-значный код из приложения-аутентификатора для отключения двухфакторной аутентификации.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-4 py-2">
-            <Input
-              placeholder="000000"
-              maxLength={6}
-              value={twoFaCode}
-              onChange={(e) => setTwoFaCode(e.target.value.replace(/\D/g, ""))}
-              className="text-center text-lg tracking-[0.4em] font-mono"
-            />
-            <Button onClick={confirmTwoFaDisable} disabled={twoFaLoading || twoFaCode.length !== 6}>
-              {twoFaLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Отключить 2FA
-            </Button>
-            {twoFaError && <p className="text-sm text-destructive">{twoFaError}</p>}
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden border-border/50 backdrop-blur-3xl" showCloseButton={!twoFaLoading} onOpenAutoFocus={(e) => e.preventDefault()}>
+          <div className="p-6 sm:p-8 flex flex-col items-center text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-red-500/10 text-red-500 mb-6 shadow-inner border border-red-500/20">
+              <Shield className="h-8 w-8" />
+            </div>
+            <DialogHeader className="p-0 flex flex-col items-center mb-6">
+              <DialogTitle className="text-2xl font-bold tracking-tight">Отключить 2FA</DialogTitle>
+              <DialogDescription className="text-center text-sm mt-2 max-w-[280px]">
+                Введите 6-значный код из вашего приложения-аутентификатора для подтверждения отключения.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex flex-col gap-6 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <Input
+                placeholder="000 000"
+                maxLength={6}
+                value={twoFaCode}
+                onChange={(e) => setTwoFaCode(e.target.value.replace(/\D/g, ""))}
+                className="h-16 text-center text-3xl tracking-[0.3em] font-mono font-bold rounded-2xl border-red-500/20 bg-red-500/5 focus-visible:ring-red-500/30"
+                autoFocus
+              />
+              <Button variant="destructive" className="w-full h-12 rounded-2xl font-bold text-base shadow-lg shadow-red-500/20" onClick={confirmTwoFaDisable} disabled={twoFaLoading || twoFaCode.length !== 6}>
+                {twoFaLoading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : null}
+                Отключить 2FA
+              </Button>
+              {twoFaError && (
+                <p className="text-sm font-medium text-destructive animate-in fade-in text-center">{twoFaError}</p>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={changePasswordOpen} onOpenChange={(open) => !open && closeChangePassword()}>
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden border-border/50 backdrop-blur-3xl" showCloseButton={!changePasswordLoading} onOpenAutoFocus={(e) => e.preventDefault()}>
+          <div className="p-6 sm:p-8 flex flex-col items-center text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-primary/10 text-primary mb-6 shadow-inner border border-primary/20">
+              <KeyRound className="h-8 w-8" />
+            </div>
+            <DialogHeader className="p-0 flex flex-col items-center mb-6">
+              <DialogTitle className="text-2xl font-bold tracking-tight">Сменить пароль</DialogTitle>
+              <DialogDescription className="text-center text-sm mt-2 max-w-[280px]">
+                Введите текущий пароль и придумайте новый.
+              </DialogDescription>
+            </DialogHeader>
+
+            {changePasswordSuccess ? (
+              <div className="flex flex-col items-center gap-4 py-6 animate-in fade-in scale-95 duration-300">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500/10 text-green-500">
+                  <Check className="h-8 w-8" />
+                </div>
+                <p className="text-lg font-bold text-green-500">Пароль изменён!</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="space-y-3">
+                  <Input
+                    type="password"
+                    placeholder="Текущий пароль"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="h-12 rounded-xl"
+                    autoFocus
+                  />
+                  <Input
+                    type="password"
+                    placeholder="Новый пароль (мин. 6 символов)"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="h-12 rounded-xl"
+                  />
+                  <Input
+                    type="password"
+                    placeholder="Повторите новый пароль"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="h-12 rounded-xl"
+                  />
+                </div>
+                {changePasswordError && (
+                  <p className="text-sm font-medium text-destructive animate-in fade-in text-center">{changePasswordError}</p>
+                )}
+                <Button className="w-full h-12 rounded-xl font-bold text-base shadow-lg" onClick={submitChangePassword} disabled={changePasswordLoading || !currentPassword || !newPassword || !confirmPassword}>
+                  {changePasswordLoading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : null}
+                  Сохранить пароль
+                </Button>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
