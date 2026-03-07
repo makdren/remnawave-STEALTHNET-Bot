@@ -2497,7 +2497,10 @@ clientRouter.post("/ai/chat", async (req, res) => {
 
     const config = await getSystemConfig();
     const publicConfig = await getPublicConfig();
-    
+    if ((publicConfig as { aiChatEnabled?: boolean }).aiChatEnabled === false) {
+      return res.status(403).json({ message: "AI-чат отключён" });
+    }
+
     const apiKey = (config as { groqApiKey?: string | null }).groqApiKey?.trim();
     if (!apiKey) {
       // Заглушка, если API ключ не настроен

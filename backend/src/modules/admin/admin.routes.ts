@@ -979,6 +979,7 @@ const updateSettingsSchema = z.object({
   adminFrontNotificationsEnabled: z.boolean().optional(),
   skipEmailVerification: z.boolean().optional(),
   useRemnaSubscriptionPage: z.boolean().optional(),
+  aiChatEnabled: z.boolean().optional(),
 });
 
 adminRouter.patch("/settings", async (req, res) => {
@@ -1447,6 +1448,14 @@ adminRouter.patch("/settings", async (req, res) => {
     await prisma.systemSetting.upsert({
       where: { key: "use_remna_subscription_page" },
       create: { key: "use_remna_subscription_page", value: val },
+      update: { value: val },
+    });
+  }
+  if (updates.aiChatEnabled !== undefined) {
+    const val = updates.aiChatEnabled ? "true" : "false";
+    await prisma.systemSetting.upsert({
+      where: { key: "ai_chat_enabled" },
+      create: { key: "ai_chat_enabled", value: val },
       update: { value: val },
     });
   }

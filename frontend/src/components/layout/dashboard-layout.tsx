@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { api, type AdminNotificationCounters } from "@/lib/api";
 
-const PANEL_VERSION = "3.2.0";
+const PANEL_VERSION = "3.2.1";
 const GITHUB_URL = "https://github.com/STEALTHNET-APP/remnawave-STEALTHNET-Bot";
 
 const navWithSections: { to: string; label: string; icon: typeof LayoutDashboard; section: string }[] = [

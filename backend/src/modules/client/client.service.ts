@@ -90,6 +90,7 @@ const SYSTEM_CONFIG_KEYS = [
   "auto_broadcast_cron", // Расписание авто-рассылки (cron, например "0 9 * * *" = 9:00 каждый день)
   "skip_email_verification", // Регистрация без подтверждения почты: true/false
   "use_remna_subscription_page", // Кнопка VPN в боте ведёт на страницу подписки Remna вместо кабинета: true/false
+  "ai_chat_enabled", // AI-чат в кабинете включён: true/false
 ];
 
 /** Продукт «Доп. трафик»: объём в ГБ, цена, валюта */
@@ -415,6 +416,7 @@ export async function getSystemConfig() {
     aiSystemPrompt: map.ai_system_prompt || "Ты — лучший менеджер техподдержки VPN-сервиса. Твоя цель — вежливо, быстро и точно помогать пользователям с настройкой VPN, тарифами и решением технических проблем. Отвечай кратко и по делу.",
     skipEmailVerification: map.skip_email_verification === "true" || map.skip_email_verification === "1",
     useRemnaSubscriptionPage: map.use_remna_subscription_page === "true" || map.use_remna_subscription_page === "1",
+    aiChatEnabled: map.ai_chat_enabled !== "false" && map.ai_chat_enabled !== "0",
     botButtons: parseBotButtons(map.bot_buttons),
     botButtonsPerRow: map.bot_buttons_per_row === "2" ? 2 : 1,
     botEmojis: parseBotEmojis(map.bot_emojis),
@@ -694,6 +696,7 @@ export async function getPublicConfig() {
     heleketEnabled: Boolean((full as { heleketMerchantId?: string | null }).heleketMerchantId?.trim() && (full as { heleketApiKey?: string | null }).heleketApiKey?.trim()),
     skipEmailVerification: full.skipEmailVerification ?? false,
     useRemnaSubscriptionPage: full.useRemnaSubscriptionPage ?? false,
+    aiChatEnabled: full.aiChatEnabled ?? true,
     trialEnabled,
     trialDays,
     botButtons: resolvedButtons,

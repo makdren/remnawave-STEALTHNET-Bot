@@ -4,6 +4,7 @@ import { MessageCircle, X, Send, User, Sparkles, Headset, ArrowLeft, MessageSqua
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useClientAuth } from "@/contexts/client-auth";
+import { useCabinetConfig } from "@/contexts/cabinet-config";
 import { api } from "@/lib/api";
 
 type Message = {
@@ -15,16 +16,42 @@ type Message = {
 
 type ChatType = "ai" | "support";
 
-const INITIAL_AI: Message[] = [
-  {
-    id: "a1",
-    text: "Привет! Я AI-ассистент STEALTHNET ✨ Готов помочь с настройкой VPN, тарифами и любыми другими вопросами. Что вас интересует?",
-    from: "bot",
-    time: "10:00",
-  },
-];
+function getInitialAiMessage(serviceName: string): Message[] {
+  const name = (serviceName || "Сервис").trim() || "Сервис";
+  return [
+    {
+      id: "a1",
+      text: `Привет! Я AI-ассистент ${name} ✨ Готов помочь с настройкой VPN, тарифами и любыми другими вопросами. Что вас интересует?`,
+      from: "bot",
+      time: "10:00",
+    },
+  ];
+}
 
-const ChatSwitcher = ({ activeChat, setActiveChat, aiUnread, supportUnread, isFloating = false }: any) => (
+const ChatSwitcher = ({ activeChat, setActiveChat, aiUnread, supportUnread, isFloating = false, showAiTab = true }: any) => {
+  if (!showAiTab) {
+    return (
+      <div className={cn(
+        "relative flex p-1 w-full sm:w-auto sm:min-w-[200px]",
+        isFloating
+          ? "bg-black/20 dark:bg-white/10 backdrop-blur-md rounded-2xl border border-white/10 shadow-lg pointer-events-auto"
+          : "bg-black/20 backdrop-blur-sm border border-white/5 rounded-xl"
+      )}>
+        <button
+          onClick={() => setActiveChat("support")}
+          className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold text-primary-foreground bg-primary relative z-10"
+        >
+          <Headset className="w-4 h-4" /> Поддержка
+          {supportUnread > 0 && (
+            <span className="ml-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
+              {supportUnread}
+            </span>
+          )}
+        </button>
+      </div>
+    );
+  }
+  return (
   <div className={cn(
     "relative flex p-1 w-full sm:w-auto sm:min-w-[320px]",
     isFloating 
@@ -68,9 +95,10 @@ const ChatSwitcher = ({ activeChat, setActiveChat, aiUnread, supportUnread, isFl
       }}
     />
   </div>
-);
+  );
+};
 
-const ChatHeader = ({ activeChat, setActiveChat, isExpanded, setIsExpanded, setIsOpen, aiUnread, supportUnread }: any) => (
+const ChatHeader = ({ activeChat, setActiveChat, isExpanded, setIsExpanded, setIsOpen, aiUnread, supportUnread, showAiTab = true }: any) => (
   <>
     <div className="px-4 py-3 sm:py-4 border-b border-white/5 bg-black/5 dark:bg-white/5 shrink-0 relative overflow-hidden pt-[max(env(safe-area-inset-top),16px)] sm:pt-4">
       <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent pointer-events-none" />
@@ -111,7 +139,7 @@ const ChatHeader = ({ activeChat, setActiveChat, isExpanded, setIsExpanded, setI
 
     {/* Chat Switcher */}
     <div className="flex sm:justify-center px-4 py-3 sm:py-4 shrink-0 bg-black/5 dark:bg-white/5 border-b border-white/5">
-      <ChatSwitcher activeChat={activeChat} setActiveChat={setActiveChat} aiUnread={aiUnread} supportUnread={supportUnread} />
+      <ChatSwitcher activeChat={activeChat} setActiveChat={setActiveChat} aiUnread={aiUnread} supportUnread={supportUnread} showAiTab={showAiTab} />
     </div>
   </>
 );
@@ -413,13 +441,26 @@ function SupportTab({ headerProps, onRefreshUnread }: { headerProps: any, onRefr
 
 export function FloatingChat() {
   const { state } = useClientAuth();
+  const config = useCabinetConfig();
   const token = state.token ?? null;
+  const serviceName = config?.serviceName?.trim() || "Сервис";
+  const aiChatEnabled = config?.aiChatEnabled !== false;
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [activeChat, setActiveChat] = useState<ChatType>("ai");
+  const [activeChat, setActiveChat] = useState<ChatType>(() => (config?.aiChatEnabled !== false ? "ai" : "support"));
   const [hasOpenDialog, setHasOpenDialog] = useState(false);
+  useEffect(() => {
+    if (!aiChatEnabled && activeChat === "ai") setActiveChat("support");
+  }, [aiChatEnabled, activeChat]);
 
-  const [aiChats, setAiChats] = useState<Message[]>(INITIAL_AI);
+  const [aiChats, setAiChats] = useState<Message[]>(() => getInitialAiMessage("Сервис"));
+  useEffect(() => {
+    setAiChats((prev) => {
+      if (prev.length !== 1 || prev[0].id !== "a1") return prev;
+      const want = getInitialAiMessage(serviceName)[0].text;
+      return prev[0].text === want ? prev : getInitialAiMessage(serviceName);
+    });
+  }, [serviceName]);
   const [aiInput, setAiInput] = useState("");
 
   const [aiUnread, setAiUnread] = useState(0);
@@ -540,7 +581,7 @@ export function FloatingChat() {
     }
   };
 
-  const headerProps = { activeChat, setActiveChat, isExpanded, setIsExpanded, setIsOpen, aiUnread, supportUnread };
+  const headerProps = { activeChat, setActiveChat, isExpanded, setIsExpanded, setIsOpen, aiUnread, supportUnread, showAiTab: aiChatEnabled };
 
   return (
     <>
@@ -565,7 +606,7 @@ export function FloatingChat() {
                 "flex flex-col overflow-hidden transition-all duration-500 ease-in-out"
               )}
             >
-              {activeChat === "ai" ? (
+              {activeChat === "ai" && aiChatEnabled ? (
                 <div className="flex flex-col flex-1 min-h-0 w-full">
                   {/* AI Messages */}
                   <div 

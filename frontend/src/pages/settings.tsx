@@ -211,6 +211,7 @@ export function SettingsPage() {
         offerLink: (data as AdminSettings).offerLink ?? "",
         instructionsLink: (data as AdminSettings).instructionsLink ?? "",
         ticketsEnabled: (data as AdminSettings).ticketsEnabled ?? false,
+        aiChatEnabled: (data as AdminSettings).aiChatEnabled !== false,
         sellOptionsEnabled: (data as AdminSettings).sellOptionsEnabled ?? false,
         sellOptionsTrafficEnabled: (data as AdminSettings).sellOptionsTrafficEnabled ?? false,
         sellOptionsTrafficProducts: (data as AdminSettings).sellOptionsTrafficProducts ?? [],
@@ -459,6 +460,7 @@ export function SettingsPage() {
         instructionsLink: settings.instructionsLink ?? undefined,
         ticketsEnabled: settings.ticketsEnabled ?? false,
         adminFrontNotificationsEnabled: settings.adminFrontNotificationsEnabled ?? true,
+        aiChatEnabled: settings.aiChatEnabled !== false,
         themeAccent: settings.themeAccent ?? "default",
         forceSubscribeEnabled: settings.forceSubscribeEnabled ?? false,
         forceSubscribeChannelId: settings.forceSubscribeChannelId ?? null,
@@ -587,6 +589,23 @@ export function SettingsPage() {
                       </Label>
                       <p className="text-xs text-muted-foreground mt-1">
                         Короткие уведомления о новых регистрациях, пополнениях, оплатах и тикетах в панели администратора.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-3 rounded-lg border p-4 bg-muted/20">
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      id="ai-chat-enabled"
+                      checked={settings.aiChatEnabled !== false}
+                      onCheckedChange={(checked: boolean) =>
+                        setSettings((s) => (s ? { ...s, aiChatEnabled: checked === true } : s))
+                      }
+                    />
+                    <div>
+                      <Label htmlFor="ai-chat-enabled" className="text-base font-medium cursor-pointer">AI-чат в кабинете</Label>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Включить встроенный AI-ассистент в кабинете (иконка чата). Если выключить — чат полностью скрыт.
                       </p>
                     </div>
                   </div>

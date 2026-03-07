@@ -1182,6 +1182,7 @@ export type UpdateSettingsPayload = {
   adminFrontNotificationsEnabled?: boolean;
   skipEmailVerification?: boolean;
   useRemnaSubscriptionPage?: boolean;
+  aiChatEnabled?: boolean;
 };
 
 export interface ClientRecord {
@@ -1330,6 +1331,8 @@ export interface AdminSettings {
   skipEmailVerification?: boolean;
   /** Кнопка VPN в боте ведёт на страницу подписки Remna */
   useRemnaSubscriptionPage?: boolean;
+  /** AI-чат в кабинете включён */
+  aiChatEnabled?: boolean;
 }
 
 /** Конфиг страницы подписки (формат как sub.stealthnet.app) */
@@ -1830,4 +1833,5 @@ export interface PublicConfig {
   yandexMetrikaId?: string | null;
   skipEmailVerification?: boolean;
   useRemnaSubscriptionPage?: boolean;
+  aiChatEnabled?: boolean;
 }
