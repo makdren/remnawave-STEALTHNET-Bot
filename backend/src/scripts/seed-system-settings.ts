@@ -19,6 +19,12 @@ const DEFAULTS: Array<[string, string]> = [
     "bot_menu_line_visibility",
     '{"welcomeTitlePrefix":true,"welcomeGreeting":true,"balancePrefix":true,"tariffPrefix":true,"subscriptionPrefix":true,"expirePrefix":true,"daysLeftPrefix":true,"devicesLabel":true,"trafficPrefix":true,"linkLabel":true,"chooseAction":true}',
   ],
+  ["default_auto_renew_enabled", "false"],
+  ["auto_renew_days_before_expiry", "1"],
+  ["auto_renew_notify_days_before", "3"],
+  ["auto_renew_grace_period_days", "2"],
+  ["auto_renew_max_retries", "3"],
+  ["yookassa_recurring_enabled", "false"],
 ];
 
 export async function ensureSystemSettings() {

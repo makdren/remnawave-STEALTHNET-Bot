@@ -29,7 +29,7 @@ import { useClientAuth } from "@/contexts/client-auth";
 import { useCabinetMiniapp } from "@/pages/cabinet/cabinet-layout";
 import { api } from "@/lib/api";
 import type { SubscriptionPageConfig } from "@/lib/api";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -415,17 +415,10 @@ export function ClientSubscribePage() {
                           };
                           return (
                             <span key={btnIndex} className="inline-flex flex-wrap gap-2 items-center">
-                              <Button 
-                                variant="default" 
-                                size="sm" 
-                                className="gap-2 min-h-[40px] shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all hover:scale-[1.02]" 
-                                asChild
-                              >
-                                <a href={deeplinkUrl} target="_blank" rel="noopener noreferrer" onClick={handleClick}>
+                              <a href={deeplinkUrl} target="_blank" rel="noopener noreferrer" onClick={handleClick} className={cn(buttonVariants({ variant: "default", size: "sm" }), "gap-2 min-h-[40px] shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all hover:scale-[1.02] flex-row !flex-nowrap whitespace-nowrap")}>
                                   <Plus className="h-4 w-4 shrink-0" />
                                   {label}
                                 </a>
-                              </Button>
                               {showQrNextToAddButton && (
                                 <Button
                                   variant="outline"
@@ -442,18 +435,10 @@ export function ClientSubscribePage() {
                           );
                         }
                         return (
-                          <Button 
-                            key={btnIndex} 
-                            variant="outline" 
-                            size="sm" 
-                            className="gap-2 min-h-[40px] border-slate-200/50 dark:border-white/10 bg-white/50 dark:bg-white/5 hover:bg-white/80 dark:hover:bg-white/10 transition-colors" 
-                            asChild
-                          >
-                            <a href={href} target="_blank" rel="noopener noreferrer">
-                              <ExternalLink className="h-4 w-4" />
+                          <a key={btnIndex} href={href} target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-2 min-h-[40px] border-slate-200/50 dark:border-white/10 bg-white/50 dark:bg-white/5 hover:bg-white/80 dark:hover:bg-white/10 transition-colors flex-row !flex-nowrap whitespace-nowrap")}>
+                              <ExternalLink className="h-4 w-4 shrink-0" />
                               {label}
                             </a>
-                          </Button>
                         );
                       })}
                     </div>

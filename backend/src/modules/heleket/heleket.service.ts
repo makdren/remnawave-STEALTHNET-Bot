@@ -5,6 +5,8 @@
  */
 
 import { createHash } from "crypto";
+import { proxyFetch } from "../proxy-util/proxy-fetch.js";
+import { getProxyUrl } from "../proxy-util/get-proxy-url.js";
 
 const HELEKET_BASE = "https://api.heleket.com/v1";
 
@@ -77,7 +79,8 @@ export async function createHeleketInvoice(params: CreateHeleketInvoiceParams): 
   const timeoutId = setTimeout(() => controller.abort(), 15000);
 
   try {
-    const res = await fetch(`${HELEKET_BASE}/payment`, {
+    const proxy = await getProxyUrl("payments");
+    const res = await proxyFetch(`${HELEKET_BASE}/payment`, {
       method: "POST",
       signal: controller.signal,
       headers: {
@@ -86,7 +89,7 @@ export async function createHeleketInvoice(params: CreateHeleketInvoiceParams): 
         "sign": sign,
       },
       body: JSON.stringify(body),
-    });
+    }, proxy);
     clearTimeout(timeoutId);
 
     let data: {

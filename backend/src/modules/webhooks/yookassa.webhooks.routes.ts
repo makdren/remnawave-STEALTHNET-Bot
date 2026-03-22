@@ -12,6 +12,7 @@ import { createSingboxSlotsByPaymentId } from "../singbox/singbox-slots-activati
 import { applyExtraOptionByPaymentId } from "../extra-options/extra-options.service.js";
 import { distributeReferralRewards } from "../referral/referral.service.js";
 import { notifyBalanceToppedUp, notifyTariffActivated, notifyProxySlotsCreated, notifySingboxSlotsCreated } from "../notification/telegram-notify.service.js";
+import { createNalogReceipt } from "../nalog/nalog.service.js";
 
 function hasExtraOptionInMetadata(metadata: string | null): boolean {
   if (!metadata?.trim()) return false;
@@ -37,6 +38,13 @@ type YookassaNotification = {
     status?: string;
     amount?: { value?: string; currency?: string };
     metadata?: Record<string, string>;
+    payment_method?: {
+      type?: string;
+      id?: string;
+      saved?: boolean;
+      title?: string;
+      card?: { last4?: string; card_type?: string };
+    };
   };
 };
 
@@ -85,6 +93,24 @@ yookassaWebhooksRouter.post("/yookassa", async (req, res) => {
     data: { status: "PAID", paidAt: new Date(), externalId: yookassaId },
   });
 
+  // Сохраняем способ оплаты для рекуррентных платежей
+  const pm = body.object?.payment_method;
+  if (pm?.saved && pm.id) {
+    const title = pm.title || (pm.card?.last4 ? `Карта *${pm.card.last4}` : pm.type || "Сохранённый способ");
+    await prisma.client.update({
+      where: { id: payment.clientId },
+      data: {
+        yookassaPaymentMethodId: pm.id,
+        yookassaPaymentMethodTitle: title,
+      },
+    });
+    console.log("[YooKassa Webhook] Saved payment method", {
+      clientId: payment.clientId,
+      paymentMethodId: pm.id,
+      title,
+    });
+  }
+
   const isExtraOption = hasExtraOptionInMetadata(payment.metadata);
   const isTopUp = !payment.tariffId && !payment.proxyTariffId && !payment.singboxTariffId && !isExtraOption;
 
@@ -98,7 +124,7 @@ yookassaWebhooksRouter.post("/yookassa", async (req, res) => {
       clientId: payment.clientId,
       amount: payment.amount,
     });
-    await notifyBalanceToppedUp(payment.clientId, payment.amount, payment.currency || "RUB").catch(() => {});
+    await notifyBalanceToppedUp(payment.clientId, payment.amount, payment.currency || "RUB", "YooKassa").catch(() => {});
   } else if (isExtraOption) {
     const result = await applyExtraOptionByPaymentId(payment.id);
     if (result.ok) {
@@ -148,6 +174,20 @@ yookassaWebhooksRouter.post("/yookassa", async (req, res) => {
 
   await distributeReferralRewards(payment.id).catch((e) => {
     console.error("[YooKassa Webhook] Referral distribution error", { paymentId: payment.id, error: e });
+  });
+
+  const tariffForReceipt = payment.tariffId
+    ? await prisma.tariff.findUnique({ where: { id: payment.tariffId }, select: { name: true } }).catch(() => null)
+    : null;
+  const receiptDesc = tariffForReceipt?.name ? `Оплата тарифа «${tariffForReceipt.name}»` : "Пополнение баланса";
+  createNalogReceipt({
+    paymentId: payment.id,
+    amount: payment.amount,
+    currency: payment.currency || "RUB",
+    description: receiptDesc,
+    paidAt: new Date(),
+  }).catch((e) => {
+    console.warn("[YooKassa Webhook] Nalog receipt error (non-critical):", e);
   });
 
   return res.status(200).send("OK");

@@ -294,7 +294,7 @@ plategaWebhooksRouter.post("/platega", async (req, res) => {
           transactionId,
           orderId: payment.orderId,
         });
-        await notifyBalanceToppedUp(payment.clientId, payment.amount, payment.currency || "RUB").catch(() => {});
+        await notifyBalanceToppedUp(payment.clientId, payment.amount, payment.currency || "RUB", "Platega").catch(() => {});
       } else {
         console.log("[Platega Webhook] Payment already finalized", { paymentId: payment.id, status: payment.status });
       }

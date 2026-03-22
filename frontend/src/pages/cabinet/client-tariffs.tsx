@@ -30,7 +30,7 @@ function formatMoney(amount: number, currency: string) {
   }).format(amount);
 }
 
-type TariffForPay = { id: string; name: string; price: number; currency: string; description?: string | null; durationDays?: number; trafficLimitBytes?: number | null; deviceLimit?: number | null };
+type TariffForPay = { id: string; name: string; price: number; currency: string; description?: string | null; durationDays?: number; trafficLimitBytes?: number | null; trafficResetMode?: string; deviceLimit?: number | null };
 
 export function ClientTariffsPage() {
   const { state, refreshProfile } = useClientAuth();
@@ -348,7 +348,7 @@ export function ClientTariffsPage() {
                 <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider mb-1">Трафик</p>
                 <div className="flex items-center gap-1.5 font-bold text-sm">
                   <Wifi className="h-4 w-4 text-primary" />
-                  {tariff.trafficLimitBytes != null && tariff.trafficLimitBytes > 0 ? `${(tariff.trafficLimitBytes / 1024 / 1024 / 1024).toFixed(1)} ГБ` : "∞"}
+                  {tariff.trafficLimitBytes != null && tariff.trafficLimitBytes > 0 ? `${(tariff.trafficLimitBytes / 1024 / 1024 / 1024).toFixed(1)} ГБ${tariff.trafficResetMode === "monthly" ? "/мес" : ""}` : "∞"}
                 </div>
               </div>
             </div>
@@ -723,7 +723,11 @@ export function ClientTariffsPage() {
                                     </span>
                                     <span className="flex items-center gap-1.5 bg-background/50 px-2 py-1 rounded-md border border-border/50">
                                       <Wifi className="h-3 w-3 text-primary" />
-                                      {t.trafficLimitBytes != null && t.trafficLimitBytes > 0 ? `${(t.trafficLimitBytes / 1024 / 1024 / 1024).toFixed(1)} ГБ` : "∞"}
+                                      {t.trafficLimitBytes != null && t.trafficLimitBytes > 0 ? `${(t.trafficLimitBytes / 1024 / 1024 / 1024).toFixed(1)} ГБ${t.trafficResetMode === "monthly" ? "/мес" : ""}` : "∞"}
+                                    </span>
+                                    <span className="flex items-center gap-1.5 bg-background/50 px-2 py-1 rounded-md border border-border/50">
+                                      <Smartphone className="h-3 w-3 text-primary" />
+                                      {t.deviceLimit != null && t.deviceLimit > 0 ? `${t.deviceLimit}` : "∞"}
                                     </span>
                                   </div>
                                 </div>
@@ -792,7 +796,7 @@ export function ClientTariffsPage() {
                                 </div>
                                 <span>
                                   {t.trafficLimitBytes != null && t.trafficLimitBytes > 0
-                                    ? `${(t.trafficLimitBytes / 1024 / 1024 / 1024).toFixed(1)} ГБ`
+                                    ? `${(t.trafficLimitBytes / 1024 / 1024 / 1024).toFixed(1)} ГБ${t.trafficResetMode === "monthly" ? "/мес" : ""}`
                                     : "Безлимитный трафик"}
                                 </span>
                               </div>

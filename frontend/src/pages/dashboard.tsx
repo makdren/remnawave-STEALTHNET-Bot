@@ -14,11 +14,15 @@ import {
   Power,
   PowerOff,
   RotateCw,
+  Cpu,
+  MemoryStick,
+  HardDrive,
+  Clock,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
-import type { DashboardStats, RemnaNode, RemnaNodesResponse } from "@/lib/api";
+import type { DashboardStats, RemnaNode, RemnaNodesResponse, ServerStats } from "@/lib/api";
 import { useAuth } from "@/contexts/auth";
 
 const cardVariants = {
@@ -53,6 +57,25 @@ function formatNodeCpuRam(cpuCount: number | null | undefined, totalRam: string 
   return `${cpu} / ${ram}`;
 }
 
+function formatUptime(seconds: number): string {
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  if (days > 0) return `${days}д ${hours}ч ${mins}м`;
+  if (hours > 0) return `${hours}ч ${mins}м`;
+  return `${mins}м`;
+}
+
+function formatGb(bytes: number): string {
+  return (bytes / 1024 ** 3).toFixed(1) + " GB";
+}
+
+function usageColor(percent: number): string {
+  if (percent >= 90) return "text-red-500";
+  if (percent >= 70) return "text-amber-500";
+  return "text-emerald-500";
+}
+
 function canAccessRemnaNodes(role: string, allowedSections: string[] | undefined): boolean {
   if (role === "ADMIN") return true;
   return Array.isArray(allowedSections) && allowedSections.includes("remna-nodes");
@@ -65,6 +88,7 @@ export function DashboardPage() {
   const hasRemnaNodesAccess = admin ? canAccessRemnaNodes(admin.role, admin.allowedSections) : false;
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [serverStats, setServerStats] = useState<ServerStats | null>(null);
   const [nodes, setNodes] = useState<RemnaNode[]>([]);
   const [defaultCurrency, setDefaultCurrency] = useState<string>("USD");
   const [loading, setLoading] = useState(true);
@@ -109,9 +133,11 @@ export function DashboardPage() {
           ? api.getRemnaNodes(token!).catch(() => ({ response: [] }))
           : Promise.resolve(null);
         const settingsP = api.getSettings(token!).catch(() => null);
-        const [statsRes, nodesRes, settingsRes] = await Promise.all([statsP, nodesP, settingsP]);
+        const serverP = api.getServerStats(token!).catch(() => null);
+        const [statsRes, nodesRes, settingsRes, serverRes] = await Promise.all([statsP, nodesP, settingsP, serverP]);
         if (cancelled) return;
         setStats(statsRes);
+        setServerStats(serverRes);
         if (nodesRes != null) {
           const data = nodesRes as RemnaNodesResponse;
           setNodes(Array.isArray(data?.response) ? data.response : []);
@@ -290,8 +316,82 @@ export function DashboardPage() {
         </Card>
       </motion.div>
 
+      {/* Мониторинг сервера */}
+      {serverStats && (
+        <motion.div variants={cardVariants} initial="hidden" animate="visible" custom={6}>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Server className="h-5 w-5" />
+                Сервер
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {serverStats.hostname} — {serverStats.platform} ({serverStats.arch})
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-lg border bg-muted/40 p-4 space-y-2">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Cpu className="h-4 w-4" />
+                    CPU
+                  </div>
+                  <p className={`text-2xl font-bold tabular-nums ${usageColor(serverStats.cpu.usagePercent)}`}>
+                    {serverStats.cpu.usagePercent}%
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate" title={serverStats.cpu.model}>
+                    {serverStats.cpu.cores} ядер
+                  </p>
+                </div>
+
+                <div className="rounded-lg border bg-muted/40 p-4 space-y-2">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <MemoryStick className="h-4 w-4" />
+                    RAM
+                  </div>
+                  <p className={`text-2xl font-bold tabular-nums ${usageColor(serverStats.memory.usagePercent)}`}>
+                    {serverStats.memory.usagePercent}%
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatGb(serverStats.memory.usedBytes)} / {formatGb(serverStats.memory.totalBytes)}
+                  </p>
+                </div>
+
+                {serverStats.disk && (
+                  <div className="rounded-lg border bg-muted/40 p-4 space-y-2">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <HardDrive className="h-4 w-4" />
+                      Диск
+                    </div>
+                    <p className={`text-2xl font-bold tabular-nums ${usageColor(serverStats.disk.usagePercent)}`}>
+                      {serverStats.disk.usagePercent}%
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatGb(serverStats.disk.usedBytes)} / {formatGb(serverStats.disk.totalBytes)}
+                    </p>
+                  </div>
+                )}
+
+                <div className="rounded-lg border bg-muted/40 p-4 space-y-2">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Clock className="h-4 w-4" />
+                    Uptime
+                  </div>
+                  <p className="text-2xl font-bold tabular-nums">
+                    {formatUptime(serverStats.uptimeSeconds)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Load: {serverStats.loadAvg.join(" / ")}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
       {/* Ноды Remna */}
-      <motion.div variants={cardVariants} initial="hidden" animate="visible" custom={6}>
+      <motion.div variants={cardVariants} initial="hidden" animate="visible" custom={7}>
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

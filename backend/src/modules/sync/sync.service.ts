@@ -132,6 +132,7 @@ export async function syncFromRemna(): Promise<{
                 referralCode: refCode,
                 preferredLang: defaultLang,
                 preferredCurrency: defaultCurrency,
+                autoRenewEnabled: config.defaultAutoRenewEnabled ?? false,
               },
             });
             result.created++;

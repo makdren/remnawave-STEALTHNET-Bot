@@ -64,10 +64,13 @@ const SYSTEM_CONFIG_KEYS = [
   "smtp_host", "smtp_port", "smtp_secure", "smtp_user", "smtp_password",
   "smtp_from_email", "smtp_from_name", "public_app_url",
   "telegram_bot_token", "telegram_bot_username", "bot_admin_telegram_ids",
-  "notification_telegram_group_id", // Группа/чат для дублирования админских уведомлений (chat_id, например -1001234567890)
+  "notification_telegram_group_id",
+  "notification_topic_new_clients",
+  "notification_topic_payments",
+  "notification_topic_tickets",
   "platega_merchant_id", "platega_secret", "platega_methods",
   "yoomoney_client_id", "yoomoney_client_secret", "yoomoney_receiver_wallet", "yoomoney_notification_secret",
-  "yookassa_shop_id", "yookassa_secret_key",
+  "yookassa_shop_id", "yookassa_secret_key", "yookassa_recurring_enabled",
   "cryptopay_api_token", "cryptopay_testnet",
   "heleket_merchant_id", "heleket_api_key",
   "groq_api_key", "groq_model", "groq_fallback_1", "groq_fallback_2", "groq_fallback_3", "ai_system_prompt",
@@ -101,12 +104,17 @@ const SYSTEM_CONFIG_KEYS = [
   "custom_build_currency",
   "custom_build_max_days",
   "custom_build_max_devices",
+  "default_auto_renew_enabled",
+  "auto_renew_days_before_expiry",
+  "auto_renew_notify_days_before",
+  "auto_renew_grace_period_days",
+  "auto_renew_max_retries",
+  // OAuth: Google, Apple
   "google_login_enabled", "google_client_id", "google_client_secret",
   "apple_login_enabled", "apple_client_id", "apple_team_id", "apple_key_id", "apple_private_key",
-  "landing_enabled",
-  "landing_hero_title", "landing_hero_subtitle", "landing_hero_cta_text",
-  "landing_hero_badge", "landing_hero_hint",
-  "landing_show_tariffs", "landing_contacts", "landing_offer_link", "landing_privacy_link", "landing_footer_text",
+  // Лендинг
+  "landing_enabled", "landing_hero_title", "landing_hero_subtitle", "landing_hero_cta_text",
+  "landing_hero_badge", "landing_hero_hint", "landing_show_tariffs", "landing_contacts",
   "landing_feature_1_label", "landing_feature_1_sub", "landing_feature_2_label", "landing_feature_2_sub",
   "landing_feature_3_label", "landing_feature_3_sub", "landing_feature_4_label", "landing_feature_4_sub",
   "landing_feature_5_label", "landing_feature_5_sub",
@@ -114,11 +122,10 @@ const SYSTEM_CONFIG_KEYS = [
   "landing_benefit_1_title", "landing_benefit_1_desc", "landing_benefit_2_title", "landing_benefit_2_desc",
   "landing_benefit_3_title", "landing_benefit_3_desc", "landing_benefit_4_title", "landing_benefit_4_desc",
   "landing_benefit_5_title", "landing_benefit_5_desc", "landing_benefit_6_title", "landing_benefit_6_desc",
-  "landing_tariffs_title", "landing_tariffs_subtitle",
-  "landing_devices_title", "landing_devices_subtitle",
-  "landing_faq_title", "landing_faq_json",
-  "landing_hero_headline_1", "landing_hero_headline_2",
-  "landing_header_badge", "landing_button_login", "landing_button_login_cabinet",
+  "landing_tariffs_title", "landing_tariffs_subtitle", "landing_devices_title", "landing_devices_subtitle",
+  "landing_faq_title", "landing_faq_json", "landing_offer_link", "landing_privacy_link", "landing_footer_text",
+  "landing_hero_headline_1", "landing_hero_headline_2", "landing_header_badge",
+  "landing_button_login", "landing_button_login_cabinet",
   "landing_nav_benefits", "landing_nav_tariffs", "landing_nav_devices", "landing_nav_faq",
   "landing_benefits_badge", "landing_default_payment_text", "landing_button_choose_tariff",
   "landing_no_tariffs_message", "landing_button_watch_tariffs", "landing_button_start", "landing_button_open_cabinet",
@@ -128,12 +135,18 @@ const SYSTEM_CONFIG_KEYS = [
   "landing_comfort_title", "landing_comfort_badge", "landing_principles_title",
   "landing_tech_title", "landing_tech_desc", "landing_category_subtitle",
   "landing_tariff_default_desc", "landing_tariff_bullet_1", "landing_tariff_bullet_2", "landing_tariff_bullet_3",
-  "landing_lowest_tariff_desc", "landing_devices_cockpit_text", "landing_universality_title", "landing_universality_desc",
+  "landing_lowest_tariff_desc", "landing_devices_cockpit_text",
+  "landing_universality_title", "landing_universality_desc",
   "landing_quick_setup_title", "landing_quick_setup_desc",
   "landing_premium_service_title", "landing_premium_service_para1", "landing_premium_service_para2",
   "landing_how_it_works_title", "landing_how_it_works_desc",
   "landing_stats_platforms", "landing_stats_tariffs_label", "landing_stats_access_label", "landing_stats_payment_methods",
   "landing_ready_to_connect_eyebrow", "landing_ready_to_connect_title", "landing_ready_to_connect_desc",
+  "landing_show_features", "landing_show_benefits", "landing_show_devices", "landing_show_faq", "landing_show_how_it_works", "landing_show_cta",
+  // Прокси
+  "proxy_enabled", "proxy_url", "proxy_telegram", "proxy_payments",
+  // Мой Налог (самозанятые)
+  "nalog_enabled", "nalog_inn", "nalog_password", "nalog_device_id", "nalog_service_name",
 ];
 
 /** Продукт «Доп. трафик»: объём в ГБ, цена, валюта */
@@ -438,6 +451,9 @@ export async function getSystemConfig() {
     telegramBotUsername: map.telegram_bot_username || null,
     botAdminTelegramIds: parseBotAdminTelegramIds(map.bot_admin_telegram_ids),
     notificationTelegramGroupId: (map.notification_telegram_group_id ?? "").trim() || null,
+    notificationTopicNewClients: (map.notification_topic_new_clients ?? "").trim() || null,
+    notificationTopicPayments: (map.notification_topic_payments ?? "").trim() || null,
+    notificationTopicTickets: (map.notification_topic_tickets ?? "").trim() || null,
     plategaMerchantId: map.platega_merchant_id || null,
     plategaSecret: map.platega_secret || null,
     plategaMethods: parsePlategaMethods(map.platega_methods),
@@ -489,6 +505,12 @@ export async function getSystemConfig() {
     botPaymentText: parseBotPaymentText(map.bot_payment_text),
     categoryEmojis: parseCategoryEmojis(map.category_emojis),
     subscriptionPageConfig: map.subscription_page_config ?? null,
+    defaultAutoRenewEnabled: map.default_auto_renew_enabled === "true" || map.default_auto_renew_enabled === "1",
+    autoRenewDaysBeforeExpiry: parseInt(map.auto_renew_days_before_expiry ?? "1", 10) || 1,
+    autoRenewNotifyDaysBefore: parseInt(map.auto_renew_notify_days_before ?? "3", 10) || 3,
+    autoRenewGracePeriodDays: parseInt(map.auto_renew_grace_period_days ?? "2", 10) || 2,
+    autoRenewMaxRetries: parseInt(map.auto_renew_max_retries ?? "3", 10) || 3,
+    yookassaRecurringEnabled: map.yookassa_recurring_enabled === "true" || map.yookassa_recurring_enabled === "1",
     supportLink: (map.support_link ?? "").trim() || null,
     agreementLink: (map.agreement_link ?? "").trim() || null,
     offerLink: (map.offer_link ?? "").trim() || null,
@@ -604,6 +626,21 @@ export async function getSystemConfig() {
     landingReadyToConnectEyebrow: (map.landing_ready_to_connect_eyebrow ?? "").trim() || null,
     landingReadyToConnectTitle: (map.landing_ready_to_connect_title ?? "").trim() || null,
     landingReadyToConnectDesc: (map.landing_ready_to_connect_desc ?? "").trim() || null,
+    landingShowFeatures: map.landing_show_features !== "false" && map.landing_show_features !== "0",
+    landingShowBenefits: map.landing_show_benefits !== "false" && map.landing_show_benefits !== "0",
+    landingShowDevices: map.landing_show_devices !== "false" && map.landing_show_devices !== "0",
+    landingShowFaq: map.landing_show_faq !== "false" && map.landing_show_faq !== "0",
+    landingShowHowItWorks: map.landing_show_how_it_works !== "false" && map.landing_show_how_it_works !== "0",
+    landingShowCta: map.landing_show_cta !== "false" && map.landing_show_cta !== "0",
+    proxyEnabled: map.proxy_enabled === "true" || map.proxy_enabled === "1",
+    proxyUrl: (map.proxy_url ?? "").trim() || null,
+    proxyTelegram: map.proxy_telegram === "true" || map.proxy_telegram === "1",
+    proxyPayments: map.proxy_payments === "true" || map.proxy_payments === "1",
+    nalogEnabled: map.nalog_enabled === "true" || map.nalog_enabled === "1",
+    nalogInn: (map.nalog_inn ?? "").trim() || null,
+    nalogPassword: (map.nalog_password ?? "").trim() || null,
+    nalogDeviceId: (map.nalog_device_id ?? "").trim() || null,
+    nalogServiceName: (map.nalog_service_name ?? "").trim() || null,
   };
 }
 
@@ -842,10 +879,12 @@ export async function getPublicConfig() {
     remnaClientUrl: full.remnaClientUrl,
     publicAppUrl: full.publicAppUrl,
     telegramBotUsername: full.telegramBotUsername,
+    telegramBotId: full.telegramBotToken?.split(":")[0] || null,
     botAdminTelegramIds: full.botAdminTelegramIds ?? [],
     plategaMethods: full.plategaMethods.filter((m) => m.enabled).map((m) => ({ id: m.id, label: m.label })),
     yoomoneyEnabled: Boolean(full.yoomoneyReceiverWallet?.trim()),
     yookassaEnabled: Boolean(full.yookassaShopId?.trim() && full.yookassaSecretKey?.trim()),
+    yookassaRecurringEnabled: full.yookassaRecurringEnabled ?? false,
     cryptopayEnabled: Boolean((full as { cryptopayApiToken?: string | null }).cryptopayApiToken?.trim()),
     heleketEnabled: Boolean((full as { heleketMerchantId?: string | null }).heleketMerchantId?.trim() && (full as { heleketApiKey?: string | null }).heleketApiKey?.trim()),
     skipEmailVerification: full.skipEmailVerification ?? false,
@@ -1050,6 +1089,12 @@ export async function getPublicConfig() {
         landingReadyToConnectEyebrow?: string | null;
         landingReadyToConnectTitle?: string | null;
         landingReadyToConnectDesc?: string | null;
+        landingShowFeatures?: boolean;
+        landingShowBenefits?: boolean;
+        landingShowDevices?: boolean;
+        landingShowFaq?: boolean;
+        landingShowHowItWorks?: boolean;
+        landingShowCta?: boolean;
       };
       if (!l.landingEnabled) return null;
       const parseJsonArray = <T>(raw: string | null | undefined, guard: (x: unknown) => x is T): T[] => {
@@ -1180,7 +1225,17 @@ export async function getPublicConfig() {
         readyToConnectEyebrow: (l.landingReadyToConnectEyebrow ?? "").trim() || null,
         readyToConnectTitle: (l.landingReadyToConnectTitle ?? "").trim() || null,
         readyToConnectDesc: (l.landingReadyToConnectDesc ?? "").trim() || null,
+        showFeatures: l.landingShowFeatures !== false,
+        showBenefits: l.landingShowBenefits !== false,
+        showDevices: l.landingShowDevices !== false,
+        showFaq: l.landingShowFaq !== false,
+        showHowItWorks: l.landingShowHowItWorks !== false,
+        showCta: l.landingShowCta !== false,
       };
     })(),
+    proxyEnabled: full.proxyEnabled ?? false,
+    proxyUrl: full.proxyUrl ?? null,
+    proxyTelegram: full.proxyTelegram ?? false,
+    proxyPayments: full.proxyPayments ?? false,
   };
 }

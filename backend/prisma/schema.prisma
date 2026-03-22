@@ -9,17 +9,17 @@ datasource db {
 }
 
 model Admin {
-  id                String   @id @default(cuid())
-  email             String   @unique
-  passwordHash      String   @map("password_hash")
-  mustChangePassword Boolean @default(true) @map("must_change_password")
-  role              String   @default("ADMIN")
-  allowedSections   String?  @map("allowed_sections") @db.Text
-  totpSecret        String?  @map("totp_secret")
-  totpEnabled       Boolean  @default(false) @map("totp_enabled")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
-  refreshTokens     RefreshToken[]
+  id                 String         @id @default(cuid())
+  email              String         @unique
+  passwordHash       String         @map("password_hash")
+  mustChangePassword Boolean        @default(true) @map("must_change_password")
+  role               String         @default("ADMIN")
+  allowedSections    String?        @map("allowed_sections") @db.Text
+  totpSecret         String?        @map("totp_secret")
+  totpEnabled        Boolean        @default(false) @map("totp_enabled")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+  refreshTokens      RefreshToken[]
 
   @@map("admins")
 }
@@ -47,60 +47,67 @@ model SystemSetting {
 }
 
 model AdminNotificationPreference {
-  id                String   @id @default(cuid())
-  telegramId        String   @unique @map("telegram_id")
-  notifyBalanceTopup Boolean @default(true) @map("notify_balance_topup")
-  notifyTariffPayment Boolean @default(true) @map("notify_tariff_payment")
-  notifyNewClient   Boolean  @default(true) @map("notify_new_client")
-  notifyNewTicket   Boolean  @default(true) @map("notify_new_ticket")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  id                  String   @id @default(cuid())
+  telegramId          String   @unique @map("telegram_id")
+  notifyBalanceTopup  Boolean  @default(true) @map("notify_balance_topup")
+  notifyTariffPayment Boolean  @default(true) @map("notify_tariff_payment")
+  notifyNewClient     Boolean  @default(true) @map("notify_new_client")
+  notifyNewTicket     Boolean  @default(true) @map("notify_new_ticket")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
 
   @@map("admin_notification_preferences")
 }
 
 // Клиент панели (покупатель подписок): сайт, бот, mini app
 model Client {
-  id               String    @id @default(cuid())
-  email            String?   @unique
-  passwordHash     String?   @map("password_hash")
-  role             String    @default("CLIENT")
-  remnawaveUuid    String?   @map("remnawave_uuid")
-  referralCode     String?   @unique @map("referral_code")
-  referrerId       String?   @map("referrer_id")
-  balance          Float     @default(0)
-  preferredLang    String    @default("ru") @map("preferred_lang")
-  preferredCurrency String   @default("usd") @map("preferred_currency")
-  telegramId       String?   @unique @map("telegram_id")
-  telegramUsername String?   @map("telegram_username")
-  isBlocked        Boolean   @default(false) @map("is_blocked")
-  blockReason      String?   @map("block_reason")
-  referralPercent  Float?   @map("referral_percent")
-  trialUsed        Boolean   @default(false) @map("trial_used")
-  yoomoneyAccessToken String? @map("yoomoney_access_token")
-  utmSource        String?   @map("utm_source")
-  utmMedium        String?   @map("utm_medium")
-  utmCampaign      String?   @map("utm_campaign")
-  utmContent       String?   @map("utm_content")
-  utmTerm          String?   @map("utm_term")
-  totpSecret       String?   @map("totp_secret")
-  totpEnabled      Boolean   @default(false) @map("totp_enabled")
-  googleId         String?   @unique @map("google_id")
-  appleId          String?   @unique @map("apple_id")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  id                  String   @id @default(cuid())
+  email               String?  @unique
+  passwordHash        String?  @map("password_hash")
+  role                String   @default("CLIENT")
+  remnawaveUuid       String?  @map("remnawave_uuid")
+  referralCode        String?  @unique @map("referral_code")
+  referrerId          String?  @map("referrer_id")
+  balance             Float    @default(0)
+  preferredLang       String   @default("ru") @map("preferred_lang")
+  preferredCurrency   String   @default("usd") @map("preferred_currency")
+  telegramId          String?  @unique @map("telegram_id")
+  telegramUsername    String?  @map("telegram_username")
+  isBlocked           Boolean  @default(false) @map("is_blocked")
+  blockReason         String?  @map("block_reason")
+  referralPercent     Float?   @map("referral_percent")
+  trialUsed           Boolean  @default(false) @map("trial_used")
+  yoomoneyAccessToken String?  @map("yoomoney_access_token")
+  utmSource           String?  @map("utm_source")
+  utmMedium           String?  @map("utm_medium")
+  utmCampaign         String?  @map("utm_campaign")
+  utmContent          String?  @map("utm_content")
+  utmTerm             String?  @map("utm_term")
+  totpSecret          String?  @map("totp_secret")
+  totpEnabled         Boolean  @default(false) @map("totp_enabled")
+  googleId            String?  @unique @map("google_id")
+  appleId             String?  @unique @map("apple_id")
+  autoRenewEnabled    Boolean  @default(false) @map("auto_renew_enabled")
+  autoRenewTariffId   String?  @map("auto_renew_tariff_id")
+  autoRenewRetryCount Int      @default(0) @map("auto_renew_retry_count")
+  autoRenewNotifiedAt DateTime? @map("auto_renew_notified_at")
+  yookassaPaymentMethodId    String?  @map("yookassa_payment_method_id")
+  yookassaPaymentMethodTitle String?  @map("yookassa_payment_method_title")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
 
-  referrer   Client?   @relation("ClientReferrer", fields: [referrerId], references: [id])
-  referrals  Client[]  @relation("ClientReferrer")
-  payments   Payment[]
-  referralCredits ReferralCredit[]
-  promoActivations PromoActivation[]
-  promoCodeUsages  PromoCodeUsage[]
+  referrer          Client?            @relation("ClientReferrer", fields: [referrerId], references: [id])
+  referrals         Client[]           @relation("ClientReferrer")
+  payments          Payment[]
+  autoRenewTariff   Tariff?            @relation("ClientAutoRenewTariff", fields: [autoRenewTariffId], references: [id], onDelete: SetNull)
+  referralCredits   ReferralCredit[]
+  promoActivations  PromoActivation[]
+  promoCodeUsages   PromoCodeUsage[]
   autoBroadcastLogs AutoBroadcastLog[]
-  proxySlots ProxySlot[]
-  singboxSlots SingboxSlot[]
-  tickets     Ticket[]
-  contestWinners ContestWinner[]
+  proxySlots        ProxySlot[]
+  singboxSlots      SingboxSlot[]
+  tickets           Ticket[]
+  contestWinners    ContestWinner[]
 
   @@index([telegramId])
   @@index([email])
@@ -126,12 +133,12 @@ model Ticket {
 }
 
 model TicketMessage {
-  id        String   @id @default(cuid())
-  ticketId  String   @map("ticket_id")
-  authorType String  @map("author_type") @db.VarChar(20) // client | support
-  content   String   @db.Text
-  isRead    Boolean  @default(false) @map("is_read")
-  createdAt DateTime @default(now()) @map("created_at")
+  id         String   @id @default(cuid())
+  ticketId   String   @map("ticket_id")
+  authorType String   @map("author_type") @db.VarChar(20) // client | support
+  content    String   @db.Text
+  isRead     Boolean  @default(false) @map("is_read")
+  createdAt  DateTime @default(now()) @map("created_at")
 
   ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 
@@ -169,20 +176,20 @@ model PendingEmailLink {
 
 // Ожидание подтверждения email при регистрации (ссылка из письма)
 model PendingEmailRegistration {
-  id               String   @id @default(cuid())
-  email            String
-  passwordHash     String   @map("password_hash")
-  preferredLang    String   @default("ru") @map("preferred_lang")
-  preferredCurrency String  @default("usd") @map("preferred_currency")
-  referralCode     String?  @map("referral_code")
-  utmSource        String?  @map("utm_source")
-  utmMedium        String?  @map("utm_medium")
-  utmCampaign      String?  @map("utm_campaign")
-  utmContent       String?  @map("utm_content")
-  utmTerm          String?  @map("utm_term")
-  verificationToken String @unique @map("verification_token")
-  expiresAt        DateTime @map("expires_at")
-  createdAt        DateTime @default(now()) @map("created_at")
+  id                String   @id @default(cuid())
+  email             String
+  passwordHash      String   @map("password_hash")
+  preferredLang     String   @default("ru") @map("preferred_lang")
+  preferredCurrency String   @default("usd") @map("preferred_currency")
+  referralCode      String?  @map("referral_code")
+  utmSource         String?  @map("utm_source")
+  utmMedium         String?  @map("utm_medium")
+  utmCampaign       String?  @map("utm_campaign")
+  utmContent        String?  @map("utm_content")
+  utmTerm           String?  @map("utm_term")
+  verificationToken String   @unique @map("verification_token")
+  expiresAt         DateTime @map("expires_at")
+  createdAt         DateTime @default(now()) @map("created_at")
 
   @@index([verificationToken])
   @@index([email])
@@ -190,27 +197,27 @@ model PendingEmailRegistration {
 }
 
 model Payment {
-  id           String   @id @default(cuid())
-  clientId     String   @map("client_id")
-  orderId      String   @unique @map("order_id")
-  amount       Float
-  currency     String
-  status       String   @default("PENDING") // PENDING, PAID, FAILED, REFUNDED
-  provider     String?  // yookassa, cryptobot, etc.
-  externalId   String?  @map("external_id")
-  tariffId     String?  @map("tariff_id")
-  proxyTariffId String? @map("proxy_tariff_id")
-  singboxTariffId String? @map("singbox_tariff_id")
-  remnawaveUserId String? @map("remnawave_user_id")
-  metadata     String?  @db.Text // JSON
-  createdAt    DateTime @default(now()) @map("created_at")
-  paidAt       DateTime? @map("paid_at")
+  id                    String    @id @default(cuid())
+  clientId              String    @map("client_id")
+  orderId               String    @unique @map("order_id")
+  amount                Float
+  currency              String
+  status                String    @default("PENDING") // PENDING, PAID, FAILED, REFUNDED
+  provider              String? // yookassa, cryptobot, etc.
+  externalId            String?   @map("external_id")
+  tariffId              String?   @map("tariff_id")
+  proxyTariffId         String?   @map("proxy_tariff_id")
+  singboxTariffId       String?   @map("singbox_tariff_id")
+  remnawaveUserId       String?   @map("remnawave_user_id")
+  metadata              String?   @db.Text // JSON
+  createdAt             DateTime  @default(now()) @map("created_at")
+  paidAt                DateTime? @map("paid_at")
   referralDistributedAt DateTime? @map("referral_distributed_at")
 
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  tariff Tariff? @relation(fields: [tariffId], references: [id], onDelete: SetNull)
-  proxyTariff ProxyTariff? @relation(fields: [proxyTariffId], references: [id], onDelete: SetNull)
-  singboxTariff SingboxTariff? @relation(fields: [singboxTariffId], references: [id], onDelete: SetNull)
+  client          Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  tariff          Tariff?          @relation(fields: [tariffId], references: [id], onDelete: SetNull)
+  proxyTariff     ProxyTariff?     @relation(fields: [proxyTariffId], references: [id], onDelete: SetNull)
+  singboxTariff   SingboxTariff?   @relation(fields: [singboxTariffId], references: [id], onDelete: SetNull)
   referralCredits ReferralCredit[]
 
   @@index([clientId])
@@ -223,12 +230,12 @@ model Payment {
 
 // Начисление реферального бонуса (для отчёта «заработок с рефералов»)
 model ReferralCredit {
-  id           String   @id @default(cuid())
-  referrerId   String   @map("referrer_id")
-  paymentId    String   @map("payment_id")
-  amount       Float
-  level        Int      // 1, 2 или 3
-  createdAt    DateTime @default(now()) @map("created_at")
+  id         String   @id @default(cuid())
+  referrerId String   @map("referrer_id")
+  paymentId  String   @map("payment_id")
+  amount     Float
+  level      Int // 1, 2 или 3
+  createdAt  DateTime @default(now()) @map("created_at")
 
   referrer Client  @relation(fields: [referrerId], references: [id], onDelete: Cascade)
   payment  Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
@@ -240,17 +247,17 @@ model ReferralCredit {
 
 // ——— Промо-группы и активации ———
 model PromoGroup {
-  id               String   @id @default(cuid())
-  name             String                            // Название промо-группы
-  code             String   @unique                  // Уникальный код (используется в ссылке /start promo_<code>)
-  squadUuid        String   @map("squad_uuid")       // UUID сквада в Remnawave
-  trafficLimitBytes BigInt  @default(0) @map("traffic_limit_bytes")
-  deviceLimit      Int?     @map("device_limit")
-  durationDays     Int      @map("duration_days")    // На сколько дней даётся подписка
-  maxActivations   Int      @map("max_activations")  // Макс. кол-во активаций (0 = без лимита)
-  isActive         Boolean  @default(true) @map("is_active")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  id                String   @id @default(cuid())
+  name              String // Название промо-группы
+  code              String   @unique // Уникальный код (используется в ссылке /start promo_<code>)
+  squadUuid         String   @map("squad_uuid") // UUID сквада в Remnawave
+  trafficLimitBytes BigInt   @default(0) @map("traffic_limit_bytes")
+  deviceLimit       Int?     @map("device_limit")
+  durationDays      Int      @map("duration_days") // На сколько дней даётся подписка
+  maxActivations    Int      @map("max_activations") // Макс. кол-во активаций (0 = без лимита)
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   activations PromoActivation[]
 
@@ -275,12 +282,12 @@ model PromoActivation {
 // ——— Промокоды (скидки и бесплатные дни) ———
 model PromoCode {
   id                String    @id @default(cuid())
-  code              String    @unique                  // Уникальный промокод (вводится вручную)
-  name              String                             // Описание / название
-  type              String                             // DISCOUNT | FREE_DAYS
+  code              String    @unique // Уникальный промокод (вводится вручную)
+  name              String // Описание / название
+  type              String // DISCOUNT | FREE_DAYS
   // Для DISCOUNT:
   discountPercent   Float?    @map("discount_percent") // Скидка в %
-  discountFixed     Float?    @map("discount_fixed")   // Или фикс. скидка в валюте
+  discountFixed     Float?    @map("discount_fixed") // Или фикс. скидка в валюте
   // Для FREE_DAYS:
   squadUuid         String?   @map("squad_uuid")
   trafficLimitBytes BigInt?   @map("traffic_limit_bytes")
@@ -328,6 +335,7 @@ model TariffCategory {
 }
 
 // Тариф внутри категории: название, описание (опционально), срок, сквады, лимиты, цена
+// trafficResetMode: no_reset (по умолчанию), on_purchase (сброс при покупке), monthly (ежемесячный сброс через Remna MONTH-стратегию)
 model Tariff {
   id                 String   @id @default(cuid())
   categoryId         String   @map("category_id")
@@ -336,6 +344,7 @@ model Tariff {
   durationDays       Int      @map("duration_days")
   internalSquadUuids String[] @map("internal_squad_uuids")
   trafficLimitBytes  BigInt?  @map("traffic_limit_bytes")
+  trafficResetMode   String   @default("no_reset") @map("traffic_reset_mode")
   deviceLimit        Int?     @map("device_limit")
   price              Float    @default(0)
   currency           String   @default("usd") @map("currency")
@@ -343,8 +352,9 @@ model Tariff {
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
-  category TariffCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  payments Payment[]
+  category         TariffCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  payments         Payment[]
+  autoRenewClients Client[]       @relation("ClientAutoRenewTariff")
 
   @@index([categoryId])
   @@map("tariffs")
@@ -352,16 +362,18 @@ model Tariff {
 
 // ——— Авто-рассылка (настраиваемые правила для удержания клиентов) ———
 model AutoBroadcastRule {
-  id           String   @id @default(cuid())
-  name         String   @map("name")           // Название правила для админки
-  triggerType  String   @map("trigger_type")    // after_registration | inactivity | no_payment | trial_not_connected | trial_used_never_paid | no_traffic | subscription_expired
-  delayDays    Int      @map("delay_days")      // Дней после триггера (для after_registration / no_payment) или без платежа (inactivity)
-  channel      String   @map("channel")         // telegram | email | both
-  subject      String?  @map("subject")         // Тема письма (для email)
-  message      String   @db.Text                // Текст (до 4096)
-  enabled      Boolean  @default(true) @map("enabled")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id          String   @id @default(cuid())
+  name        String   @map("name") // Название правила для админки
+  triggerType String   @map("trigger_type") // after_registration | inactivity | no_payment | trial_not_connected | trial_used_never_paid | no_traffic | subscription_expired
+  delayDays   Int      @map("delay_days") // Дней после триггера (для after_registration / no_payment) или без платежа (inactivity)
+  channel     String   @map("channel") // telegram | email | both
+  subject     String?  @map("subject") // Тема письма (для email)
+  message     String   @db.Text // Текст (до 4096)
+  buttonText  String?  @map("button_text") // Текст кнопки под сообщением
+  buttonUrl   String?  @map("button_url") // URL кнопки
+  enabled     Boolean  @default(true) @map("enabled")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   logs AutoBroadcastLog[]
 
@@ -369,39 +381,40 @@ model AutoBroadcastRule {
 }
 
 model AutoBroadcastLog {
-  id        String   @id @default(cuid())
-  ruleId    String   @map("rule_id")
-  clientId  String   @map("client_id")
-  sentAt    DateTime @default(now()) @map("sent_at")
+  id       String   @id @default(cuid())
+  ruleId   String   @map("rule_id")
+  clientId String   @map("client_id")
+  sentAt   DateTime @default(now()) @map("sent_at")
 
   rule   AutoBroadcastRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
-  client Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
-  @@unique([ruleId, clientId])
+  @@index([ruleId, clientId])
   @@index([ruleId])
   @@index([clientId])
+  @@index([sentAt])
   @@map("auto_broadcast_logs")
 }
 
 // ——— Прокси-ноды и продажа прокси ———
 model ProxyNode {
-  id                  String   @id @default(cuid())
-  name                String   @default("")  // Название (админ или нода при регистрации)
-  token               String   @unique       // Токен для регистрации и heartbeat
-  status              String   @default("OFFLINE") // ONLINE | OFFLINE | DISABLED
-  lastSeenAt          DateTime? @map("last_seen_at")
-  publicHost          String?  @map("public_host") // IP или домен (из регистрации/heartbeat)
-  socksPort           Int      @default(1080) @map("socks_port")
-  httpPort            Int      @default(8080) @map("http_port")
-  capacity            Int?     // Макс. слотов (опционально)
-  currentConnections  Int      @default(0) @map("current_connections")
-  trafficInBytes      BigInt   @default(0) @map("traffic_in_bytes")
-  trafficOutBytes     BigInt   @default(0) @map("traffic_out_bytes")
-  metadata            String?  @db.Text     // JSON от агента (CPU, RAM, версия)
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
+  id                 String    @id @default(cuid())
+  name               String    @default("") // Название (админ или нода при регистрации)
+  token              String    @unique // Токен для регистрации и heartbeat
+  status             String    @default("OFFLINE") // ONLINE | OFFLINE | DISABLED
+  lastSeenAt         DateTime? @map("last_seen_at")
+  publicHost         String?   @map("public_host") // IP или домен (из регистрации/heartbeat)
+  socksPort          Int       @default(1080) @map("socks_port")
+  httpPort           Int       @default(8080) @map("http_port")
+  capacity           Int? // Макс. слотов (опционально)
+  currentConnections Int       @default(0) @map("current_connections")
+  trafficInBytes     BigInt    @default(0) @map("traffic_in_bytes")
+  trafficOutBytes    BigInt    @default(0) @map("traffic_out_bytes")
+  metadata           String?   @db.Text // JSON от агента (CPU, RAM, версия)
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
-  slots ProxySlot[]
+  slots             ProxySlot[]
   tariffAssignments ProxyTariffNode[]
 
   @@map("proxy_nodes")
@@ -420,23 +433,23 @@ model ProxyCategory {
 }
 
 model ProxyTariff {
-  id                 String   @id @default(cuid())
-  categoryId         String   @map("category_id")
-  name               String   // «1 прокси 30 дней»
-  proxyCount         Int      @map("proxy_count")   // Кол-во прокси в пакете
-  durationDays       Int      @map("duration_days")
-  trafficLimitBytes  BigInt?  @map("traffic_limit_bytes") // На один слот (null = без лимита)
-  connectionLimit    Int?     @map("connection_limit")     // На один слот
-  price              Float    @default(0)
-  currency           String   @default("usd")
-  sortOrder          Int      @default(0) @map("sort_order")
-  enabled            Boolean  @default(true)
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  id                String   @id @default(cuid())
+  categoryId        String   @map("category_id")
+  name              String // «1 прокси 30 дней»
+  proxyCount        Int      @map("proxy_count") // Кол-во прокси в пакете
+  durationDays      Int      @map("duration_days")
+  trafficLimitBytes BigInt?  @map("traffic_limit_bytes") // На один слот (null = без лимита)
+  connectionLimit   Int?     @map("connection_limit") // На один слот
+  price             Float    @default(0)
+  currency          String   @default("usd")
+  sortOrder         Int      @default(0) @map("sort_order")
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
-  category   ProxyCategory   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  payments   Payment[]
-  slots      ProxySlot[]
+  category      ProxyCategory     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  payments      Payment[]
+  slots         ProxySlot[]
   assignedNodes ProxyTariffNode[]
 
   @@index([categoryId])
@@ -462,16 +475,16 @@ model ProxySlot {
   nodeId             String   @map("node_id")
   clientId           String   @map("client_id")
   proxyTariffId      String?  @map("proxy_tariff_id")
-  login              String   // Уникален в рамках ноды
-  password           String   // В открытом виде для выдачи и конфига на ноде
+  login              String // Уникален в рамках ноды
+  password           String // В открытом виде для выдачи и конфига на ноде
   expiresAt          DateTime @map("expires_at")
   trafficLimitBytes  BigInt?  @map("traffic_limit_bytes")
   connectionLimit    Int?     @map("connection_limit")
   trafficUsedBytes   BigInt   @default(0) @map("traffic_used_bytes")
-  currentConnections Int     @default(0) @map("current_connections")
+  currentConnections Int      @default(0) @map("current_connections")
   status             String   @default("ACTIVE") // ACTIVE | EXPIRED | REVOKED
   createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
   node        ProxyNode    @relation(fields: [nodeId], references: [id], onDelete: Cascade)
   client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -487,23 +500,23 @@ model ProxySlot {
 
 // ——— Sing-box ноды и продажа доступов (VLESS / SS / Trojan / Hysteria2) ———
 model SingboxNode {
-  id                  String   @id @default(cuid())
-  name                String   @default("")
-  token               String   @unique
-  status              String   @default("OFFLINE") // ONLINE | OFFLINE | DISABLED
-  lastSeenAt          DateTime? @map("last_seen_at")
-  publicHost          String?  @map("public_host")
-  port                Int      @default(443) @map("port")
-  protocol            String   @default("VLESS")   // VLESS | SHADOWSOCKS | TROJAN | HYSTERIA2
-  tlsEnabled          Boolean  @default(true) @map("tls_enabled")
-  capacity            Int?
-  currentConnections  Int      @default(0) @map("current_connections")
-  trafficInBytes      BigInt   @default(0) @map("traffic_in_bytes")
-  trafficOutBytes     BigInt   @default(0) @map("traffic_out_bytes")
-  metadata            String?  @db.Text
-  customConfigJson    String?  @map("custom_config_json") @db.Text
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
+  id                 String    @id @default(cuid())
+  name               String    @default("")
+  token              String    @unique
+  status             String    @default("OFFLINE") // ONLINE | OFFLINE | DISABLED
+  lastSeenAt         DateTime? @map("last_seen_at")
+  publicHost         String?   @map("public_host")
+  port               Int       @default(443) @map("port")
+  protocol           String    @default("VLESS") // VLESS | SHADOWSOCKS | TROJAN | HYSTERIA2
+  tlsEnabled         Boolean   @default(true) @map("tls_enabled")
+  capacity           Int?
+  currentConnections Int       @default(0) @map("current_connections")
+  trafficInBytes     BigInt    @default(0) @map("traffic_in_bytes")
+  trafficOutBytes    BigInt    @default(0) @map("traffic_out_bytes")
+  metadata           String?   @db.Text
+  customConfigJson   String?   @map("custom_config_json") @db.Text
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   slots SingboxSlot[]
 
@@ -523,18 +536,18 @@ model SingboxCategory {
 }
 
 model SingboxTariff {
-  id                 String   @id @default(cuid())
-  categoryId         String   @map("category_id")
-  name               String
-  slotCount          Int      @map("slot_count")
-  durationDays       Int      @map("duration_days")
-  trafficLimitBytes  BigInt?  @map("traffic_limit_bytes")
-  price              Float    @default(0)
-  currency           String   @default("usd")
-  sortOrder          Int      @default(0) @map("sort_order")
-  enabled            Boolean  @default(true)
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  id                String   @id @default(cuid())
+  categoryId        String   @map("category_id")
+  name              String
+  slotCount         Int      @map("slot_count")
+  durationDays      Int      @map("duration_days")
+  trafficLimitBytes BigInt?  @map("traffic_limit_bytes")
+  price             Float    @default(0)
+  currency          String   @default("usd")
+  sortOrder         Int      @default(0) @map("sort_order")
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   category SingboxCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   payments Payment[]
@@ -550,17 +563,17 @@ model SingboxSlot {
   clientId           String   @map("client_id")
   singboxTariffId    String?  @map("singbox_tariff_id")
   userIdentifier     String   @map("user_identifier") // UUID (VLESS/Trojan) или логин (SS/Hy2)
-  secret             String?  @db.Text                // пароль для SS/Hy2
+  secret             String?  @db.Text // пароль для SS/Hy2
   expiresAt          DateTime @map("expires_at")
   trafficLimitBytes  BigInt?  @map("traffic_limit_bytes")
   trafficUsedBytes   BigInt   @default(0) @map("traffic_used_bytes")
   currentConnections Int      @default(0) @map("current_connections")
-  status             String   @default("ACTIVE")     // ACTIVE | EXPIRED | REVOKED
+  status             String   @default("ACTIVE") // ACTIVE | EXPIRED | REVOKED
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
-  node        SingboxNode    @relation(fields: [nodeId], references: [id], onDelete: Cascade)
-  client      Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  node          SingboxNode    @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  client        Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   singboxTariff SingboxTariff? @relation(fields: [singboxTariffId], references: [id], onDelete: SetNull)
 
   @@unique([nodeId, userIdentifier])
@@ -573,23 +586,23 @@ model SingboxSlot {
 
 // ——— Конкурсы / розыгрыши ———
 model Contest {
-  id             String   @id @default(cuid())
-  name           String   @map("name")
-  startAt        DateTime @map("start_at")
-  endAt          DateTime @map("end_at")
-  prize1Type     String   @map("prize1_type")   // custom | balance | vpn_days
-  prize1Value    String   @map("prize1_value")  @db.Text // текст, сумма или кол-во дней
-  prize2Type     String   @map("prize2_type")
-  prize2Value    String   @map("prize2_value")   @db.Text
-  prize3Type     String   @map("prize3_type")
-  prize3Value    String   @map("prize3_value")  @db.Text
-  conditionsJson String?  @map("conditions_json") @db.Text // { "minTariffDays": 30, "minPaymentsCount": 1 }
-  drawType       String   @map("draw_type")     // random | by_days_bought | by_payments_count | by_referrals_count
-  status         String   @default("draft")    // draft | active | ended | drawn
-  dailyMessage   String?  @map("daily_message") @db.Text
+  id                      String    @id @default(cuid())
+  name                    String    @map("name")
+  startAt                 DateTime  @map("start_at")
+  endAt                   DateTime  @map("end_at")
+  prize1Type              String    @map("prize1_type") // custom | balance | vpn_days
+  prize1Value             String    @map("prize1_value") @db.Text // текст, сумма или кол-во дней
+  prize2Type              String    @map("prize2_type")
+  prize2Value             String    @map("prize2_value") @db.Text
+  prize3Type              String    @map("prize3_type")
+  prize3Value             String    @map("prize3_value") @db.Text
+  conditionsJson          String?   @map("conditions_json") @db.Text // { "minTariffDays": 30, "minPaymentsCount": 1 }
+  drawType                String    @map("draw_type") // random | by_days_bought | by_payments_count | by_referrals_count
+  status                  String    @default("draft") // draft | active | ended | drawn
+  dailyMessage            String?   @map("daily_message") @db.Text
   startNotificationSentAt DateTime? @map("start_notification_sent_at")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
 
   winners ContestWinner[]
 
@@ -598,13 +611,13 @@ model Contest {
 
 model ContestWinner {
   id         String    @id @default(cuid())
-  contestId String    @map("contest_id")
-  clientId  String    @map("client_id")
-  place     Int       // 1, 2, 3
-  prizeType String    @map("prize_type")
-  prizeValue String   @map("prize_value") @db.Text
-  appliedAt DateTime? @map("applied_at")
-  createdAt DateTime  @default(now()) @map("created_at")
+  contestId  String    @map("contest_id")
+  clientId   String    @map("client_id")
+  place      Int // 1, 2, 3
+  prizeType  String    @map("prize_type")
+  prizeValue String    @map("prize_value") @db.Text
+  appliedAt  DateTime? @map("applied_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
 
   contest Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)
   client  Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -612,4 +625,17 @@ model ContestWinner {
   @@unique([contestId, place])
   @@index([contestId])
   @@map("contest_winners")
+}
+
+model TelegramAuthToken {
+  id                  String   @id @default(cuid())
+  token               String   @unique
+  confirmedTelegramId String?  @map("confirmed_telegram_id")
+  confirmedUsername   String?  @map("confirmed_username")
+  expiresAt           DateTime @map("expires_at")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  @@index([token])
+  @@index([expiresAt])
+  @@map("telegram_auth_tokens")
 }

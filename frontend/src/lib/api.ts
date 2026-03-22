@@ -211,6 +211,26 @@ export const api = {
     return request("/admin/dashboard/stats", { token });
   },
 
+  async getServerStats(token: string): Promise<ServerStats> {
+    return request("/admin/server/stats", { token });
+  },
+
+  async getSshConfig(token: string): Promise<SshConfig | null> {
+    return request("/admin/server/ssh", { token }).then((r) => r as SshConfig).catch(() => null);
+  },
+
+  async updateSshConfig(token: string, data: Partial<SshConfig>): Promise<SshConfig> {
+    return request("/admin/server/ssh", { method: "PATCH", body: JSON.stringify(data), token });
+  },
+
+  async testNalogConnection(token: string): Promise<{ ok: boolean; error?: string; inn?: string }> {
+    return request("/admin/nalog/test", { method: "POST", token });
+  },
+
+  async getAutoRenewStats(token: string): Promise<AutoRenewStats> {
+    return request("/admin/auto-renew/stats", { token });
+  },
+
   async getAdminNotificationCounters(token: string): Promise<AdminNotificationCounters> {
     return request("/admin/notifications/counters", { token });
   },
@@ -593,13 +613,15 @@ export const api = {
   /** Запустить рассылку (опционально — изображение или файл вложения). */
   async broadcast(
     token: string,
-    body: { channel: "telegram" | "email" | "both"; subject?: string; message: string },
+    body: { channel: "telegram" | "email" | "both"; subject?: string; message: string; buttonText?: string; buttonUrl?: string },
     attachment?: File | null
   ): Promise<BroadcastResult> {
     const form = new FormData();
     form.append("channel", body.channel);
     form.append("message", body.message);
     if (body.subject != null && body.subject !== "") form.append("subject", body.subject);
+    if (body.buttonText?.trim()) form.append("buttonText", body.buttonText.trim());
+    if (body.buttonUrl?.trim()) form.append("buttonUrl", body.buttonUrl.trim());
     if (attachment) form.append("attachment", attachment, attachment.name);
     const headers = new Headers();
     headers.set("Authorization", `Bearer ${token}`);
@@ -827,6 +849,16 @@ export const api = {
     });
   },
 
+  /** Генерация одноразового токена для deep-link авторизации через Telegram */
+  async clientTelegramLoginToken(): Promise<{ token: string; expiresAt: string }> {
+    return request("/client/auth/telegram-login-token", { method: "POST" });
+  },
+
+  /** Проверка статуса deep-link авторизации (поллинг) */
+  async clientTelegramLoginCheck(token: string): Promise<(ClientAuthResponse & { confirmed: true }) | (ClientAuthRequires2FA & { confirmed: true }) | { confirmed: false }> {
+    return request(`/client/auth/telegram-login-check?token=${encodeURIComponent(token)}`);
+  },
+
   /** Обмен временного токена (после пароля/Telegram) на полный токен по коду 2FA */
   async client2FALogin(tempToken: string, code: string): Promise<ClientAuthResponse> {
     return request("/client/auth/2fa-login", {
@@ -1001,6 +1033,11 @@ export const api = {
     return request("/client/yookassa/create-payment", { method: "POST", body: JSON.stringify(data), token });
   },
 
+  /** ЮKassa: отвязка сохранённого способа оплаты */
+  async yookassaUnlinkPaymentMethod(token: string): Promise<{ client: ClientProfile }> {
+    return request("/client/yookassa/unlink-payment-method", { method: "POST", token });
+  },
+
   /** Crypto Pay (Crypto Bot) — создание инвойса, возвращает ссылку на оплату */
   async cryptopayCreatePayment(
     token: string,
@@ -1041,6 +1078,10 @@ export const api = {
 
   async clientUpdateProfile(token: string, data: { preferredLang?: string; preferredCurrency?: string }): Promise<ClientProfile> {
     return request("/client/profile", { method: "PATCH", body: JSON.stringify(data), token });
+  },
+
+  async clientUpdateAutoRenew(token: string, data: { enabled?: boolean; tariffId?: string | null }): Promise<ClientProfile> {
+    return request("/client/auto-renew", { method: "PATCH", body: JSON.stringify(data), token });
   },
 
   async clientChangePassword(token: string, data: { currentPassword: string; newPassword: string }): Promise<{ message: string }> {
@@ -1235,6 +1276,8 @@ export interface AutoBroadcastRule {
   channel: "telegram" | "email" | "both";
   subject: string | null;
   message: string;
+  buttonText: string | null;
+  buttonUrl: string | null;
   enabled: boolean;
   sentCount?: number;
 }
@@ -1246,12 +1289,15 @@ export interface AutoBroadcastRulePayload {
   channel: "telegram" | "email" | "both";
   subject?: string | null;
   message: string;
+  buttonText?: string | null;
+  buttonUrl?: string | null;
   enabled?: boolean;
 }
 
 export interface RunRuleResult {
   ruleId: string;
   sent: number;
+  skipped: number;
   errors: string[];
 }
 
@@ -1285,6 +1331,9 @@ export type UpdateSettingsPayload = {
   telegramBotUsername?: string | null;
   botAdminTelegramIds?: string[] | null;
   notificationTelegramGroupId?: string | null;
+  notificationTopicNewClients?: string | null;
+  notificationTopicPayments?: string | null;
+  notificationTopicTickets?: string | null;
   plategaMerchantId?: string | null;
   plategaSecret?: string | null;
   plategaMethods?: string | null;
@@ -1347,6 +1396,12 @@ export type UpdateSettingsPayload = {
   customBuildCurrency?: string;
   customBuildMaxDays?: number;
   customBuildMaxDevices?: number;
+  defaultAutoRenewEnabled?: boolean;
+  autoRenewDaysBeforeExpiry?: number;
+  autoRenewNotifyDaysBefore?: number;
+  autoRenewGracePeriodDays?: number;
+  autoRenewMaxRetries?: number;
+  yookassaRecurringEnabled?: boolean;
   googleLoginEnabled?: boolean;
   googleClientId?: string | null;
   googleClientSecret?: string | null;
@@ -1449,6 +1504,21 @@ export type UpdateSettingsPayload = {
   landingReadyToConnectEyebrow?: string | null;
   landingReadyToConnectTitle?: string | null;
   landingReadyToConnectDesc?: string | null;
+  landingShowFeatures?: boolean;
+  landingShowBenefits?: boolean;
+  landingShowDevices?: boolean;
+  landingShowFaq?: boolean;
+  landingShowHowItWorks?: boolean;
+  landingShowCta?: boolean;
+  proxyEnabled?: boolean;
+  proxyUrl?: string | null;
+  proxyTelegram?: boolean;
+  proxyPayments?: boolean;
+  nalogEnabled?: boolean;
+  nalogInn?: string | null;
+  nalogPassword?: string | null;
+  nalogDeviceId?: string | null;
+  nalogServiceName?: string | null;
 };
 
 export interface ClientRecord {
@@ -1518,11 +1588,20 @@ export interface AdminSettings {
   smtpFromName?: string | null;
   publicAppUrl?: string | null;
   telegramBotToken?: string | null;
+  defaultAutoRenewEnabled?: boolean;
+  autoRenewDaysBeforeExpiry?: number;
+  autoRenewNotifyDaysBefore?: number;
+  autoRenewGracePeriodDays?: number;
+  autoRenewMaxRetries?: number;
+  yookassaRecurringEnabled?: boolean;
   telegramBotUsername?: string | null;
   /** Telegram ID админов бота (видят кнопку «Панель админа» в боте) */
   botAdminTelegramIds?: string[] | null;
   /** Группа для уведомлений: Chat ID (например -1001234567890). Бот должен быть в группе. */
   notificationTelegramGroupId?: string | null;
+  notificationTopicNewClients?: string | null;
+  notificationTopicPayments?: string | null;
+  notificationTopicTickets?: string | null;
   plategaMerchantId?: string | null;
   plategaSecret?: string | null;
   plategaMethods?: { id: number; enabled: boolean; label: string }[];
@@ -1713,6 +1792,22 @@ export interface AdminSettings {
   landingReadyToConnectEyebrow?: string | null;
   landingReadyToConnectTitle?: string | null;
   landingReadyToConnectDesc?: string | null;
+  landingShowFeatures?: boolean;
+  landingShowBenefits?: boolean;
+  landingShowDevices?: boolean;
+  landingShowFaq?: boolean;
+  landingShowHowItWorks?: boolean;
+  landingShowCta?: boolean;
+  /** Прокси для внешних запросов */
+  proxyEnabled?: boolean;
+  proxyUrl?: string | null;
+  proxyTelegram?: boolean;
+  proxyPayments?: boolean;
+  nalogEnabled?: boolean;
+  nalogInn?: string | null;
+  nalogPassword?: string | null;
+  nalogDeviceId?: string | null;
+  nalogServiceName?: string | null;
 }
 
 /** Конфиг страницы подписки (формат как sub.stealthnet.app) */
@@ -1742,6 +1837,24 @@ export type SubscriptionPageConfig = {
   brandingSettings?: { title?: string; logoUrl?: string; supportUrl?: string };
 } | null;
 
+export interface ServerStats {
+  hostname: string;
+  platform: string;
+  arch: string;
+  uptimeSeconds: number;
+  loadAvg: [number, number, number];
+  cpu: { model: string; cores: number; usagePercent: number };
+  memory: { totalBytes: number; usedBytes: number; freeBytes: number; usagePercent: number };
+  disk: { totalBytes: number; usedBytes: number; freeBytes: number; usagePercent: number; mount: string } | null;
+}
+
+export interface SshConfig {
+  port: number;
+  permitRootLogin: string;
+  passwordAuthentication: boolean;
+  pubkeyAuthentication: boolean;
+}
+
 export interface DashboardStats {
   users: {
     total: number;
@@ -1760,6 +1873,15 @@ export interface DashboardStats {
     last30DaysAmount: number;
     last30DaysCount: number;
   };
+}
+
+export interface AutoRenewStats {
+  enabled: number;
+  disabled: number;
+  retriesInProgress: number;
+  renewalsLast7Days: number;
+  renewalsLast30Days: number;
+  amountLast30Days: number;
 }
 
 export interface AdminNotificationCounters {
@@ -1977,6 +2099,7 @@ export interface TariffRecord {
   durationDays: number;
   internalSquadUuids: string[];
   trafficLimitBytes: number | null;
+  trafficResetMode: string;
   deviceLimit: number | null;
   price: number;
   currency: string;
@@ -1992,6 +2115,7 @@ export type CreateTariffPayload = {
   durationDays: number;
   internalSquadUuids: string[];
   trafficLimitBytes?: number | null;
+  trafficResetMode?: string;
   deviceLimit?: number | null;
   price?: number;
   currency?: string;
@@ -2004,6 +2128,7 @@ export type UpdateTariffPayload = {
   durationDays?: number;
   internalSquadUuids?: string[];
   trafficLimitBytes?: number | null;
+  trafficResetMode?: string;
   deviceLimit?: number | null;
   price?: number;
   currency?: string;
@@ -2028,6 +2153,10 @@ export interface ClientProfile {
   /** Включена ли двухфакторная аутентификация (TOTP) */
   totpEnabled?: boolean;
   createdAt?: string;
+  autoRenewEnabled?: boolean;
+  autoRenewTariffId?: string | null;
+  /** Название привязанного способа оплаты ЮKassa (например "Банковская карта *4444") */
+  yookassaPaymentMethodTitle?: string | null;
 }
 
 export interface ClientAuthResponse {
@@ -2071,7 +2200,7 @@ export interface PublicTariffCategory {
   name: string;
   emojiKey: string | null;
   emoji: string;
-  tariffs: { id: string; name: string; description: string | null; durationDays: number; price: number; currency: string; trafficLimitBytes: number | null; deviceLimit: number | null }[];
+  tariffs: { id: string; name: string; description: string | null; durationDays: number; price: number; currency: string; trafficLimitBytes: number | null; trafficResetMode?: string; deviceLimit: number | null }[];
 }
 
 // ——— Промо-группы ———
@@ -2196,6 +2325,7 @@ export interface PublicConfig {
   remnaClientUrl?: string | null;
   publicAppUrl?: string | null;
   telegramBotUsername?: string | null;
+  telegramBotId?: string | null;
   plategaMethods?: { id: number; label: string }[];
   yoomoneyEnabled?: boolean;
   yookassaEnabled?: boolean;
@@ -2225,6 +2355,7 @@ export interface PublicConfig {
     maxDays: number;
     maxDevices: number;
   } | null;
+  yookassaRecurringEnabled?: boolean;
   googleLoginEnabled?: boolean;
   googleClientId?: string | null;
   appleLoginEnabled?: boolean;

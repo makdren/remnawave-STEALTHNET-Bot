@@ -126,6 +126,7 @@ clientAuthRouter.post("/register", async (req, res) => {
           utmCampaign: data.utm_campaign ?? null,
           utmContent: data.utm_content ?? null,
           utmTerm: data.utm_term ?? null,
+          autoRenewEnabled: config.defaultAutoRenewEnabled ?? false,
         },
       });
       notifyAdminsAboutNewClient(client.id).catch(() => {});
@@ -199,7 +200,7 @@ clientAuthRouter.post("/register", async (req, res) => {
   if (hasTelegram) {
     const existing = await prisma.client.findUnique({
       where: { telegramId: data.telegramId! },
-      select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
+      select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
     });
     if (existing) {
       if (existing.isBlocked) return res.status(403).json({ message: "Account is blocked" });
@@ -216,6 +217,7 @@ clientAuthRouter.post("/register", async (req, res) => {
   }
 
   const passwordHash = data.password ? await hashPassword(data.password) : null;
+  const configForAutoRenew = await getSystemConfig();
   const client = await prisma.client.create({
     data: {
       email: data.email ?? null,
@@ -232,6 +234,7 @@ clientAuthRouter.post("/register", async (req, res) => {
       utmCampaign: data.utm_campaign ?? null,
       utmContent: data.utm_content ?? null,
       utmTerm: data.utm_term ?? null,
+      autoRenewEnabled: configForAutoRenew.defaultAutoRenewEnabled ?? false,
     },
   });
   notifyAdminsAboutNewClient(client.id).catch(() => {});
@@ -258,7 +261,7 @@ clientAuthRouter.post("/verify-link-email", async (req, res) => {
   const client = await prisma.client.update({
     where: { id: pending.clientId },
     data: { email: pending.email },
-    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
+    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
   });
   await prisma.pendingEmailLink.deleteMany({ where: { id: pending.id } }).catch(() => {});
   const auth = buildAuthResponse(client);
@@ -282,7 +285,7 @@ clientAuthRouter.post("/verify-email", async (req, res) => {
 
   const existingClient = await prisma.client.findUnique({
     where: { email: pending.email },
-    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
+    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
   });
   if (existingClient) {
     await prisma.pendingEmailRegistration.delete({ where: { id: pending.id } }).catch(() => {});
@@ -298,6 +301,7 @@ clientAuthRouter.post("/verify-email", async (req, res) => {
     if (referrer) referrerId = referrer.id;
   }
 
+  const configForAutoRenew = await getSystemConfig();
   const client = await prisma.client.create({
     data: {
       email: pending.email,
@@ -314,6 +318,7 @@ clientAuthRouter.post("/verify-email", async (req, res) => {
       utmCampaign: pending.utmCampaign,
       utmContent: pending.utmContent,
       utmTerm: pending.utmTerm,
+      autoRenewEnabled: configForAutoRenew.defaultAutoRenewEnabled ?? false,
     },
   });
 
@@ -344,7 +349,7 @@ clientAuthRouter.post("/login", async (req, res) => {
 
   const full = await prisma.client.findUnique({
     where: { id: client.id },
-    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
+    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
   });
   if (!full) return res.status(401).json({ message: "Invalid email or password" });
   const auth = buildAuthResponse(full);
@@ -404,7 +409,7 @@ clientAuthRouter.post("/telegram-miniapp", async (req, res) => {
   const telegramUsername = tgUser.username?.trim() ?? null;
   const existing = await prisma.client.findUnique({
     where: { telegramId },
-    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
+    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
   });
   if (existing) {
     if (existing.isBlocked) return res.status(403).json({ message: "Account is blocked" });
@@ -415,22 +420,28 @@ clientAuthRouter.post("/telegram-miniapp", async (req, res) => {
   const configForDefaults = await getSystemConfig();
   let remnawaveUuid: string | null = null;
   if (isRemnaConfigured()) {
-    const username = remnaUsernameFromClient({
-      telegramUsername: telegramUsername ?? undefined,
-      telegramId,
-    });
-    // Без активной подписки — как при регистрации по email; доступ после триала или оплаты
-    const remnaRes = await remnaCreateUser({
-      username,
-      trafficLimitBytes: 0,
-      trafficLimitStrategy: "NO_RESET",
-      expireAt: new Date(Date.now() - 1000).toISOString(),
-      telegramId: tgUser.id,
-    });
-    remnawaveUuid = extractRemnaUuid(remnaRes.data);
-    if (remnaRes.error || remnawaveUuid == null) {
-      console.error("[Remna] create user (telegram initData) failed:", { error: remnaRes.error, status: remnaRes.status, data: remnaRes.data });
-      return res.status(503).json({ message: "Сервис временно недоступен. Не удалось создать учётную запись VPN. Попробуйте позже." });
+    // Сначала проверяем — может юзер уже есть в Remna (создан ботом или предыдущей попыткой)
+    const byTgRes = await remnaGetUserByTelegramId(telegramId);
+    remnawaveUuid = extractRemnaUuid(byTgRes.data);
+
+    if (!remnawaveUuid) {
+      const username = remnaUsernameFromClient({
+        telegramUsername: telegramUsername ?? undefined,
+        telegramId,
+      });
+      // Без активной подписки — как при регистрации по email; доступ после триала или оплаты
+      const remnaRes = await remnaCreateUser({
+        username,
+        trafficLimitBytes: 0,
+        trafficLimitStrategy: "NO_RESET",
+        expireAt: new Date(Date.now() - 1000).toISOString(),
+        telegramId: tgUser.id,
+      });
+      remnawaveUuid = extractRemnaUuid(remnaRes.data);
+      if (remnaRes.error || remnawaveUuid == null) {
+        console.error("[Remna] create user (telegram initData) failed:", { error: remnaRes.error, status: remnaRes.status, data: remnaRes.data });
+        return res.status(503).json({ message: "Сервис временно недоступен. Не удалось создать учётную запись VPN. Попробуйте позже." });
+      }
     }
   }
   const referralCode = generateReferralCode();
@@ -445,6 +456,7 @@ clientAuthRouter.post("/telegram-miniapp", async (req, res) => {
       preferredCurrency: configForDefaults.defaultCurrency ?? "usd",
       telegramId,
       telegramUsername,
+      autoRenewEnabled: configForDefaults.defaultAutoRenewEnabled ?? false,
     },
   });
   const token = signClientToken(client.id);
@@ -459,7 +471,7 @@ clientAuthRouter.post("/2fa-login", async (req, res) => {
   if (!payload) return res.status(401).json({ message: "Сессия истекла. Войдите снова." });
   const client = await prisma.client.findUnique({
     where: { id: payload.clientId },
-    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, yoomoneyAccessToken: true, totpSecret: true, totpEnabled: true, createdAt: true },
+    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpSecret: true, totpEnabled: true, createdAt: true },
   });
   if (!client?.totpEnabled || !client.totpSecret) return res.status(401).json({ message: "2FA не включена. Войдите снова." });
   const result = await verify({ secret: client.totpSecret, token: body.data.code });
@@ -472,7 +484,7 @@ clientAuthRouter.get("/me", requireClientAuth, async (req, res) => {
   const client = (req as unknown as { client: { id: string } }).client;
   const full = await prisma.client.findUnique({
     where: { id: client.id },
-    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
+    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true, yookassaPaymentMethodTitle: true },
   });
   if (!full) return res.status(401).json({ message: "Unauthorized" });
   return res.json(toClientShape(full));
@@ -494,6 +506,9 @@ function toClientShape(c: {
   yoomoneyAccessToken?: string | null;
   totpEnabled?: boolean;
   createdAt?: Date;
+  autoRenewEnabled?: boolean;
+  autoRenewTariffId?: string | null;
+  yookassaPaymentMethodTitle?: string | null;
 }) {
   return {
     id: c.id,
@@ -511,6 +526,9 @@ function toClientShape(c: {
     yoomoneyConnected: Boolean(c.yoomoneyAccessToken),
     totpEnabled: c.totpEnabled ?? false,
     createdAt: c.createdAt ? c.createdAt.toISOString() : undefined,
+    autoRenewEnabled: c.autoRenewEnabled ?? false,
+    autoRenewTariffId: c.autoRenewTariffId ?? null,
+    yookassaPaymentMethodTitle: c.yookassaPaymentMethodTitle ?? null,
   };
 }
 
@@ -550,7 +568,7 @@ clientAuthRouter.post("/google", async (req, res) => {
 
   const existing = await prisma.client.findUnique({
     where: { googleId },
-    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
+    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
   });
   if (existing) {
     if (existing.isBlocked) return res.status(403).json({ message: "Account is blocked" });
@@ -561,7 +579,7 @@ clientAuthRouter.post("/google", async (req, res) => {
   if (googleEmail) {
     const byEmail = await prisma.client.findUnique({
       where: { email: googleEmail },
-      select: { id: true, email: true, googleId: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
+      select: { id: true, email: true, googleId: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
     });
     if (byEmail) {
       if (byEmail.isBlocked) return res.status(403).json({ message: "Account is blocked" });
@@ -600,6 +618,7 @@ clientAuthRouter.post("/google", async (req, res) => {
       telegramId: null,
       telegramUsername: null,
       googleId,
+      autoRenewEnabled: configForDefaults.defaultAutoRenewEnabled ?? false,
     },
   });
   const token = signClientToken(client.id);
@@ -635,7 +654,7 @@ clientAuthRouter.post("/apple", async (req, res) => {
 
   const existing = await prisma.client.findUnique({
     where: { appleId: appleSub },
-    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
+    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
   });
   if (existing) {
     if (existing.isBlocked) return res.status(403).json({ message: "Account is blocked" });
@@ -646,7 +665,7 @@ clientAuthRouter.post("/apple", async (req, res) => {
   if (appleEmail) {
     const byEmail = await prisma.client.findUnique({
       where: { email: appleEmail },
-      select: { id: true, email: true, appleId: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
+      select: { id: true, email: true, appleId: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
     });
     if (byEmail) {
       if (byEmail.isBlocked) return res.status(403).json({ message: "Account is blocked" });
@@ -685,10 +704,189 @@ clientAuthRouter.post("/apple", async (req, res) => {
       telegramId: null,
       telegramUsername: null,
       appleId: appleSub,
+      autoRenewEnabled: configForDefaults.defaultAutoRenewEnabled ?? false,
     },
   });
   const token = signClientToken(client.id);
   return res.status(201).json({ token, client: toClientShape(client) });
+});
+
+// ——— Deep-link Telegram авторизация (tg:// протокол, обходит блокировки) ———
+
+// 1) Генерация одноразового токена для deep-link авторизации
+clientAuthRouter.post("/telegram-login-token", async (_req, res) => {
+  try {
+    // Чистим просроченные токены
+    await prisma.telegramAuthToken.deleteMany({
+      where: { expiresAt: { lt: new Date() } },
+    });
+
+    const token = randomBytes(16).toString("hex"); // 32 hex chars — with "auth_" prefix = 37, well under Telegram's 64-char start param limit
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 минут
+
+    const record = await prisma.telegramAuthToken.create({
+      data: { token, expiresAt },
+    });
+
+    return res.json({ token: record.token, expiresAt: record.expiresAt.toISOString() });
+  } catch (err) {
+    console.error("[telegram-login-token] error:", err);
+    return res.status(500).json({ message: "Failed to generate auth token" });
+  }
+});
+
+// 2) Поллинг: проверяем, подтвердил ли пользователь токен через бота
+clientAuthRouter.get("/telegram-login-check", async (req, res) => {
+  const { token } = req.query;
+  if (typeof token !== "string" || !token.trim()) {
+    return res.status(400).json({ message: "Missing token" });
+  }
+
+  try {
+    const record = await prisma.telegramAuthToken.findUnique({
+      where: { token: token.trim() },
+    });
+
+    if (!record) {
+      return res.status(404).json({ message: "Token not found or expired" });
+    }
+
+    if (record.expiresAt < new Date()) {
+      await prisma.telegramAuthToken.delete({ where: { id: record.id } }).catch(() => {});
+      return res.status(410).json({ message: "Token expired" });
+    }
+
+    if (!record.confirmedTelegramId) {
+      return res.json({ confirmed: false });
+    }
+
+    // Токен подтверждён — ищем/создаём клиента
+    const telegramId = record.confirmedTelegramId;
+    const telegramUsername = record.confirmedUsername ?? null;
+
+    // Удаляем использованный токен
+    await prisma.telegramAuthToken.delete({ where: { id: record.id } }).catch(() => {});
+
+    const clientSelect = { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true };
+
+    const existing = await prisma.client.findUnique({
+      where: { telegramId },
+      select: clientSelect,
+    });
+
+    if (existing) {
+      if (existing.isBlocked) return res.status(403).json({ message: "Account is blocked" });
+      // Обновляем username если изменился
+      if (telegramUsername && existing.telegramUsername !== telegramUsername) {
+        await prisma.client.update({ where: { id: existing.id }, data: { telegramUsername } }).catch(() => {});
+      }
+      const auth = buildAuthResponse(existing);
+      return res.json({ confirmed: true, ...auth });
+    }
+
+    // Новый клиент — регистрируем
+    const configForDefaults = await getSystemConfig();
+    let remnawaveUuid: string | null = null;
+    if (isRemnaConfigured()) {
+      // Сначала проверяем — может юзер уже есть в Remna (создан ботом или предыдущей попыткой)
+      const byTgRes = await remnaGetUserByTelegramId(telegramId);
+      remnawaveUuid = extractRemnaUuid(byTgRes.data);
+
+      if (!remnawaveUuid) {
+        const username = remnaUsernameFromClient({
+          telegramUsername: telegramUsername ?? undefined,
+          telegramId,
+        });
+        const remnaRes = await remnaCreateUser({
+          username,
+          trafficLimitBytes: 0,
+          trafficLimitStrategy: "NO_RESET",
+          expireAt: new Date(Date.now() - 1000).toISOString(),
+          telegramId: Number(telegramId),
+        });
+        remnawaveUuid = extractRemnaUuid(remnaRes.data);
+        if (remnaRes.error || remnawaveUuid == null) {
+          console.error("[Remna] create user (telegram deeplink) failed:", { error: remnaRes.error, status: remnaRes.status, data: remnaRes.data });
+          return res.status(503).json({ message: "Сервис временно недоступен. Попробуйте позже." });
+        }
+      }
+    }
+
+    const referralCode = generateReferralCode();
+    const client = await prisma.client.create({
+      data: {
+        email: null,
+        passwordHash: null,
+        remnawaveUuid,
+        referralCode,
+        referrerId: null,
+        preferredLang: configForDefaults.defaultLanguage ?? "ru",
+        preferredCurrency: configForDefaults.defaultCurrency ?? "usd",
+        telegramId,
+        telegramUsername,
+        autoRenewEnabled: configForDefaults.defaultAutoRenewEnabled ?? false,
+      },
+    });
+
+    notifyAdminsAboutNewClient(client.id).catch(() => {});
+    const jwt = signClientToken(client.id);
+    return res.json({ confirmed: true, token: jwt, client: toClientShape(client), justCreated: true });
+  } catch (err) {
+    console.error("[telegram-login-check] error:", err);
+    return res.status(500).json({ message: "Internal error" });
+  }
+});
+
+// 3) Подтверждение токена ботом (бот вызывает этот эндпоинт, когда юзер отправляет /start auth_TOKEN)
+clientAuthRouter.post("/telegram-login-confirm", async (req, res) => {
+  // Проверяем что запрос от нашего бота
+  const config = await getSystemConfig();
+  const expectedBotToken = (config.telegramBotToken ?? "").trim();
+  const receivedBotToken = (req.headers["x-telegram-bot-token"] as string ?? "").trim();
+
+  if (!expectedBotToken || receivedBotToken !== expectedBotToken) {
+    return res.status(403).json({ message: "Unauthorized" });
+  }
+
+  const { token, telegramId, telegramUsername } = req.body ?? {};
+  if (typeof token !== "string" || !token.trim()) {
+    return res.status(400).json({ message: "Missing token" });
+  }
+  if (telegramId == null) {
+    return res.status(400).json({ message: "Missing telegramId" });
+  }
+
+  try {
+    const record = await prisma.telegramAuthToken.findUnique({
+      where: { token: token.trim() },
+    });
+
+    if (!record) {
+      return res.status(404).json({ message: "Token not found" });
+    }
+
+    if (record.expiresAt < new Date()) {
+      await prisma.telegramAuthToken.delete({ where: { id: record.id } }).catch(() => {});
+      return res.status(410).json({ message: "Token expired" });
+    }
+
+    if (record.confirmedTelegramId) {
+      return res.status(409).json({ message: "Token already confirmed" });
+    }
+
+    await prisma.telegramAuthToken.update({
+      where: { id: record.id },
+      data: {
+        confirmedTelegramId: String(telegramId),
+        confirmedUsername: telegramUsername ? String(telegramUsername) : null,
+      },
+    });
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("[telegram-login-confirm] error:", err);
+    return res.status(500).json({ message: "Internal error" });
+  }
 });
 
 // Единый роутер /api/client: /auth (логин, регистрация, me) + кабинет (подписка, платежи)
@@ -877,13 +1075,40 @@ clientRouter.patch("/profile", async (req, res) => {
   if (body.data.preferredLang !== undefined) updates.preferredLang = body.data.preferredLang;
   if (body.data.preferredCurrency !== undefined) updates.preferredCurrency = body.data.preferredCurrency;
   if (Object.keys(updates).length === 0) {
-    const current = await prisma.client.findUnique({ where: { id: client.id }, select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, createdAt: true } });
+    const current = await prisma.client.findUnique({ where: { id: client.id }, select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, createdAt: true } });
     return res.json(current ? toClientShape(current) : { message: "Not found" });
   }
   const updated = await prisma.client.update({
     where: { id: client.id },
     data: updates,
-    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, createdAt: true },
+    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, createdAt: true },
+  });
+  return res.json(toClientShape(updated));
+});
+
+const updateAutoRenewSchema = z.object({
+  enabled: z.boolean().optional(),
+  tariffId: z.string().nullable().optional(),
+});
+
+clientRouter.patch("/auto-renew", async (req, res) => {
+  const client = (req as unknown as { client: { id: string } }).client;
+  const body = updateAutoRenewSchema.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ message: "Invalid input", errors: body.error.flatten() });
+
+  const updates: { autoRenewEnabled?: boolean; autoRenewTariffId?: string | null } = {};
+  if (body.data.enabled !== undefined) updates.autoRenewEnabled = body.data.enabled;
+  if (body.data.tariffId !== undefined) updates.autoRenewTariffId = body.data.tariffId;
+
+  if (Object.keys(updates).length === 0) {
+    const current = await prisma.client.findUnique({ where: { id: client.id }, select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, createdAt: true } });
+    return res.json(current ? toClientShape(current) : { message: "Not found" });
+  }
+
+  const updated = await prisma.client.update({
+    where: { id: client.id },
+    data: updates,
+    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, createdAt: true },
   });
   return res.json(toClientShape(updated));
 });
@@ -921,16 +1146,12 @@ clientRouter.post("/link-telegram", async (req, res) => {
   const telegramUsername = tgUser.username?.trim() ?? null;
   const other = await prisma.client.findUnique({ where: { telegramId } });
   if (other && other.id !== client.id) {
-    // Перепривязка: снимаем Telegram с другого аккаунта (часто пустой аккаунт из бота) и привязываем к текущему (с подпиской/почтой)
-    await prisma.client.update({
-      where: { id: other.id },
-      data: { telegramId: null, telegramUsername: null },
-    });
+    return res.status(409).json({ message: "Этот Telegram-аккаунт уже привязан к другому аккаунту. Сначала войдите в тот аккаунт и отвяжите Telegram, либо обратитесь в поддержку." });
   }
   const updated = await prisma.client.update({
     where: { id: client.id },
     data: { telegramId, telegramUsername },
-    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, yoomoneyAccessToken: true, createdAt: true },
+    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, createdAt: true },
   });
   return res.json({ client: toClientShape(updated) });
 });
@@ -1095,7 +1316,7 @@ clientRouter.post("/trial", async (req, res) => {
       where: { id: client.id },
       data: { remnawaveUuid: existingUuid, trialUsed: true },
     });
-    const updated = await prisma.client.findUnique({ where: { id: client.id }, select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, createdAt: true } });
+    const updated = await prisma.client.findUnique({ where: { id: client.id }, select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, createdAt: true } });
     return res.json({ message: "Триал активирован", client: updated ? toClientShape(updated) : null });
   }
 
@@ -1103,7 +1324,7 @@ clientRouter.post("/trial", async (req, res) => {
     where: { id: client.id },
     data: { trialUsed: true },
   });
-  const updated = await prisma.client.findUnique({ where: { id: client.id }, select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, createdAt: true } });
+  const updated = await prisma.client.findUnique({ where: { id: client.id }, select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, createdAt: true } });
   return res.json({ message: "Триал активирован", client: updated ? toClientShape(updated) : null });
 });
 
@@ -2594,6 +2815,7 @@ clientRouter.post("/yookassa/create-payment", async (req, res) => {
       description,
       metadata: { payment_id: payment.id },
       customerEmail,
+      savePaymentMethod: config.yookassaRecurringEnabled,
     });
 
     if (!result.ok) {
@@ -2610,6 +2832,27 @@ clientRouter.post("/yookassa/create-payment", async (req, res) => {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[yookassa/create-payment]", message, err);
     return res.status(500).json({ message: message || "Ошибка создания платежа" });
+  }
+});
+
+// --- Отвязка сохранённого способа оплаты ЮKassa ---
+clientRouter.post("/yookassa/unlink-payment-method", async (req, res) => {
+  try {
+    const clientId = (req as unknown as { clientId: string }).clientId;
+    const cl = await prisma.client.findUnique({ where: { id: clientId }, select: { yookassaPaymentMethodId: true } });
+    if (!cl?.yookassaPaymentMethodId) {
+      return res.status(400).json({ message: "Нет привязанного способа оплаты" });
+    }
+    const updated = await prisma.client.update({
+      where: { id: clientId },
+      data: { yookassaPaymentMethodId: null, yookassaPaymentMethodTitle: null },
+      select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true, yookassaPaymentMethodTitle: true },
+    });
+    return res.json({ client: toClientShape(updated as Parameters<typeof toClientShape>[0]) });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[yookassa/unlink-payment-method]", message, err);
+    return res.status(500).json({ message: "Ошибка отвязки способа оплаты" });
   }
 });
 
@@ -3318,11 +3561,8 @@ publicConfigRouter.post("/link-telegram-from-bot", async (req, res) => {
   }
   const other = await prisma.client.findUnique({ where: { telegramId: tid } });
   if (other && other.id !== pending.clientId) {
-    // Перепривязка: снимаем Telegram с другого аккаунта (часто пустой из бота), затем привязываем к аккаунту с кодом
-    await prisma.client.update({
-      where: { id: other.id },
-      data: { telegramId: null, telegramUsername: null },
-    });
+    await prisma.pendingTelegramLink.deleteMany({ where: { id: pending.id } }).catch(() => {});
+    return res.status(409).json({ message: "Этот Telegram-аккаунт уже привязан к другому аккаунту. Отвяжите его сначала или обратитесь в поддержку." });
   }
   await prisma.client.update({
     where: { id: pending.clientId },
@@ -3346,13 +3586,14 @@ publicConfigRouter.get("/subscription-page", async (_req, res) => {
   }
 });
 
-function tariffToJson(t: { id: string; name: string; description: string | null; durationDays: number; internalSquadUuids: string[]; trafficLimitBytes: bigint | null; deviceLimit: number | null; price: number; currency: string }) {
+function tariffToJson(t: { id: string; name: string; description: string | null; durationDays: number; internalSquadUuids: string[]; trafficLimitBytes: bigint | null; trafficResetMode?: string; deviceLimit: number | null; price: number; currency: string }) {
   return {
     id: t.id,
     name: t.name,
     description: t.description ?? null,
     durationDays: t.durationDays,
     trafficLimitBytes: t.trafficLimitBytes != null ? Number(t.trafficLimitBytes) : null,
+    trafficResetMode: t.trafficResetMode ?? "no_reset",
     deviceLimit: t.deviceLimit,
     price: t.price,
     currency: t.currency,

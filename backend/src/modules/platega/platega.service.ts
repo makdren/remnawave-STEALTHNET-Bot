@@ -3,6 +3,9 @@
  * https://docs.platega.io/
  */
 
+import { proxyFetch } from "../proxy-util/proxy-fetch.js";
+import { getProxyUrl } from "../proxy-util/get-proxy-url.js";
+
 const PLATEGA_API_BASE = "https://app.platega.io";
 
 export type PlategaConfig = {
@@ -48,11 +51,12 @@ export async function createPlategaTransaction(
   };
 
   try {
-    const res = await fetch(url, {
+    const proxy = await getProxyUrl("payments");
+    const res = await proxyFetch(url, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
-    });
+    }, proxy);
 
     const text = await res.text();
     let data: Record<string, unknown>;

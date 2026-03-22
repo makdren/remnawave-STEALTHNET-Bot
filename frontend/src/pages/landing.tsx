@@ -222,7 +222,6 @@ function withAlpha(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-/** Конвертирует HEX в строку HSL для CSS-переменных shadcn ("h s% l%") */
 function hexToHsl(hex: string): string {
   const [r, g, b] = hexToRgb(hex).map((v) => v / 255) as [number, number, number];
   const max = Math.max(r, g, b);
@@ -297,6 +296,50 @@ export function LandingPage({ config }: { config: PublicConfig }) {
   const ctaText = lc?.heroCtaText || "Начать сейчас";
   const heroBadge = lc?.heroBadge ?? "Приватность, скорость и доступ";
   const heroHint = lc?.heroHint ?? "Регистрация за минуту · Оплата картой, СБП, кошельком и криптой";
+
+  const heroHeadline1 = lc?.heroHeadline1 ?? "Тихий доступ,";
+  const heroHeadline2 = lc?.heroHeadline2 ?? "который выглядит дорого.";
+  const headerBadge = lc?.headerBadge ?? "premium access";
+  const buttonLogin = lc?.buttonLogin ?? "Вход";
+  const buttonLoginCabinet = lc?.buttonLoginCabinet ?? "Войти в кабинет";
+  const defaultPaymentText = lc?.defaultPaymentText ?? "Карта, СБП, крипта и быстрый старт";
+  const buttonChooseTariff = lc?.buttonChooseTariff ?? "Выбрать тариф";
+  const buttonWatchTariffs = lc?.buttonWatchTariffs ?? "Смотреть тарифы";
+  const buttonStart = lc?.buttonStart ?? "Начать";
+  const buttonOpenCabinet = lc?.buttonOpenCabinet ?? "Открыть кабинет и подключиться";
+  const noTariffsMessage = lc?.noTariffsMessage ?? "Тарифы пока не опубликованы, но лендинг уже готов — контент подтянется автоматически из админки.";
+
+  const comfortTitle = lc?.comfortTitle ?? "Всё для твоего комфорта и безопасности в сети";
+  const comfortBadge = lc?.comfortBadge ?? "стабильность · скорость · безопасность";
+  const principlesTitle = lc?.principlesTitle ?? "Мы строим сервис, которому доверяют. Без компромиссов в скорости.";
+  const pulseTitle = lc?.pulseTitle ?? "Не просто VPN, а аккуратно собранный сервис с человеческим UX";
+  const infraTitle = lc?.infraTitle ?? "Один доступ — все нужные сервисы под рукой";
+  const techTitle = lc?.techTitle ?? "Продуманная инфраструктура для твоей свободы.";
+  const techDesc = lc?.techDesc ?? "Мы используем только современные протоколы и мощные серверы, чтобы обеспечить максимальную скорость и стабильность соединения в любых условиях.";
+  const categorySubtitle = lc?.categorySubtitle ?? "Подбирай вариант под свой сценарий — от базового доступа до долгого спокойного использования.";
+  const tariffDefaultDesc = lc?.tariffDefaultDesc ?? "Чистый доступ без лишних ограничений и путаницы.";
+  const tariffBullet1 = lc?.tariffBullet1 ?? "Подключение через личный кабинет";
+  const tariffBullet2 = lc?.tariffBullet2 ?? "Поддержка и инструкции внутри сервиса";
+  const tariffBullet3 = lc?.tariffBullet3 ?? "Автоматическая активация после оплаты";
+  const lowestTariffDesc = lc?.lowestTariffDesc ?? null;
+  const devicesCockpitText = lc?.devicesCockpitText ?? "Один аккаунт, много устройств, ноль ощущения хаоса";
+  const universalityTitle = lc?.universalityTitle ?? "Одинаково приятный опыт на десктопе, телефоне и планшете";
+  const universalityDesc = lc?.universalityDesc ?? "Один аккаунт для всех твоих устройств. Подключай что угодно и когда угодно.";
+  const quickSetupTitle = lc?.quickSetupTitle ?? "Установка займет меньше минуты";
+  const quickSetupDesc = lc?.quickSetupDesc ?? "Нажал, оплатил, получил доступ. Подробные инструкции помогут сделать всё быстро.";
+  const premiumServiceTitle = lc?.premiumServiceTitle ?? "Премиальный сервис без технической боли";
+  const premiumServicePara1 = lc?.premiumServicePara1 ?? "Один вход, одна подписка и понятные шаги: зарегистрировался, оплатил, подключил нужное устройство и забыл про блокировки.";
+  const premiumServicePara2 = lc?.premiumServicePara2 ?? "Наша цель — предоставить инструмент, который просто работает. Всегда, везде и на любом устройстве.";
+  const howItWorksTitle = lc?.howItWorksTitle ?? "От первого визита до безопасного интернета — всего пара шагов";
+  const howItWorksDesc = lc?.howItWorksDesc ?? "Мы сделали всё, чтобы процесс подключения был максимально простым и понятным. Никаких сложных инструкций и лишних действий.";
+
+  const showFeatures = lc?.showFeatures !== false;
+  const showBenefits = lc?.showBenefits !== false;
+  const showDevices = lc?.showDevices !== false;
+  const showFaq = lc?.showFaq !== false;
+  const showHowItWorks = lc?.showHowItWorks !== false;
+  const showCta = lc?.showCta !== false;
+
   const featuresList = lc?.features?.length
     ? lc.features.map((feature: { label?: string | null; sub?: string | null }, index: number) => {
       const fallback = FEATURES_STRIP[index] ?? FEATURES_STRIP[0];
@@ -314,6 +357,7 @@ export function LandingPage({ config }: { config: PublicConfig }) {
   const benefitsSubtitle =
     lc?.benefitsSubtitle ??
     "Всё, что нужно для спокойного доступа, нормальной скорости и уверенного пользовательского опыта, уже собрано в одном месте.";
+  const benefitsBadge = lc?.benefitsBadge ?? "Почему мы";
   const benefitsList = lc?.benefits?.length
     ? lc.benefits.map((benefit: any, index: number) => ({
       icon: BENEFITS[index]?.icon ?? Sparkles,
@@ -329,6 +373,26 @@ export function LandingPage({ config }: { config: PublicConfig }) {
   const faqTitle = lc?.faqTitle ?? "Частые вопросы";
   const faqList = lc?.faq?.length ? lc.faq : FAQ_ITEMS;
 
+  const journeySteps = lc?.journeySteps?.length ? lc.journeySteps.map((s: any, i: number) => ({
+    icon: JOURNEY_STEPS[i]?.icon ?? Sparkles,
+    title: s.title || JOURNEY_STEPS[i]?.title || "",
+    desc: s.desc || JOURNEY_STEPS[i]?.desc || "",
+  })) : JOURNEY_STEPS;
+
+  const experiencePanels = lc?.experiencePanels?.length ? lc.experiencePanels.map((p: any, i: number) => ({
+    icon: EXPERIENCE_PANELS[i]?.icon ?? Sparkles,
+    title: p.title || EXPERIENCE_PANELS[i]?.title || "",
+    desc: p.desc || EXPERIENCE_PANELS[i]?.desc || "",
+  })) : EXPERIENCE_PANELS;
+
+  const trustPoints = lc?.trustPoints?.length ? lc.trustPoints : TRUST_POINTS;
+
+  const quickStartList = lc?.quickStartList?.length ? lc.quickStartList : [
+    "Регистрация и вход через кабинет без лишней бюрократии",
+    "Моментальное получение тарифов, способов оплаты и инструкций",
+    "Поддержка, оферта и контакты доступны прямо на лендинге",
+  ];
+
   const paymentLabels = getPaymentLabels(config);
   const totalTariffs = tariffs?.items.reduce((sum, category) => sum + category.tariffs.length, 0) ?? 0;
   const lowestTariff = useMemo(() => {
@@ -343,17 +407,27 @@ export function LandingPage({ config }: { config: PublicConfig }) {
     return allTariffs.reduce((min, current) => (current.tariff.price < min.tariff.price ? current : min));
   }, [tariffs]);
 
+  const statsPlatforms = lc?.statsPlatforms ?? "платформ";
+  const statsTariffsLabel = lc?.statsTariffsLabel ?? "тарифов онлайн";
+  const statsAccessLabel = lc?.statsAccessLabel ?? "доступ";
+  const statsPaymentMethods = lc?.statsPaymentMethods ?? "способа оплаты";
+
   const heroStats = [
-    { value: `${DEVICES.length}+`, label: "платформ" },
-    { value: lc?.showTariffs ? `${totalTariffs || "∞"}` : "24/7", label: lc?.showTariffs ? "тарифов онлайн" : "доступ" },
-    { value: paymentLabels.length ? `${paymentLabels.length}+` : "4", label: "способа оплаты" },
+    { value: `${DEVICES.length}+`, label: statsPlatforms },
+    { value: lc?.showTariffs ? `${totalTariffs || "∞"}` : "24/7", label: lc?.showTariffs ? statsTariffsLabel : statsAccessLabel },
+    { value: paymentLabels.length ? `${paymentLabels.length}+` : "4", label: statsPaymentMethods },
   ];
-  const navItems = [
-    { label: "Преимущества", href: "#benefits" },
-    { label: "Тарифы", href: lc?.showTariffs ? "#tariffs" : "#devices" },
-    { label: "Устройства", href: "#devices" },
-    { label: "FAQ", href: "#faq" },
-  ];
+
+  const navBenefits = lc?.navBenefits ?? "Преимущества";
+  const navTariffs = lc?.navTariffs ?? "Тарифы";
+  const navDevices = lc?.navDevices ?? "Устройства";
+  const navFaq = lc?.navFaq ?? "FAQ";
+
+  const navItems: { label: string; href: string }[] = [];
+  if (showBenefits) navItems.push({ label: navBenefits, href: "#benefits" });
+  if (lc?.showTariffs) navItems.push({ label: navTariffs, href: "#tariffs" });
+  if (showDevices) navItems.push({ label: navDevices, href: "#devices" });
+  if (showFaq) navItems.push({ label: navFaq, href: "#faq" });
 
   const accentTheme = getLandingAccentTheme(config.themeAccent);
   const primarySoft = withAlpha(accentTheme.primary, resolvedMode === "dark" ? 0.24 : 0.18);
@@ -365,7 +439,6 @@ export function LandingPage({ config }: { config: PublicConfig }) {
       resolvedMode === "dark"
         ? `radial-gradient(circle at top, ${withAlpha(accentTheme.primary, 0.22)}, transparent 24%), radial-gradient(circle at 85% 20%, ${withAlpha(accentTheme.secondary, 0.18)}, transparent 22%), linear-gradient(180deg, rgba(2,6,23,1) 0%, rgba(4,14,33,0.98) 45%, rgba(3,7,18,1) 100%)`
         : `radial-gradient(circle at top, ${withAlpha(accentTheme.primary, 0.18)}, transparent 28%), radial-gradient(circle at 85% 20%, ${withAlpha(accentTheme.secondary, 0.14)}, transparent 24%), linear-gradient(180deg, rgba(248,250,252,0.98) 0%, ${withAlpha(accentTheme.primary, 0.05)} 35%, rgba(255,255,255,1) 100%)`,
-    // Перебиваем CSS-переменные shadcn, чтобы кнопки брали цвет из глобальной темы, а не из темы кабинета
     ["--primary" as string]: hexToHsl(accentTheme.primary),
     ["--primary-foreground" as string]: "0 0% 100%",
     ["--ring" as string]: hexToHsl(accentTheme.primary),
@@ -407,26 +480,28 @@ export function LandingPage({ config }: { config: PublicConfig }) {
               </div>
             )}
             <div>
-              <p className="text-[11px] uppercase tracking-[0.35em] text-slate-500 dark:text-slate-400">premium access</p>
+              <p className="text-[11px] uppercase tracking-[0.35em] text-slate-500 dark:text-slate-400">{headerBadge}</p>
               <p className="text-lg font-black tracking-[0.14em] text-slate-950 dark:text-white">{config.serviceName || title}</p>
             </div>
           </Link>
 
-          <nav className="hidden items-center gap-1 rounded-full border border-white/30 bg-white/80 dark:bg-white/5 px-2 py-1 backdrop-blur-xl lg:flex dark:border-white/10 dark:bg-white/6">
-            {navItems.map((item) => (
-              <a
-                key={item.label}
-                href={item.href}
-                className="rounded-full px-4 py-2 text-sm text-slate-600 transition-colors hover:bg-white/70 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
-              >
-                {item.label}
-              </a>
-            ))}
-          </nav>
+          {navItems.length > 0 && (
+            <nav className="hidden items-center gap-1 rounded-full border border-white/30 bg-white/80 dark:bg-white/5 px-2 py-1 backdrop-blur-xl lg:flex dark:border-white/10 dark:bg-white/6">
+              {navItems.map((item) => (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  className="rounded-full px-4 py-2 text-sm text-slate-600 transition-colors hover:bg-white/70 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+                >
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+          )}
 
           <nav className="flex items-center gap-2 sm:gap-3">
             <Button variant="ghost" className="rounded-full px-4 text-slate-700 hover:bg-white/80 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10" asChild>
-              <Link to="/cabinet/login">Вход</Link>
+              <Link to="/cabinet/login">{buttonLogin}</Link>
             </Button>
             <Button
               className="rounded-full border px-5 text-white shadow-lg"
@@ -449,9 +524,9 @@ export function LandingPage({ config }: { config: PublicConfig }) {
               </div>
 
               <h1 className="max-w-5xl text-5xl font-black leading-[0.9] tracking-[-0.06em] text-slate-950 md:text-6xl lg:text-[5.4rem] dark:text-white">
-                Тихий доступ,
+                {heroHeadline1}
                 <span className="block bg-clip-text text-transparent" style={accentTextStyle}>
-                  который выглядит дорого.
+                  {heroHeadline2}
                 </span>
               </h1>
 
@@ -479,7 +554,7 @@ export function LandingPage({ config }: { config: PublicConfig }) {
                   className="h-14 rounded-full border-slate-200/80 dark:border-white/12 bg-white/70 px-7 text-base text-slate-900 shadow-[0_12px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl hover:bg-white dark:border-white/15 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
                   asChild
                 >
-                  <Link to="/cabinet/login">Войти в кабинет</Link>
+                  <Link to="/cabinet/login">{buttonLoginCabinet}</Link>
                 </Button>
               </div>
 
@@ -497,13 +572,13 @@ export function LandingPage({ config }: { config: PublicConfig }) {
                   ))
                 ) : (
                   <div className="rounded-full border border-slate-200/60 dark:border-white/10 bg-white/90 dark:bg-white/5 px-4 py-2 text-sm text-slate-700 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/7 dark:text-slate-200">
-                    Карта, СБП, крипта и быстрый старт
+                    {defaultPaymentText}
                   </div>
                 )}
               </div>
 
               <div className="mt-8 grid gap-3 md:max-w-2xl md:grid-cols-3">
-                {JOURNEY_STEPS.map(({ icon: Icon, title: stepTitle }, index) => (
+                {journeySteps.map(({ icon: Icon, title: stepTitle }: any, index: number) => (
                   <motion.div
                     key={stepTitle}
                     initial={{ opacity: 0, y: 14 }}
@@ -541,16 +616,14 @@ export function LandingPage({ config }: { config: PublicConfig }) {
               <div className="absolute -left-6 top-10 h-40 w-40 rounded-full blur-3xl" style={{ backgroundColor: primarySoft }} />
               <div className="absolute -right-8 bottom-8 h-44 w-44 rounded-full blur-3xl" style={{ backgroundColor: secondarySoft }} />
 
-              {/* Floating badges removed */}
-
                             <div className="relative overflow-hidden rounded-[32px] border border-slate-200/60 dark:border-white/10 bg-white/85 dark:bg-white/5 p-6 shadow-[0_30px_100px_rgba(15,23,42,0.12)] backdrop-blur-2xl dark:border-white/10 dark:bg-white/7 md:p-7">
                 <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent dark:via-emerald-300/70" />
 
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">private network</p>
+                    <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">{headerBadge}</p>
                     <h2 className="mt-3 text-2xl font-black tracking-[-0.04em] text-slate-950 dark:text-white">
-                      Один доступ — все нужные сервисы под рукой
+                      {infraTitle}
                     </h2>
                   </div>
                   <div className="rounded-2xl border p-3" style={{ borderColor: withAlpha(accentTheme.primary, 0.28), backgroundColor: withAlpha(accentTheme.primary, 0.12), color: resolvedMode === "dark" ? accentTheme.tertiary : accentTheme.primary }}>
@@ -592,7 +665,7 @@ export function LandingPage({ config }: { config: PublicConfig }) {
                     </div>
                     <p className="mt-2 text-sm text-slate-300/90">
                       {lowestTariff
-                        ? `${lowestTariff.tariff.name} · ${lowestTariff.tariff.durationDays} дней доступа`
+                        ? (lowestTariffDesc || `${lowestTariff.tariff.name} · ${lowestTariff.tariff.durationDays} дней доступа`)
                         : "Тарифы и условия подтягиваются из админки автоматически"}
                     </p>
                   </div>
@@ -600,9 +673,9 @@ export function LandingPage({ config }: { config: PublicConfig }) {
                   <div className="rounded-[28px] border border-slate-200/80 dark:border-white/12 bg-white/95 dark:bg-white/5 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/6">
                     <p className="text-xs uppercase tracking-[0.28em] text-slate-500 dark:text-slate-400">быстрый старт</p>
                     <ul className="mt-3 space-y-3 text-sm text-slate-600 dark:text-slate-300">
-                      <li className="flex items-start gap-3"><Check className="mt-0.5 h-4 w-4" style={{ color: accentTheme.primary }} />Регистрация и вход через кабинет без лишней бюрократии</li>
-                      <li className="flex items-start gap-3"><Check className="mt-0.5 h-4 w-4" style={{ color: accentTheme.primary }} />Моментальное получение тарифов, способов оплаты и инструкций</li>
-                      <li className="flex items-start gap-3"><Check className="mt-0.5 h-4 w-4" style={{ color: accentTheme.primary }} />Поддержка, оферта и контакты доступны прямо на лендинге</li>
+                      {quickStartList.slice(0, 3).map((item: string) => (
+                        <li key={item} className="flex items-start gap-3"><Check className="mt-0.5 h-4 w-4" style={{ color: accentTheme.primary }} />{item}</li>
+                      ))}
                     </ul>
                   </div>
                 </div>
@@ -611,10 +684,10 @@ export function LandingPage({ config }: { config: PublicConfig }) {
                   <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div>
                       <p className="text-xs uppercase tracking-[0.28em] text-slate-500 dark:text-slate-400">ощущение продукта</p>
-                      <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">Не просто VPN, а аккуратно собранный сервис с человеческим UX</p>
+                      <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">{pulseTitle}</p>
                     </div>
                     <Button className="h-12 rounded-full px-5 text-white" style={primaryButtonStyle} asChild>
-                      <Link to={lc.showTariffs ? "#tariffs" : "/cabinet/register"}>{lc.showTariffs ? "Смотреть тарифы" : "Начать"}</Link>
+                      <Link to={lc.showTariffs ? "#tariffs" : "/cabinet/register"}>{lc.showTariffs ? buttonWatchTariffs : buttonStart}</Link>
                     </Button>
                   </div>
                 </div>
@@ -623,18 +696,19 @@ export function LandingPage({ config }: { config: PublicConfig }) {
           </div>
         </section>
 
+        {showFeatures && (
         <section className="container mx-auto px-4 pb-8 md:pb-12">
           <motion.div {...fadeUp} className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
             <div className="overflow-hidden rounded-[34px] border border-slate-200/60 dark:border-white/10 bg-white/80 dark:bg-white/5 p-6 shadow-[0_18px_50px_rgba(15,23,42,0.07)] backdrop-blur-2xl dark:border-white/10 dark:bg-white/6 md:p-8">
               <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
                 <div className="max-w-2xl">
-                  <p className="text-xs uppercase tracking-[0.32em] text-slate-500 dark:text-slate-400">премиальный доступ</p>
+                  <p className="text-xs uppercase tracking-[0.32em] text-slate-500 dark:text-slate-400">{headerBadge}</p>
                   <h2 className="mt-4 text-3xl font-black tracking-[-0.04em] text-slate-950 md:text-4xl dark:text-white">
-                    Всё для твоего комфорта и безопасности в сети
+                    {comfortTitle}
                   </h2>
                 </div>
                 <div className="rounded-full border border-slate-200/70 dark:border-white/10 bg-white/85 dark:bg-white/8 px-4 py-2 text-sm text-slate-600 backdrop-blur-xl dark:text-slate-300">
-                  стабильность · скорость · безопасность
+                  {comfortBadge}
                 </div>
               </div>
 
@@ -642,10 +716,10 @@ export function LandingPage({ config }: { config: PublicConfig }) {
                 <div className="rounded-[30px] border border-slate-200/80 dark:border-white/12 bg-slate-950 p-5 text-white shadow-xl shadow-slate-950/15 dark:border-white/12 dark:bg-slate-900/90">
                   <p className="text-xs uppercase tracking-[0.28em]" style={{ color: withAlpha(accentTheme.tertiary, 0.78) }}>главные принципы</p>
                   <p className="mt-4 text-2xl font-black leading-tight tracking-[-0.04em]">
-                    Мы строим сервис, которому доверяют. Без компромиссов в скорости.
+                    {principlesTitle}
                   </p>
                   <div className="mt-6 space-y-4">
-                    {TRUST_POINTS.map((point) => (
+                    {trustPoints.map((point: string) => (
                       <div key={point} className="flex items-start gap-3 rounded-[22px] border border-white/10 bg-white/7 px-4 py-3">
                         <Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: accentTheme.tertiary }} />
                         <span className="text-sm leading-6 text-slate-200">{point}</span>
@@ -655,7 +729,7 @@ export function LandingPage({ config }: { config: PublicConfig }) {
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {EXPERIENCE_PANELS.map(({ icon: Icon, title: itemTitle, desc }, index) => (
+                  {experiencePanels.map(({ icon: Icon, title: itemTitle, desc }: any, index: number) => (
                     <motion.div
                       key={itemTitle}
                       initial={{ opacity: 0, y: 18 }}
@@ -727,12 +801,14 @@ export function LandingPage({ config }: { config: PublicConfig }) {
             </div>
           </motion.div>
         </section>
+        )}
 
+        {showBenefits && (
         <section id="benefits" className={`container mx-auto px-4 py-14 md:py-20 ${SECTION_SCROLL_OFFSET}`}>
           <motion.div {...fadeUp} className="mx-auto max-w-3xl text-center">
             <div className="inline-flex items-center gap-2 rounded-full border border-slate-200/60 dark:border-white/10 bg-white/80 dark:bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 backdrop-blur-xl dark:border-white/10 dark:bg-white/7 dark:text-slate-300">
               <Sparkles className="h-4 w-4" style={{ color: accentTheme.primary }} />
-              Почему мы
+              {benefitsBadge}
             </div>
             <h2 className="mt-5 text-3xl font-black tracking-[-0.04em] text-slate-950 md:text-5xl dark:text-white">
               {benefitsTitle}
@@ -750,10 +826,10 @@ export function LandingPage({ config }: { config: PublicConfig }) {
             >
               <p className="text-xs uppercase tracking-[0.32em] text-slate-500 dark:text-slate-300">технологии</p>
               <h3 className="mt-4 max-w-md text-3xl font-black tracking-[-0.04em] text-slate-950 dark:text-white md:text-4xl">
-                Продуманная инфраструктура для твоей свободы.
+                {techTitle}
               </h3>
               <p className="mt-5 max-w-lg text-sm leading-7 text-slate-600 dark:text-slate-300 md:text-base">
-                Мы используем только современные протоколы и мощные серверы, чтобы обеспечить максимальную скорость и стабильность соединения в любых условиях.
+                {techDesc}
               </p>
 
               <div className="mt-8 space-y-4">
@@ -811,6 +887,7 @@ export function LandingPage({ config }: { config: PublicConfig }) {
             </div>
           </div>
         </section>
+        )}
 
         {lc.showTariffs && (
           <section id="tariffs" className={`container mx-auto px-4 py-14 md:py-20 ${SECTION_SCROLL_OFFSET}`}>
@@ -854,7 +931,7 @@ export function LandingPage({ config }: { config: PublicConfig }) {
                           </div>
                           <div>
                             <h3 className="text-xl font-bold text-white">{category.name}</h3>
-                            <p className="text-sm text-slate-300">Подбирай вариант под свой сценарий — от базового доступа до долгого спокойного использования.</p>
+                            <p className="text-sm text-slate-300">{categorySubtitle}</p>
                           </div>
                         </div>
                         <div className="text-sm text-slate-300">{category.tariffs.length} тарифов в категории</div>
@@ -874,7 +951,7 @@ export function LandingPage({ config }: { config: PublicConfig }) {
                                   {tariff.description ? (
                                     <p className="mt-2 text-sm leading-6 text-slate-300">{tariff.description}</p>
                                   ) : (
-                                    <p className="mt-2 text-sm leading-6 text-slate-400">Чистый доступ без лишних ограничений и путаницы.</p>
+                                    <p className="mt-2 text-sm leading-6 text-slate-400">{tariffDefaultDesc}</p>
                                   )}
                                 </div>
                                 <div className="rounded-full border px-3 py-1 text-xs uppercase tracking-[0.24em]" style={{ borderColor: withAlpha(accentTheme.primary, 0.3), backgroundColor: withAlpha(accentTheme.primary, 0.12), color: withAlpha(accentTheme.tertiary, 0.95) }}>
@@ -893,13 +970,13 @@ export function LandingPage({ config }: { config: PublicConfig }) {
                               </div>
 
                               <div className="mt-6 space-y-3 text-sm text-slate-300">
-                                <div className="flex items-center gap-3"><Check className="h-4 w-4" style={{ color: accentTheme.tertiary }} />Подключение через личный кабинет</div>
-                                <div className="flex items-center gap-3"><Check className="h-4 w-4" style={{ color: accentTheme.tertiary }} />Поддержка и инструкции внутри сервиса</div>
-                                <div className="flex items-center gap-3"><Check className="h-4 w-4" style={{ color: accentTheme.tertiary }} />Автоматическая активация после оплаты</div>
+                                <div className="flex items-center gap-3"><Check className="h-4 w-4" style={{ color: accentTheme.tertiary }} />{tariffBullet1}</div>
+                                <div className="flex items-center gap-3"><Check className="h-4 w-4" style={{ color: accentTheme.tertiary }} />{tariffBullet2}</div>
+                                <div className="flex items-center gap-3"><Check className="h-4 w-4" style={{ color: accentTheme.tertiary }} />{tariffBullet3}</div>
                               </div>
 
                               <Button className="mt-6 h-12 rounded-full text-white" style={primaryButtonStyle} asChild>
-                                <Link to="/cabinet/register">Выбрать тариф</Link>
+                                <Link to="/cabinet/register">{buttonChooseTariff}</Link>
                               </Button>
                             </div>
                           );
@@ -910,13 +987,14 @@ export function LandingPage({ config }: { config: PublicConfig }) {
                 </div>
               ) : (
                 <div className="mt-8 rounded-[30px] border border-white/12 bg-white/7 p-8 text-center text-slate-300 backdrop-blur-xl">
-                  Тарифы пока не опубликованы, но лендинг уже готов — контент подтянется автоматически из админки.
+                  {noTariffsMessage}
                 </div>
               )}
             </motion.div>
           </section>
         )}
 
+        {showDevices && (
         <section id="devices" className={`container mx-auto px-4 py-14 md:py-20 ${SECTION_SCROLL_OFFSET}`}>
           <div className="grid gap-8 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
             <motion.div {...fadeUp} className="rounded-[32px] border border-slate-200/60 dark:border-white/10 bg-white/80 dark:bg-white/5 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur-2xl md:p-8 dark:border-white/10 dark:bg-white/6">
@@ -930,7 +1008,7 @@ export function LandingPage({ config }: { config: PublicConfig }) {
                   <div className="relative flex items-center justify-between gap-3">
                     <div>
                       <p className="text-xs uppercase tracking-[0.28em] text-slate-400">device cockpit</p>
-                      <p className="mt-2 text-lg font-semibold">Один аккаунт, много устройств, ноль ощущения хаоса</p>
+                      <p className="mt-2 text-lg font-semibold">{devicesCockpitText}</p>
                     </div>
                     <div className="rounded-full border border-white/12 bg-white/8 px-3 py-1 text-xs uppercase tracking-[0.24em] text-slate-200">
                       synced
@@ -963,28 +1041,28 @@ export function LandingPage({ config }: { config: PublicConfig }) {
 
                 <div className="rounded-[28px] border border-slate-200/80 dark:border-white/12 bg-white/95 dark:bg-white/5 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/6">
                   <p className="text-xs uppercase tracking-[0.28em] text-slate-500 dark:text-slate-400">универсальность</p>
-                  <p className="mt-3 text-lg font-semibold text-slate-950 dark:text-white">Одинаково приятный опыт на десктопе, телефоне и планшете</p>
-                  <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-400">Один аккаунт для всех твоих устройств. Подключай что угодно и когда угодно.</p>
+                  <p className="mt-3 text-lg font-semibold text-slate-950 dark:text-white">{universalityTitle}</p>
+                  <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-400">{universalityDesc}</p>
                 </div>
 
                 <div className="rounded-[28px] border border-slate-200/80 dark:border-white/12 p-5 backdrop-blur-xl dark:border-white/10" style={accentGlowStyle}>
                   <p className="text-xs uppercase tracking-[0.28em] text-slate-500 dark:text-slate-400">быстрая настройка</p>
-                  <p className="mt-3 text-lg font-semibold text-slate-950 dark:text-white">Установка займет меньше минуты</p>
-                  <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-400">Нажал, оплатил, получил доступ. Подробные инструкции помогут сделать всё быстро.</p>
+                  <p className="mt-3 text-lg font-semibold text-slate-950 dark:text-white">{quickSetupTitle}</p>
+                  <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-400">{quickSetupDesc}</p>
                 </div>
               </div>
             </motion.div>
 
             <motion.div {...fadeUp} transition={{ duration: 0.6, ease: "easeOut", delay: 0.05 }} className="rounded-[32px] border border-slate-200/60 dark:border-white/10 p-6 text-white shadow-[0_24px_70px_rgba(15,23,42,0.18)] md:p-8 dark:border-white/10" style={darkPanelStyle}>
               <p className="text-xs uppercase tracking-[0.32em]" style={{ color: withAlpha(accentTheme.tertiary, 0.8) }}>быстрый старт</p>
-              <h3 className="mt-4 text-3xl font-black tracking-[-0.04em] md:text-4xl">Премиальный сервис без технической боли</h3>
+              <h3 className="mt-4 text-3xl font-black tracking-[-0.04em] md:text-4xl">{premiumServiceTitle}</h3>
               <div className="mt-6 space-y-4 text-sm leading-7 text-slate-300 md:text-base">
-                <p>Один вход, одна подписка и понятные шаги: зарегистрировался, оплатил, подключил нужное устройство и забыл про блокировки.</p>
-                <p>Наша цель — предоставить инструмент, который просто работает. Всегда, везде и на любом устройстве.</p>
+                <p>{premiumServicePara1}</p>
+                <p>{premiumServicePara2}</p>
               </div>
 
               <div className="mt-8 space-y-4">
-                {JOURNEY_STEPS.map(({ icon: Icon, title: stepTitle, desc }, index) => (
+                {journeySteps.map(({ icon: Icon, title: stepTitle, desc }: any, index: number) => (
                   <motion.div
                     key={stepTitle}
                     initial={{ opacity: 0, x: 18 }}
@@ -1008,12 +1086,14 @@ export function LandingPage({ config }: { config: PublicConfig }) {
               </div>
 
               <Button className="mt-8 h-13 rounded-full px-6 text-white" style={primaryButtonStyle} asChild>
-                <Link to="/cabinet/register">Открыть кабинет и подключиться</Link>
+                <Link to="/cabinet/register">{buttonOpenCabinet}</Link>
               </Button>
             </motion.div>
           </div>
         </section>
+        )}
 
+        {showHowItWorks && (
         <section className="container mx-auto px-4 py-6 md:py-10">
           <motion.div
             {...fadeUp}
@@ -1024,10 +1104,10 @@ export function LandingPage({ config }: { config: PublicConfig }) {
               <div>
                 <p className="text-xs uppercase tracking-[0.32em] text-slate-500" style={resolvedMode === "dark" ? { color: withAlpha(accentTheme.tertiary, 0.75) } : undefined}>как это работает</p>
                 <h2 className="mt-4 text-3xl font-black tracking-[-0.04em] text-slate-950 md:text-4xl dark:text-white">
-                  От первого визита до безопасного интернета — всего пара шагов
+                  {howItWorksTitle}
                 </h2>
                 <p className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300 md:text-base">
-                  Мы сделали всё, чтобы процесс подключения был максимально простым и понятным. Никаких сложных инструкций и лишних действий.
+                  {howItWorksDesc}
                 </p>
               </div>
 
@@ -1035,17 +1115,17 @@ export function LandingPage({ config }: { config: PublicConfig }) {
                 <div className="rounded-[28px] border border-slate-200/80 dark:border-white/12 bg-white/85 dark:bg-white/5 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/6">
                   <p className="text-xs uppercase tracking-[0.28em] text-slate-500 dark:text-slate-400">narrative</p>
                   <div className="mt-5 space-y-5">
-                    {JOURNEY_STEPS.map(({ title: stepTitle }, index) => (
+                    {journeySteps.map(({ title: stepTitle, desc }: any, index: number) => (
                       <div key={stepTitle} className="flex gap-4">
                         <div className="flex flex-col items-center">
                           <div className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold text-white" style={{ backgroundImage: `linear-gradient(135deg, ${accentTheme.primary}, ${accentTheme.secondary})` }}>
                             0{index + 1}
                           </div>
-                          {index < JOURNEY_STEPS.length - 1 && <div className="mt-2 h-full w-px bg-slate-200 dark:bg-white/12" />}
+                          {index < journeySteps.length - 1 && <div className="mt-2 h-full w-px bg-slate-200 dark:bg-white/12" />}
                         </div>
                         <div className="pb-5 pt-1">
                           <p className="font-semibold text-slate-950 dark:text-white">{stepTitle}</p>
-                          <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">{JOURNEY_STEPS[index]?.desc}</p>
+                          <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">{desc}</p>
                         </div>
                       </div>
                     ))}
@@ -1083,7 +1163,9 @@ export function LandingPage({ config }: { config: PublicConfig }) {
             </div>
           </motion.div>
         </section>
+        )}
 
+        {showFaq && (
         <section id="faq" className={`container mx-auto grid gap-8 px-4 py-14 md:py-20 lg:grid-cols-[minmax(0,1fr)_360px] ${SECTION_SCROLL_OFFSET}`}>
           <motion.div {...fadeUp} className="rounded-[32px] border border-slate-200/60 dark:border-white/10 bg-white/80 dark:bg-white/5 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur-2xl md:p-8 dark:border-white/10 dark:bg-white/6">
             <p className="text-xs uppercase tracking-[0.32em] text-slate-500 dark:text-slate-400">faq</p>
@@ -1164,7 +1246,9 @@ export function LandingPage({ config }: { config: PublicConfig }) {
             </div>
           </motion.aside>
         </section>
+        )}
 
+        {showCta && (
         <section className="container mx-auto px-4 pb-16 pt-2 md:pb-24">
           <motion.div
             {...fadeUp}
@@ -1196,6 +1280,7 @@ export function LandingPage({ config }: { config: PublicConfig }) {
             </div>
           </motion.div>
         </section>
+        )}
       </main>
 
       <footer className="relative z-10 border-t border-slate-200/50 dark:border-white/10 bg-white/40 px-4 py-8 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/35">
@@ -1213,7 +1298,7 @@ export function LandingPage({ config }: { config: PublicConfig }) {
 
           <div className="flex flex-wrap items-center justify-center gap-3 md:justify-end">
             <Button variant="ghost" className="rounded-full text-slate-700 hover:bg-white/80 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10" asChild>
-              <Link to="/cabinet/login">Вход</Link>
+              <Link to="/cabinet/login">{buttonLogin}</Link>
             </Button>
             <Button className="rounded-full text-white" style={primaryButtonStyle} asChild>
               <Link to="/cabinet/register">{ctaText}</Link>

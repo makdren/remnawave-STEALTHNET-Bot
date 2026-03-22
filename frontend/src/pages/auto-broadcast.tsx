@@ -18,7 +18,26 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CalendarClock, Plus, Play, Trash2, Pencil, Loader2, Clock } from "lucide-react";
+import { CalendarClock, Plus, Play, Trash2, Pencil, Loader2, Clock, MousePointerClick } from "lucide-react";
+
+const BUTTON_ACTIONS = [
+  { value: "", label: "Без кнопки" },
+  { value: "menu:tariffs", label: "📦 Тарифы" },
+  { value: "menu:topup", label: "💳 Пополнить баланс" },
+  { value: "menu:profile", label: "👤 Профиль" },
+  { value: "menu:trial", label: "🎁 Бесплатный триал" },
+  { value: "menu:referral", label: "🔗 Реферальная программа" },
+  { value: "menu:promocode", label: "🎟️ Промокод" },
+  { value: "menu:support", label: "🆘 Поддержка" },
+  { value: "menu:vpn", label: "📋 VPN подключение" },
+  { value: "menu:devices", label: "📱 Устройства" },
+  { value: "menu:extra_options", label: "➕ Доп. опции" },
+  { value: "menu:main", label: "📋 Главное меню" },
+  { value: "webapp:/cabinet", label: "🌐 Web кабинет" },
+  { value: "webapp:/cabinet/subscribe", label: "🌐 Страница подключения" },
+  { value: "webapp:/cabinet/tickets", label: "🌐 Тикеты" },
+  { value: "__custom_url__", label: "🔗 Своя ссылка (URL)" },
+];
 
 const TRIGGER_LABELS: Record<AutoBroadcastTriggerType, string> = {
   after_registration: "После регистрации",
@@ -54,6 +73,8 @@ export function AutoBroadcastPage() {
     channel: "telegram",
     subject: "",
     message: "",
+    buttonText: "",
+    buttonUrl: "",
     enabled: true,
   });
   const [formSaving, setFormSaving] = useState(false);
@@ -106,6 +127,17 @@ export function AutoBroadcastPage() {
     }
   }
 
+  const [buttonAction, setButtonAction] = useState("");
+  const [buttonCustomUrl, setButtonCustomUrl] = useState("");
+
+  function resolveActionFromUrl(url: string | null): { action: string; customUrl: string } {
+    if (!url) return { action: "", customUrl: "" };
+    if (BUTTON_ACTIONS.some((a) => a.value === url && a.value !== "__custom_url__")) {
+      return { action: url, customUrl: "" };
+    }
+    return { action: "__custom_url__", customUrl: url };
+  }
+
   function openCreate() {
     setEditingId(null);
     setForm({
@@ -115,14 +147,19 @@ export function AutoBroadcastPage() {
       channel: "telegram",
       subject: "",
       message: "",
+      buttonText: "",
+      buttonUrl: "",
       enabled: true,
     });
+    setButtonAction("");
+    setButtonCustomUrl("");
     setFormError(null);
     setShowForm(true);
   }
 
   function openEdit(rule: AutoBroadcastRule) {
     setEditingId(rule.id);
+    const { action, customUrl } = resolveActionFromUrl(rule.buttonUrl);
     setForm({
       name: rule.name,
       triggerType: rule.triggerType,
@@ -130,8 +167,12 @@ export function AutoBroadcastPage() {
       channel: rule.channel,
       subject: rule.subject ?? "",
       message: rule.message,
+      buttonText: rule.buttonText ?? "",
+      buttonUrl: rule.buttonUrl ?? "",
       enabled: rule.enabled,
     });
+    setButtonAction(action);
+    setButtonCustomUrl(customUrl);
     setFormError(null);
     setShowForm(true);
   }
@@ -144,9 +185,12 @@ export function AutoBroadcastPage() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
+    const resolvedUrl = buttonAction === "__custom_url__" ? buttonCustomUrl.trim() : buttonAction;
     const payload: AutoBroadcastRulePayload = {
       ...form,
       subject: form.subject?.trim() || null,
+      buttonText: form.buttonText?.trim() || null,
+      buttonUrl: resolvedUrl || null,
     };
     if (!payload.name.trim()) {
       setFormError("Укажите название правила");
@@ -182,13 +226,24 @@ export function AutoBroadcastPage() {
     }
   }
 
+  function formatRunResult(r: { sent: number; skipped: number; errors: string[] }): string {
+    const parts: string[] = [];
+    if (r.sent > 0) parts.push(`✅ Отправлено: ${r.sent}`);
+    if (r.skipped > 0) parts.push(`⏭ Пропущено (бот заблокирован): ${r.skipped}`);
+    if (r.errors.length > 0) parts.push(`❌ Ошибки: ${r.errors.join("; ")}`);
+    if (parts.length === 0) parts.push("Нет подходящих получателей");
+    return parts.join("\n");
+  }
+
   async function handleRunAll() {
     setRunAllLoading(true);
     try {
       const { results } = await api.runAutoBroadcastAll(token);
-      const ok = results.every((r) => r.errors.length === 0);
-      if (ok) loadRules();
-      else alert(results.map((r) => `Правило ${r.ruleId}: ${r.errors.join("; ")}`).join("\n"));
+      const totalSent = results.reduce((s, r) => s + r.sent, 0);
+      const totalSkipped = results.reduce((s, r) => s + r.skipped, 0);
+      const totalErrors = results.reduce((s, r) => s + r.errors.length, 0);
+      loadRules();
+      alert(`Отправлено: ${totalSent}, пропущено: ${totalSkipped}${totalErrors > 0 ? `, ошибок: ${totalErrors}` : ""}`);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Ошибка запуска");
     } finally {
@@ -200,8 +255,8 @@ export function AutoBroadcastPage() {
     setRunningRuleId(ruleId);
     try {
       const result = await api.runAutoBroadcastRule(token, ruleId);
-      if (result.errors.length > 0) alert(result.errors.join("; "));
-      else loadRules();
+      loadRules();
+      alert(formatRunResult(result));
     } catch (err) {
       alert(err instanceof Error ? err.message : "Ошибка запуска");
     } finally {
@@ -359,7 +414,7 @@ export function AutoBroadcastPage() {
                       triggerType: t,
                       delayDays:
                         t === "subscription_ending_soon"
-                          ? Math.max(1, Math.min(3, f.delayDays))
+                          ? Math.max(1, Math.min(30, f.delayDays))
                           : f.delayDays,
                     }));
                   }}
@@ -376,24 +431,24 @@ export function AutoBroadcastPage() {
                 <div className="space-y-2">
                   <Label>
                     {form.triggerType === "subscription_ending_soon"
-                      ? "За сколько дней до окончания (1–3)"
+                      ? "За сколько дней до окончания (1–30)"
                       : "Через сколько дней (0–365)"}
                   </Label>
                   <Input
                     type="number"
                     min={form.triggerType === "subscription_ending_soon" ? 1 : 0}
-                    max={form.triggerType === "subscription_ending_soon" ? 3 : 365}
+                    max={form.triggerType === "subscription_ending_soon" ? 30 : 365}
                     value={form.delayDays}
                     onChange={(e) => {
                       const v = Number(e.target.value) || 0;
                       const min = form.triggerType === "subscription_ending_soon" ? 1 : 0;
-                      const max = form.triggerType === "subscription_ending_soon" ? 3 : 365;
+                      const max = form.triggerType === "subscription_ending_soon" ? 30 : 365;
                       setForm((f) => ({ ...f, delayDays: Math.max(min, Math.min(max, v)) }));
                     }}
                   />
                   {form.triggerType === "subscription_ending_soon" && (
                     <p className="text-xs text-muted-foreground">
-                      Создайте 3 правила (за 3, за 2, за 1 день) — рассылка будет каждый день с нужным текстом.
+                      Создайте несколько правил (например, за 7, за 3, за 1 день) — рассылка будет с нужным текстом.
                     </p>
                   )}
                 </div>
@@ -431,6 +486,53 @@ export function AutoBroadcastPage() {
                 />
                 <p className="text-xs text-muted-foreground">{form.message.length} / 4096</p>
               </div>
+              {(form.channel === "telegram" || form.channel === "both") && (
+                <div className="space-y-3 rounded-lg border border-dashed p-4">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <MousePointerClick className="h-4 w-4" />
+                    Кнопка под сообщением (только Telegram)
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label>Действие кнопки</Label>
+                      <select
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={buttonAction}
+                        onChange={(e) => setButtonAction(e.target.value)}
+                      >
+                        {BUTTON_ACTIONS.map((a) => (
+                          <option key={a.value} value={a.value}>{a.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {buttonAction && (
+                      <div className="space-y-1">
+                        <Label>Текст кнопки</Label>
+                        <Input
+                          value={form.buttonText ?? ""}
+                          onChange={(e) => setForm((f) => ({ ...f, buttonText: e.target.value }))}
+                          placeholder="Открыть тарифы"
+                          maxLength={64}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  {buttonAction === "__custom_url__" && (
+                    <div className="space-y-1">
+                      <Label>Ссылка (URL)</Label>
+                      <Input
+                        value={buttonCustomUrl}
+                        onChange={(e) => setButtonCustomUrl(e.target.value)}
+                        placeholder="https://example.com/tariffs"
+                        maxLength={500}
+                      />
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Выберите действие — под сообщением появится inline-кнопка, открывающая выбранный раздел бота.
+                  </p>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"

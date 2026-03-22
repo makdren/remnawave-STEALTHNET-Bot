@@ -230,6 +230,11 @@ function SortableTariffRow({
         </span>
         <span className="text-muted-foreground text-sm">сквадов: {t.internalSquadUuids.length}</span>
         <span className="text-muted-foreground text-sm">трафик: {formatTraffic(t.trafficLimitBytes)}</span>
+        {t.trafficResetMode && t.trafficResetMode !== "no_reset" && (
+          <span className="text-muted-foreground text-sm">
+            {t.trafficResetMode === "on_purchase" ? "сброс при покупке" : t.trafficResetMode === "monthly" ? "сброс ежемесячно" : ""}
+          </span>
+        )}
         {t.deviceLimit != null && (
           <span className="text-muted-foreground text-sm">устройств: {t.deviceLimit}</span>
         )}
@@ -608,6 +613,7 @@ function TariffModal({
   const [trafficGb, setTrafficGb] = useState<string>(
     tariff?.trafficLimitBytes != null ? String((tariff.trafficLimitBytes / BYTES_PER_GB).toFixed(2)) : ""
   );
+  const [trafficResetMode, setTrafficResetMode] = useState<string>(tariff?.trafficResetMode ?? "no_reset");
   const [deviceLimit, setDeviceLimit] = useState<string>(tariff?.deviceLimit != null ? String(tariff.deviceLimit) : "");
   const [price, setPrice] = useState<string>(tariff?.price != null ? String(tariff.price) : "0");
   const [currency, setCurrency] = useState<string>((tariff?.currency ?? "usd").toLowerCase());
@@ -619,6 +625,7 @@ function TariffModal({
       setDurationDays(tariff.durationDays);
       setSelectedSquadUuids(tariff.internalSquadUuids);
       setTrafficGb(tariff.trafficLimitBytes != null ? String((tariff.trafficLimitBytes / BYTES_PER_GB).toFixed(2)) : "");
+      setTrafficResetMode(tariff.trafficResetMode ?? "no_reset");
       setDeviceLimit(tariff.deviceLimit != null ? String(tariff.deviceLimit) : "");
       setPrice(String(tariff.price ?? 0));
       setCurrency((tariff.currency ?? "usd").toLowerCase());
@@ -628,6 +635,7 @@ function TariffModal({
       setDurationDays(30);
       setSelectedSquadUuids([]);
       setTrafficGb("");
+      setTrafficResetMode("no_reset");
       setDeviceLimit("");
       setPrice("0");
       setCurrency("usd");
@@ -682,6 +690,7 @@ function TariffModal({
           durationDays,
           internalSquadUuids: selectedSquadUuids,
           trafficLimitBytes: trafficLimitBytes ?? null,
+          trafficResetMode,
           deviceLimit: deviceLimitNum ?? null,
           price: priceNum,
           currency: currency || "usd",
@@ -695,6 +704,7 @@ function TariffModal({
           durationDays,
           internalSquadUuids: selectedSquadUuids,
           trafficLimitBytes: trafficLimitBytes ?? null,
+          trafficResetMode,
           deviceLimit: deviceLimitNum ?? null,
           price: priceNum,
           currency: currency || "usd",
@@ -844,6 +854,24 @@ function TariffModal({
               className="mt-1"
             />
             <p className="text-xs text-muted-foreground mt-1">1 ГБ = 1024³ байт (ГиБ). В Remna передаётся лимит в байтах.</p>
+          </div>
+          <div>
+            <Label htmlFor="tariff-reset-mode">Сброс трафика</Label>
+            <select
+              id="tariff-reset-mode"
+              value={trafficResetMode}
+              onChange={(e) => setTrafficResetMode(e.target.value)}
+              className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            >
+              <option value="no_reset">Без сброса</option>
+              <option value="on_purchase">Сброс при покупке тарифа</option>
+              <option value="monthly">Ежемесячный сброс</option>
+            </select>
+            <p className="text-xs text-muted-foreground mt-1">
+              {trafficResetMode === "no_reset" && "Трафик не сбрасывается — лимит действует на весь срок тарифа."}
+              {trafficResetMode === "on_purchase" && "Трафик обнуляется при каждой покупке/продлении тарифа."}
+              {trafficResetMode === "monthly" && "Трафик обнуляется каждый месяц (Remna MONTH). Например: 10 ГБ/мес на 3 месяца."}
+            </p>
           </div>
           <div>
             <Label htmlFor="tariff-devices">Лимит устройств</Label>

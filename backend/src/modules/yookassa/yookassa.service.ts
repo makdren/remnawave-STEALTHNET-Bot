@@ -3,6 +3,9 @@
  * Документация: https://yookassa.ru/developers/api#create_payment
  */
 
+import { proxyFetch } from "../proxy-util/proxy-fetch.js";
+import { getProxyUrl } from "../proxy-util/get-proxy-url.js";
+
 const YOOKASSA_API = "https://api.yookassa.ru/v3";
 
 export type CreatePaymentParams = {
@@ -15,6 +18,8 @@ export type CreatePaymentParams = {
   metadata: Record<string, string>;
   /** Email покупателя для чека 54-ФЗ (обязателен при включённых чеках в ЮKassa) */
   customerEmail?: string | null;
+  /** Сохранить способ оплаты для рекуррентных платежей */
+  savePaymentMethod?: boolean;
 };
 
 export type CreatePaymentResult =
@@ -26,7 +31,7 @@ export type CreatePaymentResult =
  * Idempotence-Key: генерируется из metadata.payment_id + timestamp для уникальности.
  */
 export async function createYookassaPayment(params: CreatePaymentParams): Promise<CreatePaymentResult> {
-  const { shopId, secretKey, amount, currency, returnUrl, description, metadata, customerEmail } = params;
+  const { shopId, secretKey, amount, currency, returnUrl, description, metadata, customerEmail, savePaymentMethod } = params;
   if (!shopId?.trim() || !secretKey?.trim()) {
     return { ok: false, error: "YooKassa not configured" };
   }
@@ -53,7 +58,7 @@ export async function createYookassaPayment(params: CreatePaymentParams): Promis
     ],
   };
 
-  const body = {
+  const body: Record<string, unknown> = {
     amount: { value: valueStr, currency: currencyUpper },
     capture: true,
     confirmation: { type: "redirect" as const, return_url: returnUrl },
@@ -62,6 +67,10 @@ export async function createYookassaPayment(params: CreatePaymentParams): Promis
     receipt,
   };
 
+  if (savePaymentMethod) {
+    body.save_payment_method = true;
+  }
+
   const idempotenceKey = `${metadata.payment_id ?? "pay"}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   const auth = Buffer.from(`${shopId.trim()}:${secretKey.trim()}`).toString("base64");
 
@@ -69,7 +78,8 @@ export async function createYookassaPayment(params: CreatePaymentParams): Promis
   const timeoutId = setTimeout(() => controller.abort(), 15000);
 
   try {
-    const res = await fetch(`${YOOKASSA_API}/payments`, {
+    const proxy = await getProxyUrl("payments");
+    const res = await proxyFetch(`${YOOKASSA_API}/payments`, {
       method: "POST",
       signal: controller.signal,
       headers: {
@@ -78,7 +88,7 @@ export async function createYookassaPayment(params: CreatePaymentParams): Promis
         Authorization: `Basic ${auth}`,
       },
       body: JSON.stringify(body),
-    });
+    }, proxy);
     clearTimeout(timeoutId);
 
     let data: {
@@ -136,4 +146,129 @@ export async function createYookassaPayment(params: CreatePaymentParams): Promis
 
 export function isYookassaConfigured(shopId: string | null, secretKey: string | null): boolean {
   return Boolean(shopId?.trim() && secretKey?.trim());
+}
+
+// ────────────────────────────────────────────
+// Автоплатёж по сохранённому способу оплаты
+// ────────────────────────────────────────────
+
+export type AutopaymentParams = {
+  shopId: string;
+  secretKey: string;
+  amount: number;
+  currency: string;
+  paymentMethodId: string;
+  description: string;
+  metadata: Record<string, string>;
+  customerEmail?: string | null;
+};
+
+export type AutopaymentResult =
+  | { ok: true; paymentId: string; status: string }
+  | { ok: false; error: string; reason?: string };
+
+/**
+ * Создаёт автоплатёж через сохранённый payment_method_id.
+ * Не требует подтверждения пользователя — деньги списываются сразу (capture: true).
+ */
+export async function createYookassaAutopayment(params: AutopaymentParams): Promise<AutopaymentResult> {
+  const { shopId, secretKey, amount, currency, paymentMethodId, description, metadata, customerEmail } = params;
+  if (!shopId?.trim() || !secretKey?.trim()) {
+    return { ok: false, error: "YooKassa not configured" };
+  }
+
+  const valueStr = amount.toFixed(2);
+  const currencyUpper = currency.toUpperCase();
+
+  const receipt = {
+    customer: {
+      email: (customerEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail))
+        ? customerEmail.trim()
+        : "noreply@receipt.stealthnet.local",
+    },
+    items: [
+      {
+        description: description.slice(0, 128) || "Автопродление подписки",
+        quantity: "1.00",
+        amount: { value: valueStr, currency: currencyUpper },
+        vat_code: 1,
+        payment_subject: "service" as const,
+        payment_mode: "full_payment" as const,
+      },
+    ],
+  };
+
+  const body = {
+    amount: { value: valueStr, currency: currencyUpper },
+    capture: true,
+    payment_method_id: paymentMethodId,
+    description: description.slice(0, 128),
+    metadata,
+    receipt,
+  };
+
+  const idempotenceKey = `autopay-${metadata.payment_id ?? "pay"}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const auth = Buffer.from(`${shopId.trim()}:${secretKey.trim()}`).toString("base64");
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const proxy = await getProxyUrl("payments");
+    const res = await proxyFetch(`${YOOKASSA_API}/payments`, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotence-Key": idempotenceKey,
+        Authorization: `Basic ${auth}`,
+      },
+      body: JSON.stringify(body),
+    }, proxy);
+    clearTimeout(timeoutId);
+
+    let data: {
+      id?: string;
+      status?: string;
+      cancellation_details?: { party?: string; reason?: string };
+      description?: string;
+      code?: string;
+      [key: string]: unknown;
+    };
+    try {
+      data = (await res.json()) as typeof data;
+    } catch {
+      return { ok: false, error: `YooKassa: ответ не JSON (${res.status})` };
+    }
+
+    if (!res.ok) {
+      return { ok: false, error: data.description ?? data.code ?? res.statusText ?? "YooKassa error" };
+    }
+
+    // Автоплатёж может быть succeeded или canceled сразу
+    if (data.status === "canceled") {
+      const reason = data.cancellation_details?.reason ?? "unknown";
+      return { ok: false, error: `Автоплатёж отклонён: ${reason}`, reason };
+    }
+
+    if (!data.id) {
+      return { ok: false, error: "No payment id in response" };
+    }
+
+    return { ok: true, paymentId: data.id, status: data.status ?? "succeeded" };
+  } catch (e) {
+    clearTimeout(timeoutId);
+    const message = e instanceof Error ? e.message : String(e);
+    const isNetwork =
+      message === "fetch failed" ||
+      message.includes("ECONNREFUSED") ||
+      message.includes("ENOTFOUND") ||
+      message.includes("ETIMEDOUT") ||
+      message.includes("network") ||
+      (e instanceof Error && e.name === "AbortError");
+    if (isNetwork) {
+      return { ok: false, error: "Сервер не может подключиться к ЮKassa" };
+    }
+    return { ok: false, error: message };
+  }
 }

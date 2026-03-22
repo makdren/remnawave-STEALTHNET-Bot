@@ -29,6 +29,8 @@ import { formatRuDays } from "@/lib/i18n";
 import type { ClientPayment, ClientReferralStats } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 function formatDate(s: string | null) {
   if (!s) return "—";
@@ -115,6 +117,8 @@ export function ClientDashboardPage() {
   const [trialError, setTrialError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [_referralStats, setReferralStats] = useState<ClientReferralStats | null>(null);
+  const [deviceCount, setDeviceCount] = useState<number | null>(null);
+  const [autoRenewLoading, setAutoRenewLoading] = useState(false);
 
   const token = state.token;
   const isMiniapp = useCabinetMiniapp();
@@ -156,13 +160,15 @@ export function ClientDashboardPage() {
     Promise.all([
       api.clientSubscription(token),
       api.clientPayments(token),
+      api.getClientDevices(token).catch(() => ({ total: 0 })),
     ])
-      .then(([subRes, payRes]) => {
+      .then(([subRes, payRes, devRes]) => {
         if (cancelled) return;
         setSubscription(subRes.subscription ?? null);
         setTariffDisplayName(subRes.tariffDisplayName ?? null);
         if (subRes.message) setSubscriptionError(subRes.message);
         setPayments(payRes.items ?? []);
+        setDeviceCount(devRes.total ?? null);
       })
       .catch((e) => {
         if (!cancelled) setSubscriptionError(e instanceof Error ? e.message : "Ошибка загрузки");
@@ -177,6 +183,19 @@ export function ClientDashboardPage() {
     if (!token || !isMiniapp) return;
     api.getClientReferralStats(token).then(setReferralStats).catch(() => {});
   }, [token, isMiniapp]);
+
+  async function toggleAutoRenew(enabled: boolean) {
+    if (!token || !client) return;
+    setAutoRenewLoading(true);
+    try {
+      await api.clientUpdateAutoRenew(token, { enabled });
+      await refreshProfile();
+    } catch (err) {
+      console.error("Failed to toggle auto-renew", err);
+    } finally {
+      setAutoRenewLoading(false);
+    }
+  }
 
   async function activateTrial() {
     if (!token) return;
@@ -239,8 +258,10 @@ export function ClientDashboardPage() {
           У вас пока нет привязанной подписки. Перейдите во вкладку Тарифы, чтобы выбрать и оплатить доступ.
         </p>
       </div>
-      <Button className="mt-2 shadow-lg h-11 px-6 rounded-xl hover:scale-105 transition-transform duration-300" asChild>
-        <Link to="/cabinet/tariffs">Выбрать тариф</Link>
+      <Button className="mt-2 shadow-lg h-11 px-6 rounded-xl hover:scale-105 transition-transform duration-300 [&_svg]:self-center [&_span]:leading-none" asChild>
+        <Link to="/cabinet/tariffs" className="inline-flex items-center justify-center gap-2">
+          <span className="inline-flex items-center leading-none">Выбрать тариф</span>
+        </Link>
       </Button>
     </div>
   );
@@ -287,6 +308,11 @@ export function ClientDashboardPage() {
                 {daysLeft != null && (
                   <span className="text-sm font-semibold text-foreground bg-foreground/5 px-3 py-1.5 rounded-full border border-border/50">
                     Осталось {daysLeft} {daysLeft === 1 ? "день" : daysLeft < 5 ? "дня" : "дней"}
+                  </span>
+                )}
+                {subParsed.hwidDeviceLimit != null && subParsed.hwidDeviceLimit > 0 && deviceCount != null && (
+                  <span className="text-sm font-semibold text-foreground bg-primary/10 text-primary px-3 py-1.5 rounded-full border border-primary/20 flex items-center gap-1.5">
+                    📱 {deviceCount} / {subParsed.hwidDeviceLimit}
                   </span>
                 )}
               </div>
@@ -373,10 +399,10 @@ export function ClientDashboardPage() {
                   <Copy className="h-4 w-4" />
                 </Button>
               </div>
-              <Button className="w-full gap-2 shadow-lg h-12 rounded-xl text-md hover:scale-[1.02] transition-transform duration-300" asChild>
-                <Link to="/cabinet/subscribe">
+              <Button className="w-full gap-2 shadow-lg h-12 rounded-xl text-md hover:scale-[1.02] transition-transform duration-300 [&_svg]:self-center [&_span]:leading-none" asChild>
+                <Link to="/cabinet/subscribe" className="inline-flex w-full items-center justify-center gap-2">
                   <Wifi className="h-5 w-5 shrink-0" />
-                  Подключиться к VPN
+                  <span className="inline-flex items-center leading-none">Подключиться к VPN</span>
                 </Link>
               </Button>
             </div>
@@ -388,9 +414,9 @@ export function ClientDashboardPage() {
               <p className="text-[14px] text-muted-foreground">
                 Получите бесплатный доступ на {formatRuDays(trialDays)}.
               </p>
-              <Button className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white shadow-lg h-12 rounded-xl hover:scale-[1.02] transition-transform duration-300" onClick={activateTrial} disabled={trialLoading}>
+              <Button className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white shadow-lg h-12 rounded-xl hover:scale-[1.02] transition-transform duration-300 [&_svg]:self-center [&_span]:leading-none" onClick={activateTrial} disabled={trialLoading}>
                 {trialLoading ? <Loader2 className="h-5 w-5 shrink-0 animate-spin" /> : <Gift className="h-5 w-5 shrink-0" />}
-                <span className="font-medium text-base">Активировать триал</span>
+                <span className="inline-flex items-center leading-none font-medium text-base">Активировать триал</span>
               </Button>
               {trialError && <p className="text-sm text-destructive break-words text-center">{trialError}</p>}
             </div>
@@ -400,23 +426,46 @@ export function ClientDashboardPage() {
                 <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
                 <p className="leading-relaxed">Ссылка появится после оплаты тарифа. Перейдите во вкладку «Тарифы» и оплатите.</p>
               </div>
-              <Button className="w-full shadow-md rounded-xl hover:scale-[1.02] transition-transform duration-300 h-12" variant="default" asChild>
-                <Link to="/cabinet/tariffs">Выбрать тариф</Link>
+              <Button className="w-full shadow-md rounded-xl hover:scale-[1.02] transition-transform duration-300 h-12 [&_svg]:self-center [&_span]:leading-none" variant="default" asChild>
+                <Link to="/cabinet/tariffs" className="inline-flex w-full items-center justify-center gap-2">
+                  <span className="inline-flex items-center leading-none">Выбрать тариф</span>
+                </Link>
               </Button>
             </div>
           )}
         </section>
 
         {/* 3. Баланс */}
-        <section className="rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl p-6 shadow-sm overflow-hidden flex items-center justify-between transition-all duration-300">
-          <div>
-            <h2 className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground/80 mb-1">Мой баланс</h2>
-            <p className="text-3xl font-bold tracking-tight text-foreground">{formatMoney(client.balance, client.preferredCurrency)}</p>
+        <section className="rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl p-5 shadow-sm overflow-hidden transition-all duration-300 flex flex-col gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-primary/20 rounded-xl">
+              <Wallet className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground/80">Мой баланс</h2>
+              <p className="text-2xl font-bold tracking-tight text-foreground leading-none mt-1">{formatMoney(client.balance, client.preferredCurrency)}</p>
+            </div>
           </div>
-          <Button className="gap-2 shadow-md hover:scale-105 transition-transform duration-300 rounded-2xl h-12 px-5" asChild>
-            <Link to="/cabinet/profile#topup">
+          <div className="flex items-center justify-between p-3 rounded-2xl bg-background/40 border border-border/50">
+            <div className="flex flex-col">
+              <Label className="text-sm font-semibold">Автопродление</Label>
+              <span className="text-[11px] text-muted-foreground mt-0.5 leading-tight">
+                {config?.yookassaRecurringEnabled
+                  ? <>Сначала с баланса{client.yookassaPaymentMethodTitle ? <>, затем с карты <span className="font-medium">{client.yookassaPaymentMethodTitle}</span></> : ", затем с карты (если ранее оплачивали через ЮKassa)"}</>
+                  : <>Автоматическое списание<br/>при окончании подписки</>
+                }
+              </span>
+            </div>
+            <Switch
+              checked={client.autoRenewEnabled ?? false}
+              disabled={autoRenewLoading}
+              onCheckedChange={toggleAutoRenew}
+            />
+          </div>
+          <Button className="w-full gap-2 shadow-md hover:scale-[1.02] transition-transform duration-300 rounded-xl h-12 [&_svg]:self-center [&_span]:leading-none" asChild>
+            <Link to="/cabinet/profile#topup" className="inline-flex w-full items-center justify-center gap-2">
               <PlusCircle className="h-5 w-5 shrink-0" />
-              Пополнить
+              <span className="inline-flex items-center leading-none">Пополнить баланс</span>
             </Link>
           </Button>
         </section>
@@ -513,14 +562,19 @@ export function ClientDashboardPage() {
               <NoSubscriptionState />
             ) : (
               <div className="space-y-4">
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2 flex-wrap mb-2">
                   <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-semibold bg-green-500/15 text-green-700 dark:text-green-400 border border-green-500/20">
                     <span className="h-1.5 w-1.5 rounded-full bg-current" />
                     Активна
                   </span>
                   {daysLeft != null && (
                     <span className="text-sm font-semibold text-foreground bg-foreground/5 px-3 py-1.5 rounded-full border border-border/50 shadow-sm">
-                      Осталось {daysLeft} {daysLeft === 1 ? "день" : daysLeft < 5 ? "дня" : "дней"}
+                      {daysLeft} {daysLeft === 1 ? "день" : daysLeft < 5 ? "дня" : "дней"}
+                    </span>
+                  )}
+                  {subParsed.hwidDeviceLimit != null && subParsed.hwidDeviceLimit > 0 && deviceCount != null && (
+                    <span className="text-sm font-semibold text-foreground bg-primary/10 text-primary px-3 py-1.5 rounded-full border border-primary/20 shadow-sm flex items-center gap-1.5">
+                      📱 {deviceCount} / {subParsed.hwidDeviceLimit}
                     </span>
                   )}
                 </div>
@@ -595,6 +649,24 @@ export function ClientDashboardPage() {
               </p>
               <p className="text-[15px] text-muted-foreground mt-3">На счету для продления тарифов</p>
             </div>
+            
+            <div className="flex items-center justify-between p-4 rounded-2xl bg-background/40 border border-border/50 text-left">
+              <div className="flex flex-col">
+                <Label className="text-[15px] font-semibold">Автопродление</Label>
+                <span className="text-sm text-muted-foreground mt-0.5">
+                  {config?.yookassaRecurringEnabled
+                    ? <>Сначала с баланса{client.yookassaPaymentMethodTitle ? <>, затем с карты <span className="font-medium">{client.yookassaPaymentMethodTitle}</span></> : ", затем с карты (если ранее оплачивали через ЮKassa)"}</>
+                    : "Списание с баланса"
+                  }
+                </span>
+              </div>
+              <Switch
+                checked={client.autoRenewEnabled ?? false}
+                disabled={autoRenewLoading}
+                onCheckedChange={toggleAutoRenew}
+              />
+            </div>
+
             <Button variant="default" size="lg" className="w-full gap-2 shadow-lg h-14 rounded-xl text-[16px] hover:scale-105 transition-transform [&_svg]:self-center [&_span]:leading-none" asChild>
               <Link to="/cabinet/profile#topup" className="inline-flex items-center justify-center gap-2 leading-none">
                 <PlusCircle className="h-5 w-5 shrink-0" />

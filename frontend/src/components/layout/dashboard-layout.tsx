@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { api, type AdminNotificationCounters } from "@/lib/api";
 
-const PANEL_VERSION = "3.2.4";
+const PANEL_VERSION = "3.2.5";
 const GITHUB_URL = "https://github.com/systemmaster1200-eng/remnawave-STEALTHNET-Bot";
 
 const navWithSections: { to: string; label: string; icon: typeof LayoutDashboard; section: string }[] = [
@@ -96,7 +96,7 @@ export function DashboardLayout() {
   const [brand, setBrand] = useState<{ serviceName: string; logo: string | null }>({ serviceName: "", logo: null });
   const [showThemePanel, setShowThemePanel] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [notificationToasts, setNotificationToasts] = useState<{ id: number; text: string }[]>([]);
+  const [notificationToasts, setNotificationToasts] = useState<{ id: number; text: string; icon: string }[]>([]);
   const lastCountersRef = useRef<AdminNotificationCounters | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(true);
 
@@ -129,9 +129,9 @@ export function DashboardLayout() {
     const token = state.accessToken;
     if (!token || !notificationsEnabled) return;
     let cancelled = false;
-    const pushToast = (text: string) => {
+    const pushToast = (text: string, icon = "") => {
       const id = Date.now() + Math.random();
-      setNotificationToasts((prev) => [...prev, { id, text }]);
+      setNotificationToasts((prev) => [...prev, { id, text, icon }]);
       window.setTimeout(() => { setNotificationToasts((prev) => prev.filter((t) => t.id !== id)); }, 5000);
     };
     const fetchCounters = async () => {
@@ -140,10 +140,14 @@ export function DashboardLayout() {
         if (cancelled) return;
         const last = lastCountersRef.current;
         if (last) {
-          if (data.totalClients > last.totalClients) pushToast("Новый пользователь зарегистрировался.");
-          if (data.totalTariffPayments > last.totalTariffPayments) pushToast("Есть новые оплаты тарифов.");
-          if (data.totalBalanceTopups > last.totalBalanceTopups) pushToast("Есть новые пополнения баланса.");
-          if (data.totalTickets > last.totalTickets) pushToast("Появились новые тикеты.");
+          const newClients = data.totalClients - last.totalClients;
+          const newPayments = data.totalTariffPayments - last.totalTariffPayments;
+          const newTopups = data.totalBalanceTopups - last.totalBalanceTopups;
+          const newTickets = data.totalTickets - last.totalTickets;
+          if (newClients > 0) pushToast(newClients === 1 ? "Новый клиент зарегистрировался" : `+${newClients} новых клиентов`, "\u{1F464}");
+          if (newPayments > 0) pushToast(newPayments === 1 ? "Новая оплата тарифа" : `+${newPayments} оплат тарифов`, "\u{1F4E6}");
+          if (newTopups > 0) pushToast(newTopups === 1 ? "Пополнение баланса" : `+${newTopups} пополнений баланса`, "\u{1F4B0}");
+          if (newTickets > 0) pushToast(newTickets === 1 ? "Новый тикет" : `+${newTickets} новых тикетов`, "\u{1F4AC}");
         }
         lastCountersRef.current = data;
       } catch { /* ignore */ }
@@ -285,8 +289,9 @@ export function DashboardLayout() {
       {notificationToasts.length > 0 && (
         <div className="fixed bottom-4 right-4 z-50 space-y-2">
           {notificationToasts.map((t) => (
-            <div key={t.id} className="max-w-xs rounded-lg border bg-card px-4 py-3 text-sm shadow-lg">
-              {t.text}
+            <div key={t.id} className="max-w-xs rounded-lg border bg-card px-4 py-3 text-sm shadow-lg flex items-center gap-2 animate-in slide-in-from-right-5 fade-in duration-300">
+              {t.icon && <span className="text-base shrink-0">{t.icon}</span>}
+              <span>{t.text}</span>
             </div>
           ))}
         </div>

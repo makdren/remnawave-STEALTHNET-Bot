@@ -3,6 +3,9 @@
  * Документация: https://yoomoney.ru/docs/wallet
  */
 
+import { proxyFetch } from "../proxy-util/proxy-fetch.js";
+import { getProxyUrl } from "../proxy-util/get-proxy-url.js";
+
 const YOOMONEY_OAUTH = "https://yoomoney.ru/oauth";
 const YOOMONEY_API = "https://yoomoney.ru/api";
 
@@ -41,11 +44,12 @@ export async function exchangeCodeForToken(params: {
   if (params.clientSecret?.trim()) {
     body.set("client_secret", params.clientSecret.trim());
   }
-  const res = await fetch(`${YOOMONEY_OAUTH}/token`, {
+  const proxy = await getProxyUrl("payments");
+  const res = await proxyFetch(`${YOOMONEY_OAUTH}/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),
-  });
+  }, proxy);
   const data = (await res.json()) as { access_token?: string; error?: string };
   if (!res.ok || data.error) {
     return { error: data.error ?? `HTTP ${res.status}` };
@@ -74,14 +78,15 @@ export async function requestPayment(
   if (params.message?.trim()) body.set("message", params.message.trim());
   if (params.comment?.trim()) body.set("comment", params.comment.trim());
 
-  const res = await fetch(`${YOOMONEY_API}/request-payment`, {
+  const proxy = await getProxyUrl("payments");
+  const res = await proxyFetch(`${YOOMONEY_API}/request-payment`, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
       Authorization: `Bearer ${accessToken}`,
     },
     body: body.toString(),
-  });
+  }, proxy);
   const data = (await res.json()) as { status?: string; request_id?: string; money_source?: Record<string, unknown>; error?: string; error_description?: string; balance?: number; contract_amount?: number };
   if (data.status === "refused") {
     return { status: "refused", error: data.error ?? "refused", error_description: data.error_description };
@@ -113,14 +118,15 @@ export async function processPayment(
   if (params.money_source?.trim()) body.set("money_source", params.money_source.trim());
   if (params.csc?.trim()) body.set("csc", params.csc.trim());
 
-  const res = await fetch(`${YOOMONEY_API}/process-payment`, {
+  const proxy = await getProxyUrl("payments");
+  const res = await proxyFetch(`${YOOMONEY_API}/process-payment`, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
       Authorization: `Bearer ${accessToken}`,
     },
     body: body.toString(),
-  });
+  }, proxy);
   const data = (await res.json()) as {
     status?: string;
     payment_id?: string;

@@ -648,13 +648,16 @@ export function optionPaymentMethodButtons(
   return { inline_keyboard: rows };
 }
 
-export function profileButtons(backLabel?: string | null, innerStyles?: InnerButtonStyles, emojiIds?: InnerEmojiIds): InlineMarkup {
+export function profileButtons(backLabel?: string | null, innerStyles?: InnerButtonStyles, emojiIds?: InnerEmojiIds, autoRenewEnabled?: boolean): InlineMarkup {
   const back = (backLabel && backLabel.trim()) || DEFAULT_BACK_LABEL;
   const profile = resolveStyle(toStyle(innerStyles?.profile), "primary");
   const backSty = resolveStyle(toStyle(innerStyles?.back), "danger");
   const profileId = emojiIds?.profile;
+  const autoRenewText = autoRenewEnabled ? "🔄 Автопродление: ВКЛ" : "🔄 Автопродление: ОТКЛ";
+  const autoRenewData = autoRenewEnabled ? "profile:autorenew:off" : "profile:autorenew:on";
   return {
     inline_keyboard: [
+      [btn(autoRenewText, autoRenewData, profile, profileId)],
       [btn("🌐 Язык", "profile:lang", profile, profileId), btn("💱 Валюта", "profile:currency", profile, profileId)],
       [btn(back, "menu:main", backSty, emojiIds?.back)],
     ],

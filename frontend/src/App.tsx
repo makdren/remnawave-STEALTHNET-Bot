@@ -71,6 +71,7 @@ function ForceChangePassword({ children }: { children: React.ReactNode }) {
 
 function RequireClientAuth({ children }: { children: React.ReactNode }) {
   const { state } = useClientAuth();
+  const location = useLocation();
   const inTelegram = typeof window !== "undefined" && Boolean((window as { Telegram?: { WebApp?: { initData?: string } } }).Telegram?.WebApp?.initData);
   const showMiniappLoading = state.miniappAuthLoading || (inTelegram && !state.token && !state.miniappAuthAttempted);
   if (showMiniappLoading) {
@@ -83,6 +84,17 @@ function RequireClientAuth({ children }: { children: React.ReactNode }) {
   }
   if (!state.token) {
     return <Navigate to="/cabinet/login" replace />;
+  }
+  if (state.isNewTelegramUser && location.pathname !== "/cabinet/onboarding") {
+    return <Navigate to="/cabinet/onboarding" replace />;
+  }
+  return <>{children}</>;
+}
+
+function RequireOnboarding({ children }: { children: React.ReactNode }) {
+  const { state } = useClientAuth();
+  if (!state.isNewTelegramUser) {
+    return <Navigate to="/cabinet/dashboard" replace />;
   }
   return <>{children}</>;
 }
@@ -193,7 +205,9 @@ function AppRoutes() {
         element={
           <ClientAuthProvider>
             <RequireClientAuth>
-              <ClientOnboardingPage />
+              <RequireOnboarding>
+                <ClientOnboardingPage />
+              </RequireOnboarding>
             </RequireClientAuth>
           </ClientAuthProvider>
         }

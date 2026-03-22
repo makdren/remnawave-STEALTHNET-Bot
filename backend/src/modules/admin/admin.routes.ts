@@ -32,9 +32,13 @@ import {
   remnaDeleteUser,
   remnaEnableUser,
   remnaResetUserTraffic,
+  remnaGetUserByTelegramId,
+  remnaGetUserByEmail,
+  extractRemnaUuid,
   isRemnaConfigured,
 } from "../remna/remna.client.js";
 import { getSystemConfig } from "../client/client.service.js";
+import { getServerStats, getSshConfig, updateSshConfig } from "../server/server.service.js";
 import { syncFromRemna, syncToRemna, createRemnaUsersForClientsWithoutUuid } from "../sync/sync.service.js";
 import { distributeReferralRewards } from "../referral/referral.service.js";
 import { markPaymentPaid } from "../payment/mark-paid.service.js";
@@ -45,6 +49,7 @@ import {
   notifyAdminsAboutTicketStatusChange,
 } from "../notification/telegram-notify.service.js";
 import { runRule, runAllRules, getEligibleClientIds } from "../auto-broadcast/auto-broadcast.service.js";
+import { testNalogConnection } from "../nalog/nalog.service.js";
 
 export const adminRouter = Router();
 adminRouter.use(requireAuth);
@@ -246,6 +251,90 @@ adminRouter.get("/dashboard/stats", async (_req, res) => {
   });
 });
 
+// ──── Мониторинг сервера ────
+
+adminRouter.get("/server/stats", asyncRoute(async (_req, res) => {
+  const stats = await getServerStats();
+  return res.json(stats);
+}));
+
+adminRouter.get("/server/ssh", asyncRoute(async (_req, res) => {
+  const config = await getSshConfig();
+  if (!config) return res.status(404).json({ message: "sshd_config не найден (SSH не настроен или нет доступа)" });
+  return res.json(config);
+}));
+
+adminRouter.patch("/server/ssh", asyncRoute(async (req, res) => {
+  const body = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  if (body.port != null) updates.port = Number(body.port);
+  if (body.permitRootLogin != null) updates.permitRootLogin = String(body.permitRootLogin);
+  if (body.passwordAuthentication != null) updates.passwordAuthentication = Boolean(body.passwordAuthentication);
+  if (body.pubkeyAuthentication != null) updates.pubkeyAuthentication = Boolean(body.pubkeyAuthentication);
+  const result = await updateSshConfig(updates as any);
+  if (!result.ok) return res.status(500).json({ message: result.error });
+  const config = await getSshConfig();
+  return res.json(config);
+}));
+
+adminRouter.get("/auto-renew/stats", async (_req, res) => {
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  const [
+    totalAutoRenewEnabled,
+    totalAutoRenewDisabled,
+    retriesInProgress,
+    renewalsLast30Days,
+    renewalsLast7Days,
+    renewalAmountLast30Days,
+  ] = await Promise.all([
+    // Clients with auto-renewal enabled
+    prisma.client.count({ where: { autoRenewEnabled: true, autoRenewTariffId: { not: null } } }),
+    // Clients who had it but now disabled
+    prisma.client.count({ where: { autoRenewEnabled: false, autoRenewTariffId: { not: null } } }),
+    // Clients currently in retry state
+    prisma.client.count({ where: { autoRenewEnabled: true, autoRenewRetryCount: { gt: 0 } } }),
+    // Successful auto-renewals (balance payments with tariff) in 30 days
+    prisma.payment.count({
+      where: {
+        provider: "balance",
+        status: "PAID",
+        tariffId: { not: null },
+        paidAt: { gte: thirtyDaysAgo },
+      },
+    }),
+    // Successful auto-renewals in 7 days
+    prisma.payment.count({
+      where: {
+        provider: "balance",
+        status: "PAID",
+        tariffId: { not: null },
+        paidAt: { gte: sevenDaysAgo },
+      },
+    }),
+    // Total amount of balance-tariff payments in 30 days
+    prisma.payment.aggregate({
+      where: {
+        provider: "balance",
+        status: "PAID",
+        tariffId: { not: null },
+        paidAt: { gte: thirtyDaysAgo },
+      },
+      _sum: { amount: true },
+    }),
+  ]);
+
+  return res.json({
+    enabled: totalAutoRenewEnabled,
+    disabled: totalAutoRenewDisabled,
+    retriesInProgress,
+    renewalsLast7Days,
+    renewalsLast30Days,
+    amountLast30Days: renewalAmountLast30Days._sum.amount ?? 0,
+  });
+});
+
 adminRouter.get("/notifications/counters", asyncRoute(async (_req, res) => {
   const [totalClients, totalTickets, totalTariffPayments, totalBalanceTopups] = await Promise.all([
     prisma.client.count(),
@@ -296,7 +385,7 @@ adminRouter.patch("/payments/:id", asyncRoute(async (req, res) => {
 }));
 
 /** Сериализация тарифа для JSON (BigInt → number) */
-function tariffToJson(t: { id: string; categoryId: string; name: string; description: string | null; durationDays: number; internalSquadUuids: string[]; trafficLimitBytes: bigint | null; deviceLimit: number | null; price: number; currency: string; sortOrder: number; createdAt: Date; updatedAt: Date }) {
+function tariffToJson(t: { id: string; categoryId: string; name: string; description: string | null; durationDays: number; internalSquadUuids: string[]; trafficLimitBytes: bigint | null; trafficResetMode: string; deviceLimit: number | null; price: number; currency: string; sortOrder: number; createdAt: Date; updatedAt: Date }) {
   return {
     id: t.id,
     categoryId: t.categoryId,
@@ -305,6 +394,7 @@ function tariffToJson(t: { id: string; categoryId: string; name: string; descrip
     durationDays: t.durationDays,
     internalSquadUuids: t.internalSquadUuids,
     trafficLimitBytes: t.trafficLimitBytes != null ? Number(t.trafficLimitBytes) : null,
+    trafficResetMode: t.trafficResetMode,
     deviceLimit: t.deviceLimit,
     price: t.price,
     currency: t.currency,
@@ -409,6 +499,7 @@ adminRouter.delete("/tariff-categories/:id", async (req, res) => {
 
 // ——— Тарифы ———
 const tariffIdSchema = z.object({ id: z.string().min(1) });
+const TRAFFIC_RESET_MODES = ["no_reset", "on_purchase", "monthly"] as const;
 const createTariffSchema = z.object({
   categoryId: z.string().min(1),
   name: z.string().min(1).max(255),
@@ -416,6 +507,7 @@ const createTariffSchema = z.object({
   durationDays: z.number().int().min(1).max(3650),
   internalSquadUuids: z.array(z.string().uuid()).min(1),
   trafficLimitBytes: z.number().int().nonnegative().nullable().optional(),
+  trafficResetMode: z.enum(TRAFFIC_RESET_MODES).optional(),
   deviceLimit: z.number().int().nonnegative().nullable().optional(),
   price: z.number().min(0).optional(),
   currency: z.string().max(10).optional(),
@@ -427,6 +519,7 @@ const updateTariffSchema = z.object({
   durationDays: z.number().int().min(1).max(3650).optional(),
   internalSquadUuids: z.array(z.string().uuid()).optional(),
   trafficLimitBytes: z.number().int().nonnegative().nullable().optional(),
+  trafficResetMode: z.enum(TRAFFIC_RESET_MODES).optional(),
   deviceLimit: z.number().int().nonnegative().nullable().optional(),
   price: z.number().min(0).optional(),
   currency: z.string().max(10).optional(),
@@ -456,6 +549,7 @@ adminRouter.post("/tariffs", async (req, res) => {
       durationDays: body.data.durationDays,
       internalSquadUuids: body.data.internalSquadUuids,
       trafficLimitBytes: body.data.trafficLimitBytes != null ? BigInt(body.data.trafficLimitBytes) : null,
+      trafficResetMode: body.data.trafficResetMode ?? "no_reset",
       deviceLimit: body.data.deviceLimit ?? null,
       price: body.data.price ?? 0,
       currency: (body.data.currency ?? "usd").toLowerCase(),
@@ -470,12 +564,13 @@ adminRouter.patch("/tariffs/:id", async (req, res) => {
   if (!idParse.success) return res.status(400).json({ message: "Invalid id" });
   const body = updateTariffSchema.safeParse(req.body);
   if (!body.success) return res.status(400).json({ message: "Неверные данные", errors: body.error.flatten() });
-  const data: { name?: string; description?: string | null; durationDays?: number; internalSquadUuids?: string[]; trafficLimitBytes?: bigint | null; deviceLimit?: number | null; price?: number; currency?: string; sortOrder?: number } = {};
+  const data: { name?: string; description?: string | null; durationDays?: number; internalSquadUuids?: string[]; trafficLimitBytes?: bigint | null; trafficResetMode?: string; deviceLimit?: number | null; price?: number; currency?: string; sortOrder?: number } = {};
   if (body.data.name != null) data.name = body.data.name;
   if (body.data.description !== undefined) data.description = body.data.description ?? null;
   if (body.data.durationDays != null) data.durationDays = body.data.durationDays;
   if (body.data.internalSquadUuids != null) data.internalSquadUuids = body.data.internalSquadUuids;
   if (body.data.trafficLimitBytes !== undefined) data.trafficLimitBytes = body.data.trafficLimitBytes != null ? BigInt(body.data.trafficLimitBytes) : null;
+  if (body.data.trafficResetMode !== undefined) data.trafficResetMode = body.data.trafficResetMode;
   if (body.data.deviceLimit !== undefined) data.deviceLimit = body.data.deviceLimit ?? null;
   if (body.data.price !== undefined) data.price = body.data.price;
   if (body.data.currency !== undefined) data.currency = body.data.currency.toLowerCase();
@@ -697,12 +792,26 @@ adminRouter.patch("/clients/:id/password", async (req, res) => {
 adminRouter.delete("/clients/:id", async (req, res) => {
   const parsed = clientIdParam.safeParse(req.params);
   if (!parsed.success) return res.status(400).json({ message: "Invalid client id" });
-  const client = await prisma.client.findUnique({ where: { id: parsed.data.id }, select: { id: true, remnawaveUuid: true } });
+  const client = await prisma.client.findUnique({ where: { id: parsed.data.id }, select: { id: true, remnawaveUuid: true, telegramId: true, email: true } });
   if (!client) return res.status(404).json({ message: "Клиент не найден" });
-  if (client.remnawaveUuid && isRemnaConfigured()) {
-    const remnaRes = await remnaDeleteUser(client.remnawaveUuid);
-    if (remnaRes.error) {
-      console.warn(`[admin delete client] Remna delete failed for ${client.remnawaveUuid}:`, remnaRes.error);
+  if (isRemnaConfigured()) {
+    let remnaUuid = client.remnawaveUuid;
+
+    // Если remnawaveUuid нет — ищем юзера в Remna по telegramId / email
+    if (!remnaUuid && client.telegramId?.trim()) {
+      const byTg = await remnaGetUserByTelegramId(client.telegramId.trim());
+      remnaUuid = extractRemnaUuid(byTg.data);
+    }
+    if (!remnaUuid && client.email?.trim()) {
+      const byEmail = await remnaGetUserByEmail(client.email.trim());
+      remnaUuid = extractRemnaUuid(byEmail.data);
+    }
+
+    if (remnaUuid) {
+      const remnaRes = await remnaDeleteUser(remnaUuid);
+      if (remnaRes.error) {
+        console.warn(`[admin delete client] Remna delete failed for ${remnaUuid}:`, remnaRes.error);
+      }
     }
   }
   await prisma.client.delete({ where: { id: parsed.data.id } });
@@ -926,6 +1035,9 @@ const updateSettingsSchema = z.object({
   telegramBotUsername: z.string().max(100).nullable().optional(),
   botAdminTelegramIds: z.union([z.string().max(2000), z.array(z.string())]).nullable().optional(),
   notificationTelegramGroupId: z.string().max(100).nullable().optional(),
+  notificationTopicNewClients: z.string().max(50).nullable().optional(),
+  notificationTopicPayments: z.string().max(50).nullable().optional(),
+  notificationTopicTickets: z.string().max(50).nullable().optional(),
   plategaMerchantId: z.string().max(200).nullable().optional(),
   plategaSecret: z.string().max(500).nullable().optional(),
   plategaMethods: z.string().max(2000).nullable().optional(),
@@ -989,6 +1101,12 @@ const updateSettingsSchema = z.object({
   customBuildCurrency: z.string().max(10).optional(),
   customBuildMaxDays: z.number().int().min(1).max(360).optional(),
   customBuildMaxDevices: z.number().int().min(1).max(20).optional(),
+  defaultAutoRenewEnabled: z.boolean().optional(),
+  autoRenewDaysBeforeExpiry: z.number().int().min(1).max(30).optional(),
+  autoRenewNotifyDaysBefore: z.number().int().min(1).max(30).optional(),
+  autoRenewGracePeriodDays: z.number().int().min(0).max(14).optional(),
+  autoRenewMaxRetries: z.number().int().min(1).max(10).optional(),
+  yookassaRecurringEnabled: z.boolean().optional(),
   googleLoginEnabled: z.boolean().optional(),
   googleClientId: z.string().max(500).nullable().optional(),
   googleClientSecret: z.string().max(500).nullable().optional(),
@@ -1091,6 +1209,21 @@ const updateSettingsSchema = z.object({
   landingReadyToConnectEyebrow: z.string().max(200).nullable().optional(),
   landingReadyToConnectTitle: z.string().max(500).nullable().optional(),
   landingReadyToConnectDesc: z.string().max(2000).nullable().optional(),
+  landingShowFeatures: z.boolean().optional(),
+  landingShowBenefits: z.boolean().optional(),
+  landingShowDevices: z.boolean().optional(),
+  landingShowFaq: z.boolean().optional(),
+  landingShowHowItWorks: z.boolean().optional(),
+  landingShowCta: z.boolean().optional(),
+  proxyEnabled: z.boolean().optional(),
+  proxyUrl: z.string().max(500).nullable().optional(),
+  proxyTelegram: z.boolean().optional(),
+  proxyPayments: z.boolean().optional(),
+  nalogEnabled: z.boolean().optional(),
+  nalogInn: z.string().max(20).nullable().optional(),
+  nalogPassword: z.string().max(200).nullable().optional(),
+  nalogDeviceId: z.string().max(100).nullable().optional(),
+  nalogServiceName: z.string().max(300).nullable().optional(),
 });
 
 adminRouter.patch("/settings", async (req, res) => {
@@ -1283,6 +1416,17 @@ adminRouter.patch("/settings", async (req, res) => {
       create: { key: "notification_telegram_group_id", value: val },
       update: { value: val },
     });
+  }
+  const topicKeys: [keyof typeof updates, string][] = [
+    ["notificationTopicNewClients", "notification_topic_new_clients"],
+    ["notificationTopicPayments", "notification_topic_payments"],
+    ["notificationTopicTickets", "notification_topic_tickets"],
+  ];
+  for (const [key, dbKey] of topicKeys) {
+    if (updates[key] !== undefined) {
+      const val = (String(updates[key] ?? "")).trim() || "";
+      await prisma.systemSetting.upsert({ where: { key: dbKey }, create: { key: dbKey, value: val }, update: { value: val } });
+    }
   }
   if (updates.plategaMerchantId !== undefined) {
     const val = updates.plategaMerchantId ?? "";
@@ -1570,6 +1714,40 @@ adminRouter.patch("/settings", async (req, res) => {
       update: { value: val },
     });
   }
+  if (updates.defaultAutoRenewEnabled !== undefined) {
+    const val = updates.defaultAutoRenewEnabled ? "true" : "false";
+    await prisma.systemSetting.upsert({
+      where: { key: "default_auto_renew_enabled" },
+      create: { key: "default_auto_renew_enabled", value: val },
+      update: { value: val },
+    });
+  }
+  // Auto-renewal numeric settings
+  const autoRenewNumericKeys: [keyof typeof updates, string][] = [
+    ["autoRenewDaysBeforeExpiry", "auto_renew_days_before_expiry"],
+    ["autoRenewNotifyDaysBefore", "auto_renew_notify_days_before"],
+    ["autoRenewGracePeriodDays", "auto_renew_grace_period_days"],
+    ["autoRenewMaxRetries", "auto_renew_max_retries"],
+  ];
+  for (const [key, dbKey] of autoRenewNumericKeys) {
+    const v = updates[key];
+    if (v === undefined) continue;
+    const val = String(v);
+    await prisma.systemSetting.upsert({
+      where: { key: dbKey },
+      create: { key: dbKey, value: val },
+      update: { value: val },
+    });
+  }
+  // YooKassa recurring payments toggle
+  if (updates.yookassaRecurringEnabled !== undefined) {
+    const val = updates.yookassaRecurringEnabled ? "true" : "false";
+    await prisma.systemSetting.upsert({
+      where: { key: "yookassa_recurring_enabled" },
+      create: { key: "yookassa_recurring_enabled", value: val },
+      update: { value: val },
+    });
+  }
   const cbKeys: [keyof typeof updates, string][] = [
     ["customBuildEnabled", "custom_build_enabled"],
     ["customBuildPricePerDay", "custom_build_price_per_day"],
@@ -1706,8 +1884,47 @@ adminRouter.patch("/settings", async (req, res) => {
     ["landingReadyToConnectEyebrow", "landing_ready_to_connect_eyebrow"],
     ["landingReadyToConnectTitle", "landing_ready_to_connect_title"],
     ["landingReadyToConnectDesc", "landing_ready_to_connect_desc"],
+    ["landingShowFeatures", "landing_show_features"],
+    ["landingShowBenefits", "landing_show_benefits"],
+    ["landingShowDevices", "landing_show_devices"],
+    ["landingShowFaq", "landing_show_faq"],
+    ["landingShowHowItWorks", "landing_show_how_it_works"],
+    ["landingShowCta", "landing_show_cta"],
   ];
   for (const [key, dbKey] of landingKeys) {
+    const v = updates[key];
+    if (v === undefined) continue;
+    const val = typeof v === "boolean" ? (v ? "true" : "false") : (v === null ? "" : String(v));
+    await prisma.systemSetting.upsert({
+      where: { key: dbKey },
+      create: { key: dbKey, value: val },
+      update: { value: val },
+    });
+  }
+  const proxyKeys: [keyof typeof updates, string][] = [
+    ["proxyEnabled", "proxy_enabled"],
+    ["proxyUrl", "proxy_url"],
+    ["proxyTelegram", "proxy_telegram"],
+    ["proxyPayments", "proxy_payments"],
+  ];
+  for (const [key, dbKey] of proxyKeys) {
+    const v = updates[key];
+    if (v === undefined) continue;
+    const val = typeof v === "boolean" ? (v ? "true" : "false") : (v === null ? "" : String(v));
+    await prisma.systemSetting.upsert({
+      where: { key: dbKey },
+      create: { key: dbKey, value: val },
+      update: { value: val },
+    });
+  }
+  const nalogKeys: [keyof typeof updates, string][] = [
+    ["nalogEnabled", "nalog_enabled"],
+    ["nalogInn", "nalog_inn"],
+    ["nalogPassword", "nalog_password"],
+    ["nalogDeviceId", "nalog_device_id"],
+    ["nalogServiceName", "nalog_service_name"],
+  ];
+  for (const [key, dbKey] of nalogKeys) {
     const v = updates[key];
     if (v === undefined) continue;
     const val = typeof v === "boolean" ? (v ? "true" : "false") : (v === null ? "" : String(v));
@@ -1720,6 +1937,11 @@ adminRouter.patch("/settings", async (req, res) => {
   const config = await getSystemConfig();
   return res.json(config);
 });
+
+adminRouter.post("/nalog/test", asyncRoute(async (_req, res) => {
+  const result = await testNalogConnection();
+  return res.json(result);
+}));
 
 /** Сброс всех текстов лендинга на исходные (из кода). Очищает значения в БД — фронт подставит дефолты. */
 const LANDING_TEXT_DB_KEYS = [
@@ -1891,6 +2113,8 @@ const broadcastSchema = z.object({
   channel: z.enum(["telegram", "email", "both"]),
   subject: z.string().max(500).optional(),
   message: z.string().min(1, "Текст сообщения обязателен").max(4096),
+  buttonText: z.string().max(64).optional(),
+  buttonUrl: z.string().max(500).optional(),
 });
 
 const broadcastUpload = multer({
@@ -1911,7 +2135,7 @@ adminRouter.post(
     if (!parsed.success) {
       return res.status(400).json({ message: "Invalid input", errors: parsed.error.flatten() });
     }
-    const { channel, subject, message } = parsed.data;
+    const { channel, subject, message, buttonText, buttonUrl } = parsed.data;
     const attachment =
       req.file && req.file.buffer
         ? { buffer: req.file.buffer, mimetype: req.file.mimetype || "application/octet-stream", originalname: req.file.originalname || "file" }
@@ -1921,6 +2145,8 @@ adminRouter.post(
       subject: subject ?? "",
       message,
       attachment,
+      buttonText,
+      buttonUrl,
     });
     return res.json(result);
   })
@@ -1944,6 +2170,8 @@ const autoBroadcastRuleSchema = z.object({
   channel: z.enum(["telegram", "email", "both"]),
   subject: z.string().max(500).nullish(),
   message: z.string().min(1).max(4096),
+  buttonText: z.string().max(64).nullish(),
+  buttonUrl: z.string().max(500).nullish(),
   enabled: z.boolean().optional(),
 });
 
@@ -1961,6 +2189,8 @@ adminRouter.get("/auto-broadcast/rules", asyncRoute(async (_req, res) => {
       channel: r.channel,
       subject: r.subject,
       message: r.message,
+      buttonText: r.buttonText,
+      buttonUrl: r.buttonUrl,
       enabled: r.enabled,
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
@@ -1987,6 +2217,8 @@ adminRouter.post("/auto-broadcast/rules", asyncRoute(async (req, res) => {
       channel: data.channel,
       subject: data.subject ?? null,
       message: data.message,
+      buttonText: data.buttonText ?? null,
+      buttonUrl: data.buttonUrl ?? null,
       enabled: data.enabled ?? true,
     },
   });
@@ -1998,6 +2230,8 @@ adminRouter.post("/auto-broadcast/rules", asyncRoute(async (req, res) => {
     channel: rule.channel,
     subject: rule.subject,
     message: rule.message,
+    buttonText: rule.buttonText,
+    buttonUrl: rule.buttonUrl,
     enabled: rule.enabled,
     createdAt: rule.createdAt.toISOString(),
     updatedAt: rule.updatedAt.toISOString(),
@@ -2020,6 +2254,8 @@ adminRouter.patch("/auto-broadcast/rules/:id", asyncRoute(async (req, res) => {
     channel: rule.channel,
     subject: rule.subject,
     message: rule.message,
+    buttonText: rule.buttonText,
+    buttonUrl: rule.buttonUrl,
     enabled: rule.enabled,
     createdAt: rule.createdAt.toISOString(),
     updatedAt: rule.updatedAt.toISOString(),

@@ -24,11 +24,24 @@ function startWithExpression(cronExpression: string): ScheduledTask | null {
   }
 
   const task = cron.schedule(schedule, async () => {
+    console.log(`[auto-broadcast] Cron triggered (${schedule}), starting rules...`);
     try {
       const results = await runAllRules();
       const total = results.reduce((s, r) => s + r.sent, 0);
-      if (total > 0 || results.some((r) => r.errors.length > 0)) {
-        console.log(`[auto-broadcast] Ran ${results.length} rule(s), sent ${total} message(s)`);
+      const totalErrors = results.reduce((s, r) => s + r.errors.length, 0);
+
+      if (results.length === 0) {
+        console.log("[auto-broadcast] No enabled rules found.");
+      } else {
+        console.log(
+          `[auto-broadcast] Cron run complete: ${results.length} rule(s), ${total} sent, ${totalErrors} error(s)`,
+        );
+        // Логируем результат каждого правила при наличии ошибок
+        for (const r of results) {
+          if (r.errors.length > 0) {
+            console.warn(`[auto-broadcast]   Rule "${r.ruleName}": ${r.sent} sent, errors: ${r.errors.join("; ")}`);
+          }
+        }
       }
     } catch (e) {
       console.error("[auto-broadcast] Scheduled run failed:", e);

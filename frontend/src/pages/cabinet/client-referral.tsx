@@ -96,16 +96,20 @@ export function ClientReferralPage() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.05 }}
-          className="relative p-6 rounded-[2rem] bg-muted/40 border border-border/50 dark:bg-white/5 dark:border-white/5 transition-colors hover:bg-muted/60 dark:hover:bg-white/10 overflow-hidden group"
+          className="relative p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] bg-muted/40 border border-border/50 dark:bg-white/5 dark:border-white/5 transition-colors hover:bg-muted/60 dark:hover:bg-white/10 overflow-hidden group"
         >
           <div className="absolute -top-12 -right-12 h-32 w-32 rounded-full bg-blue-500/10 blur-[40px] pointer-events-none group-hover:bg-blue-500/20 transition-colors duration-500" />
-          <div className="relative">
-            <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-blue-500/10 text-blue-500 mb-4 shadow-inner border border-blue-500/10">
+          <div className="relative flex items-center sm:block gap-4 sm:gap-0">
+            <div className="flex items-center justify-center shrink-0 w-12 h-12 rounded-xl bg-blue-500/10 text-blue-500 sm:mb-4 shadow-inner border border-blue-500/10">
               <Percent className="w-5 h-5" />
             </div>
-            <p className="text-3xl font-bold tracking-tight mb-1"><span className="text-foreground">{s.referralPercent}</span><span className="text-muted-foreground/50 ml-1 text-2xl">%</span></p>
-            <p className="text-sm text-muted-foreground font-medium">Процент</p>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 opacity-70">от пополнений (1 уровень)</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-2xl sm:text-3xl font-bold tracking-tight mb-0 sm:mb-1"><span className="text-foreground">{s.referralPercent}</span><span className="text-muted-foreground/50 ml-1 text-xl sm:text-2xl">%</span></p>
+              <div className="flex flex-col sm:block">
+                <p className="text-xs sm:text-sm text-muted-foreground font-medium leading-tight">Процент</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 opacity-70 leading-tight">от пополнений (1 уровень)</p>
+              </div>
+            </div>
           </div>
         </motion.div>
 
@@ -113,16 +117,20 @@ export function ClientReferralPage() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.1 }}
-          className="relative p-6 rounded-[2rem] bg-muted/40 border border-border/50 dark:bg-white/5 dark:border-white/5 transition-colors hover:bg-muted/60 dark:hover:bg-white/10 overflow-hidden group"
+          className="relative p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] bg-muted/40 border border-border/50 dark:bg-white/5 dark:border-white/5 transition-colors hover:bg-muted/60 dark:hover:bg-white/10 overflow-hidden group"
         >
           <div className="absolute -top-12 -right-12 h-32 w-32 rounded-full bg-indigo-500/10 blur-[40px] pointer-events-none group-hover:bg-indigo-500/20 transition-colors duration-500" />
-          <div className="relative">
-            <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-500 mb-4 shadow-inner border border-indigo-500/10">
+          <div className="relative flex items-center sm:block gap-4 sm:gap-0">
+            <div className="flex items-center justify-center shrink-0 w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-500 sm:mb-4 shadow-inner border border-indigo-500/10">
               <Users className="w-5 h-5" />
             </div>
-            <p className="text-3xl font-bold tracking-tight mb-1 text-foreground">{s.referralCount}</p>
-            <p className="text-sm text-muted-foreground font-medium">Приглашено</p>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 opacity-70">активных рефералов</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-2xl sm:text-3xl font-bold tracking-tight mb-0 sm:mb-1 text-foreground">{s.referralCount}</p>
+              <div className="flex flex-col sm:block">
+                <p className="text-xs sm:text-sm text-muted-foreground font-medium leading-tight">Приглашено</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 opacity-70 leading-tight">активных рефералов</p>
+              </div>
+            </div>
           </div>
         </motion.div>
 
@@ -130,16 +138,20 @@ export function ClientReferralPage() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.15 }}
-          className="relative p-6 rounded-[2rem] bg-muted/40 border border-border/50 dark:bg-white/5 dark:border-white/5 transition-colors hover:bg-muted/60 dark:hover:bg-white/10 overflow-hidden group"
+          className="relative p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] bg-muted/40 border border-border/50 dark:bg-white/5 dark:border-white/5 transition-colors hover:bg-muted/60 dark:hover:bg-white/10 overflow-hidden group"
         >
           <div className="absolute -top-12 -right-12 h-32 w-32 rounded-full bg-green-500/10 blur-[40px] pointer-events-none group-hover:bg-green-500/20 transition-colors duration-500" />
-          <div className="relative">
-            <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-green-500/10 text-green-500 mb-4 shadow-inner border border-green-500/10">
+          <div className="relative flex items-center sm:block gap-4 sm:gap-0">
+            <div className="flex items-center justify-center shrink-0 w-12 h-12 rounded-xl bg-green-500/10 text-green-500 sm:mb-4 shadow-inner border border-green-500/10">
               <Wallet className="w-5 h-5" />
             </div>
-            <p className="text-3xl font-bold tracking-tight mb-1 truncate text-foreground">{formatMoney(s.totalEarnings, currency)}</p>
-            <p className="text-sm text-muted-foreground font-medium">Заработок</p>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 opacity-70">зачислено на баланс</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-2xl sm:text-3xl font-bold tracking-tight mb-0 sm:mb-1 truncate text-foreground">{formatMoney(s.totalEarnings, currency)}</p>
+              <div className="flex flex-col sm:block">
+                <p className="text-xs sm:text-sm text-muted-foreground font-medium leading-tight">Заработок</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 opacity-70 leading-tight">зачислено на баланс</p>
+              </div>
+            </div>
           </div>
         </motion.div>
       </div>
@@ -156,8 +168,8 @@ export function ClientReferralPage() {
               <div className="absolute -bottom-32 -left-32 h-64 w-64 rounded-full bg-primary/10 blur-[80px] pointer-events-none" />
             </div>
 
-            <div className="relative p-6 sm:p-8 flex flex-col h-full min-w-0">
-              <div className="flex items-center gap-3 mb-6">
+            <div className="relative p-5 sm:p-8 flex flex-col h-full min-w-0">
+              <div className="flex items-center gap-3 mb-5 sm:mb-6">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0 shadow-inner border border-white/10">
                   <Link2 className="h-5 w-5" />
                 </div>
@@ -169,31 +181,35 @@ export function ClientReferralPage() {
 
               <div className="space-y-3">
                 {referralLinkSite && (
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 rounded-2xl bg-muted/40 border border-border/50 dark:bg-white/5 dark:border-white/5 transition-colors hover:bg-muted/60 dark:hover:bg-white/10">
+                  <div className="flex flex-col gap-2 p-3 sm:p-4 rounded-2xl bg-muted/40 border border-border/50 dark:bg-white/5 dark:border-white/5 transition-colors hover:bg-muted/60 dark:hover:bg-white/10">
                     <div className="flex items-center gap-3">
                       <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-black/5 dark:bg-white/10 shrink-0 text-muted-foreground">
                         <Globe className="w-4 h-4" />
                       </div>
-                      <div className="shrink-0 w-12 text-xs font-bold uppercase tracking-widest text-muted-foreground">Сайт</div>
+                      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Сайт</div>
                     </div>
-                    <code className="flex-1 min-w-0 truncate text-xs font-mono text-primary/80 select-all bg-background/50 px-3 py-2 rounded-xl border border-border/50">{referralLinkSite}</code>
-                    <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 hover:bg-black/5 dark:hover:bg-white/10 rounded-xl sm:ml-auto self-end sm:self-auto" onClick={() => copyLink("site")}>
-                      {copiedRef === "site" ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                    </Button>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <code className="flex-1 min-w-0 truncate text-xs font-mono text-primary/80 select-all bg-background/50 px-3 py-2 rounded-xl border border-border/50">{referralLinkSite}</code>
+                      <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 hover:bg-black/5 dark:hover:bg-white/10 rounded-xl" onClick={() => copyLink("site")}>
+                        {copiedRef === "site" ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                      </Button>
+                    </div>
                   </div>
                 )}
                 {referralLinkBot && (
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 rounded-2xl bg-muted/40 border border-border/50 dark:bg-white/5 dark:border-white/5 transition-colors hover:bg-muted/60 dark:hover:bg-white/10">
+                  <div className="flex flex-col gap-2 p-3 sm:p-4 rounded-2xl bg-muted/40 border border-border/50 dark:bg-white/5 dark:border-white/5 transition-colors hover:bg-muted/60 dark:hover:bg-white/10">
                     <div className="flex items-center gap-3">
                       <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#0088cc]/10 text-[#0088cc] shrink-0">
                         <Send className="w-4 h-4 ml-[-2px] mt-[1px]" />
                       </div>
-                      <div className="shrink-0 w-12 text-xs font-bold uppercase tracking-widest text-muted-foreground">Бот</div>
+                      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Бот</div>
                     </div>
-                    <code className="flex-1 min-w-0 truncate text-xs font-mono text-primary/80 select-all bg-background/50 px-3 py-2 rounded-xl border border-border/50">{referralLinkBot}</code>
-                    <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 hover:bg-black/5 dark:hover:bg-white/10 rounded-xl sm:ml-auto self-end sm:self-auto" onClick={() => copyLink("bot")}>
-                      {copiedRef === "bot" ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                    </Button>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <code className="flex-1 min-w-0 truncate text-xs font-mono text-primary/80 select-all bg-background/50 px-3 py-2 rounded-xl border border-border/50">{referralLinkBot}</code>
+                      <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 hover:bg-black/5 dark:hover:bg-white/10 rounded-xl" onClick={() => copyLink("bot")}>
+                        {copiedRef === "bot" ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -210,9 +226,9 @@ export function ClientReferralPage() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.25 }}
-          className="flex flex-col gap-4 p-6 sm:p-8 rounded-[2rem] bg-orange-500/5 border border-orange-500/10 min-w-0"
+          className="flex flex-col gap-4 p-5 sm:p-8 rounded-[1.5rem] sm:rounded-[2rem] bg-orange-500/5 border border-orange-500/10 min-w-0"
         >
-          <div className="flex items-center gap-3 mb-2">
+          <div className="flex items-center gap-3 mb-1 sm:mb-2">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/10 text-orange-500 shrink-0 shadow-inner">
               <Info className="h-5 w-5" />
             </div>

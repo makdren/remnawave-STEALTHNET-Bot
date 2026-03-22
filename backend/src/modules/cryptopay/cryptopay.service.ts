@@ -4,6 +4,8 @@
  */
 
 import { createHmac, createHash } from "crypto";
+import { proxyFetch } from "../proxy-util/proxy-fetch.js";
+import { getProxyUrl } from "../proxy-util/get-proxy-url.js";
 
 const MAINNET_BASE = "https://pay.crypt.bot/api";
 const TESTNET_BASE = "https://testnet-pay.crypt.bot/api";
@@ -67,7 +69,8 @@ export async function createCryptopayInvoice(params: CreateCryptopayInvoiceParam
   const timeoutId = setTimeout(() => controller.abort(), 15000);
 
   try {
-    const res = await fetch(`${baseUrl}/createInvoice`, {
+    const proxy = await getProxyUrl("payments");
+    const res = await proxyFetch(`${baseUrl}/createInvoice`, {
       method: "POST",
       signal: controller.signal,
       headers: {
@@ -75,7 +78,7 @@ export async function createCryptopayInvoice(params: CreateCryptopayInvoiceParam
         "Crypto-Pay-API-Token": token,
       },
       body: JSON.stringify(body),
-    });
+    }, proxy);
     clearTimeout(timeoutId);
 
     let data: {

@@ -6,6 +6,8 @@
 
 import "dotenv/config";
 import { Bot, InputFile } from "grammy";
+import { ProxyAgent as UndiciProxyAgent } from "undici";
+import { SocksProxyAgent } from "socks-proxy-agent";
 import * as api from "./api.js";
 import {
   mainMenu,
@@ -51,7 +53,48 @@ if (!BOT_TOKEN) {
   process.exit(1);
 }
 
-const bot = new Bot(BOT_TOKEN);
+async function waitForApi(maxRetries = 10, delayMs = 3000): Promise<Awaited<ReturnType<typeof api.getPublicConfig>>> {
+  for (let i = 1; i <= maxRetries; i++) {
+    try {
+      return await api.getPublicConfig();
+    } catch {
+      if (i < maxRetries) {
+        console.log(`[Bot] API недоступен, повтор через ${delayMs / 1000}с (${i}/${maxRetries})…`);
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+    }
+  }
+  return null;
+}
+
+async function createBotWithProxy(token: string): Promise<Bot> {
+  try {
+    const cfg = await waitForApi();
+    if (cfg?.proxyEnabled && cfg?.proxyTelegram && cfg?.proxyUrl?.trim()) {
+      const url = cfg.proxyUrl.trim();
+      const lower = url.toLowerCase();
+      if (lower.startsWith("http://") || lower.startsWith("https://")) {
+        console.log("[Proxy] Telegram Bot API через HTTP прокси");
+        return new Bot(token, {
+          client: { baseFetchConfig: { dispatcher: new UndiciProxyAgent(url) } as any },
+        });
+      }
+      if (lower.startsWith("socks5://") || lower.startsWith("socks4://") || lower.startsWith("socks://")) {
+        console.log("[Proxy] Telegram Bot API через SOCKS прокси");
+        const agent = new SocksProxyAgent(url);
+        return new Bot(token, {
+          client: { baseFetchConfig: { agent } as any },
+        });
+      }
+      console.warn(`[Proxy] Неизвестный протокол прокси: ${url}, запуск без прокси`);
+    }
+  } catch {
+    console.warn("[Bot] Не удалось получить конфиг, запуск без прокси");
+  }
+  return new Bot(token);
+}
+
+const bot = await createBotWithProxy(BOT_TOKEN);
 
 let BOT_USERNAME = "";
 
@@ -178,13 +221,14 @@ type TariffItem = {
   description?: string | null;
   durationDays: number;
   trafficLimitBytes?: number | null;
+  trafficResetMode?: string;
   deviceLimit?: number | null;
   price: number;
   currency: string;
 };
 type TariffCategory = { id: string; name: string; emoji?: string; emojiKey?: string | null; tariffs: TariffItem[] };
 
-// Токены по telegram_id (в памяти; для продакшена лучше Redis/БД)
+// Токены по telegram_id (в памяти; автоматическая переавторизация при потере)
 const tokenStore = new Map<number, string>();
 
 function getToken(userId: number): string | undefined {
@@ -193,6 +237,28 @@ function getToken(userId: number): string | undefined {
 
 function setToken(userId: number, token: string): void {
   tokenStore.set(userId, token);
+}
+
+/**
+ * Получить токен пользователя. Если токен отсутствует (рестарт бота, протух и т.д.),
+ * автоматически переавторизует через registerByTelegram и возвращает свежий токен.
+ */
+async function getOrRestoreToken(userId: number, username?: string): Promise<string | null> {
+  const existing = tokenStore.get(userId);
+  if (existing) return existing;
+  try {
+    const config = await api.getPublicConfig();
+    const auth = await api.registerByTelegram({
+      telegramId: String(userId),
+      telegramUsername: username,
+      preferredLang: "ru",
+      preferredCurrency: config?.defaultCurrency ?? "usd",
+    });
+    tokenStore.set(userId, auth.token);
+    return auth.token;
+  } catch {
+    return null;
+  }
 }
 
 // Пользователи, ожидающие ввода промокода
@@ -281,6 +347,7 @@ type BotTariffLineFields = {
   price?: boolean;
   currency?: boolean;
   trafficLimit?: boolean;
+  trafficResetMode?: boolean;
   deviceLimit?: boolean;
 };
 
@@ -290,6 +357,7 @@ const DEFAULT_TARIFF_LINE_FIELDS: Required<BotTariffLineFields> = {
   price: true,
   currency: true,
   trafficLimit: false,
+  trafficResetMode: false,
   deviceLimit: false,
 };
 
@@ -301,6 +369,12 @@ function formatDaysRu(days: number): string {
   if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "дня";
   return "дней";
 }
+
+const RESET_MODE_LABELS: Record<string, string> = {
+  no_reset: "",
+  on_purchase: "сброс при покупке",
+  monthly: "сброс ежемесячно",
+};
 
 function formatTariffLine(tariff: TariffItem, fields: Required<BotTariffLineFields>): string {
   const parts: string[] = [];
@@ -315,6 +389,10 @@ function formatTariffLine(tariff: TariffItem, fields: Required<BotTariffLineFiel
   if (fields.trafficLimit) {
     const limit = tariff.trafficLimitBytes;
     parts.push(limit == null ? "трафик без лимита" : `трафик ${bytesToGb(limit)} GB`);
+  }
+  if (fields.trafficResetMode) {
+    const label = RESET_MODE_LABELS[tariff.trafficResetMode ?? "no_reset"];
+    if (label) parts.push(label);
   }
   if (fields.deviceLimit) {
     const limit = tariff.deviceLimit;
@@ -686,6 +764,30 @@ bot.command("start", async (ctx) => {
   const telegramId = String(from.id);
   const telegramUsername = from.username ?? undefined;
   const payload = ctx.match?.trim() || "";
+
+  // Deep-link авторизация на сайте: /start auth_TOKEN
+  if (/^auth_/i.test(payload)) {
+    const authToken = payload.replace(/^auth_/i, "");
+    if (!authToken) {
+      await ctx.reply("❌ Некорректная ссылка авторизации.");
+      return;
+    }
+    try {
+      await api.confirmTelegramAuth(authToken, from.id, telegramUsername);
+      await ctx.reply("✅ Авторизация подтверждена! Вернитесь на сайт — вход выполнится автоматически.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      console.error("[/start auth_] confirm error:", msg);
+      if (msg.includes("expired") || msg.includes("410")) {
+        await ctx.reply("⏰ Ссылка авторизации истекла. Попробуйте снова на сайте.");
+      } else if (msg.includes("already confirmed") || msg.includes("409")) {
+        await ctx.reply("ℹ️ Эта ссылка уже была использована. Попробуйте снова на сайте.");
+      } else {
+        await ctx.reply("❌ Не удалось подтвердить авторизацию. Попробуйте снова.");
+      }
+    }
+    return;
+  }
 
   // Определяем тип deeplink
   const isPromo = /^promo_/i.test(payload);
@@ -1301,9 +1403,9 @@ bot.on("callback_query:data", async (ctx) => {
     return;
   }
 
-  const token = getToken(userId);
+  const token = await getOrRestoreToken(userId, ctx.from?.username);
   if (!token) {
-    await ctx.reply("Сессия истекла. Отправьте /start");
+    await ctx.reply("Не удалось авторизоваться. Отправьте /start");
     return;
   }
 
@@ -2048,8 +2150,17 @@ bot.on("callback_query:data", async (ctx) => {
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : "Ошибка создания платежа";
         const isAuthError = /401|unauthorized|истек|авториз|токен/i.test(msg);
-        const text = isAuthError ? "❌ Сессия истекла. Отправьте /start и попробуйте снова." : `❌ ${msg}`;
-        await editMessageContent(ctx, text, backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
+        if (isAuthError) {
+          tokenStore.delete(userId);
+          const freshToken = await getOrRestoreToken(userId, ctx.from?.username);
+          if (freshToken) {
+            await editMessageContent(ctx, "🔄 Повторите действие.", backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
+          } else {
+            await editMessageContent(ctx, "❌ Ошибка авторизации. Отправьте /start", backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
+          }
+        } else {
+          await editMessageContent(ctx, `❌ ${msg}`, backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
+        }
       }
       return;
     }
@@ -2072,8 +2183,17 @@ bot.on("callback_query:data", async (ctx) => {
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : "Ошибка создания платежа";
         const isAuthError = /401|unauthorized|истек|авториз|токен/i.test(msg);
-        const text = isAuthError ? "❌ Сессия истекла. Отправьте /start и попробуйте снова." : `❌ ${msg}`;
-        await editMessageContent(ctx, text, backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
+        if (isAuthError) {
+          tokenStore.delete(userId);
+          const freshToken = await getOrRestoreToken(userId, ctx.from?.username);
+          if (freshToken) {
+            await editMessageContent(ctx, "🔄 Повторите действие.", backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
+          } else {
+            await editMessageContent(ctx, "❌ Ошибка авторизации. Отправьте /start", backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
+          }
+        } else {
+          await editMessageContent(ctx, `❌ ${msg}`, backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
+        }
       }
       return;
     }
@@ -2238,10 +2358,10 @@ bot.on("callback_query:data", async (ctx) => {
       const currencies = config?.activeCurrencies?.length ? config.activeCurrencies : ["usd", "rub"];
       const { text, entities } = titleWithEmoji(
         "PROFILE",
-        `Профиль\n\nБаланс: ${formatMoney(client?.balance ?? 0, client?.preferredCurrency ?? "usd")}\nЯзык: ${client?.preferredLang ?? "ru"}\nВалюта: ${client?.preferredCurrency ?? "usd"}\n\nИзменить:`,
+        `Профиль\n\nБаланс: ${formatMoney(client?.balance ?? 0, client?.preferredCurrency ?? "usd")}\nЯзык: ${client?.preferredLang ?? "ru"}\nВалюта: ${client?.preferredCurrency ?? "usd"}\nАвтопродление с баланса: ${client?.autoRenewEnabled ? "Включено ✅" : "Отключено ❌"}\n\nИзменить:`,
         config?.botEmojis
       );
-      await editMessageContent(ctx, text, profileButtons(config?.botBackLabel ?? null, innerStyles, innerEmojiIds), entities);
+      await editMessageContent(ctx, text, profileButtons(config?.botBackLabel ?? null, innerStyles, innerEmojiIds, client?.autoRenewEnabled), entities);
       return;
     }
 
@@ -2338,6 +2458,24 @@ bot.on("callback_query:data", async (ctx) => {
       const currency = data.slice("set_currency:".length);
       await api.updateProfile(token, { preferredCurrency: currency });
       await editMessageContent(ctx, `Валюта изменена на ${currency.toUpperCase()}`, backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
+      return;
+    }
+
+    if (data.startsWith("profile:autorenew:")) {
+      const enabled = data === "profile:autorenew:on";
+      try {
+        await api.toggleAutoRenew(token, enabled);
+        // Refresh the profile page
+        const client = await api.getMe(token);
+        const { text, entities } = titleWithEmoji(
+          "PROFILE",
+          `Профиль\n\nБаланс: ${formatMoney(client?.balance ?? 0, client?.preferredCurrency ?? "usd")}\nЯзык: ${client?.preferredLang ?? "ru"}\nВалюта: ${client?.preferredCurrency ?? "usd"}\nАвтопродление с баланса: ${client?.autoRenewEnabled ? "Включено ✅" : "Отключено ❌"}\n\nИзменить:`,
+          config?.botEmojis
+        );
+        await editMessageContent(ctx, text, profileButtons(config?.botBackLabel ?? null, innerStyles, innerEmojiIds, client?.autoRenewEnabled), entities);
+      } catch (err: any) {
+        await ctx.answerCallbackQuery({ text: err.message || "Ошибка", show_alert: true });
+      }
       return;
     }
 
@@ -2694,7 +2832,7 @@ bot.on("message:text", async (ctx) => {
     return;
   }
 
-  const token = getToken(userId);
+  const token = await getOrRestoreToken(userId, ctx.from?.username);
   if (!token) return;
   const publicConfig = await api.getPublicConfig().catch(() => null);
   if (await enforceSubscription(ctx, publicConfig)) return;
@@ -2703,17 +2841,16 @@ bot.on("message:text", async (ctx) => {
   if (awaitingPromoCode.has(userId)) {
     awaitingPromoCode.delete(userId);
     const code = ctx.message.text.trim();
+    const menuKb = { reply_markup: { inline_keyboard: [[{ text: publicConfig?.botBackLabel ?? "◀️ В меню", callback_data: "menu:main" }]] } };
     if (!code) {
-      await ctx.reply("❌ Промокод не может быть пустым.");
+      await ctx.reply("❌ Промокод не может быть пустым.", menuKb);
       return;
     }
     try {
-      // Сначала проверяем
       const checkResult = await api.checkPromoCode(token, code);
       if (checkResult.type === "FREE_DAYS") {
-        // Активируем сразу
         const activateResult = await api.activatePromoCode(token, code);
-        await ctx.reply(`✅ ${activateResult.message}\n\nНажмите /start чтобы открыть меню.`);
+        await ctx.reply(`✅ ${activateResult.message}`, menuKb);
       } else if (checkResult.type === "DISCOUNT") {
         const desc = checkResult.discountPercent
           ? `скидка ${checkResult.discountPercent}%`
@@ -2721,11 +2858,11 @@ bot.on("message:text", async (ctx) => {
             ? `скидка ${checkResult.discountFixed}`
             : "скидка";
         activeDiscountCode.set(userId, code);
-        await ctx.reply(`✅ Промокод «${checkResult.name}» принят! ${desc}.\n\nСкидка будет автоматически применена при следующей оплате тарифа.`);
+        await ctx.reply(`✅ Промокод «${checkResult.name}» принят! ${desc}.\n\nСкидка будет автоматически применена при следующей оплате тарифа.`, menuKb);
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Ошибка активации промокода";
-      await ctx.reply(`❌ ${msg}`);
+      await ctx.reply(`❌ ${msg}`, menuKb);
     }
     return;
   }

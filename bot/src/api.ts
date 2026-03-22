@@ -46,6 +46,25 @@ export async function linkTelegramFromBot(code: string, telegramId: number, tele
   return data as { message: string };
 }
 
+/** Подтверждение deep-link авторизации (бот → API) */
+export async function confirmTelegramAuth(token: string, telegramId: number, telegramUsername?: string): Promise<{ ok: boolean }> {
+  const botToken = process.env.BOT_TOKEN || "";
+  const res = await fetch(`${API_URL}/api/client/auth/telegram-login-confirm`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Telegram-Bot-Token": botToken,
+    },
+    body: JSON.stringify({ token: token.trim(), telegramId, telegramUsername: telegramUsername ?? "" }),
+  });
+  const data = (await res.json().catch(() => ({}))) as { ok?: boolean; message?: string };
+  if (!res.ok) {
+    const msg = typeof data.message === "string" ? data.message : `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return data as { ok: boolean };
+}
+
 /** Активный конкурс (для меню и ежедневной рассылки) */
 export async function getActiveContest(): Promise<{
   active: boolean;
@@ -119,6 +138,10 @@ export async function getPublicConfig(): Promise<{
     | { kind: "servers"; id: string; name: string; squadUuid: string; trafficGb?: number; price: number; currency: string }
   >;
   useRemnaSubscriptionPage?: boolean;
+  proxyEnabled?: boolean;
+  proxyUrl?: string | null;
+  proxyTelegram?: boolean;
+  proxyPayments?: boolean;
 } | null> {
   return fetchJson("/api/public/config");
 }
@@ -160,6 +183,7 @@ export async function getMe(token: string): Promise<{
   referralCode?: string | null;
   referralPercent?: number | null;
   trialUsed?: boolean;
+  autoRenewEnabled?: boolean;
 }> {
   return fetchJson("/api/client/auth/me", { token });
 }
@@ -214,7 +238,7 @@ export async function getPublicTariffs(): Promise<{
     name: string;
     emojiKey: string | null;
     emoji: string;
-    tariffs: { id: string; name: string; description?: string | null; durationDays: number; trafficLimitBytes?: number | null; deviceLimit?: number | null; price: number; currency: string }[];
+    tariffs: { id: string; name: string; description?: string | null; durationDays: number; trafficLimitBytes?: number | null; trafficResetMode?: string; deviceLimit?: number | null; price: number; currency: string }[];
   }[];
 }> {
   return fetchJson("/api/public/tariffs");
@@ -268,6 +292,14 @@ export async function updateProfile(
   body: { preferredLang?: string; preferredCurrency?: string }
 ): Promise<unknown> {
   return fetchJson("/api/client/profile", { method: "PATCH", body, token });
+}
+
+/** Включить/выключить автопродление */
+export async function toggleAutoRenew(
+  token: string,
+  enabled: boolean
+): Promise<{ message: string }> {
+  return fetchJson("/api/client/auto-renew", { method: "PATCH", body: { enabled }, token });
 }
 
 /** Активировать триал */

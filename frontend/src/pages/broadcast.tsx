@@ -5,9 +5,28 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Send, Paperclip, X } from "lucide-react";
+import { Send, Paperclip, X, MousePointerClick } from "lucide-react";
 
 const MAX_ATTACHMENT_MB = 20;
+
+const BUTTON_ACTIONS = [
+  { value: "", label: "Без кнопки" },
+  { value: "menu:tariffs", label: "📦 Тарифы" },
+  { value: "menu:topup", label: "💳 Пополнить баланс" },
+  { value: "menu:profile", label: "👤 Профиль" },
+  { value: "menu:trial", label: "🎁 Бесплатный триал" },
+  { value: "menu:referral", label: "🔗 Реферальная программа" },
+  { value: "menu:promocode", label: "🎟️ Промокод" },
+  { value: "menu:support", label: "🆘 Поддержка" },
+  { value: "menu:vpn", label: "📋 VPN подключение" },
+  { value: "menu:devices", label: "📱 Устройства" },
+  { value: "menu:extra_options", label: "➕ Доп. опции" },
+  { value: "menu:main", label: "📋 Главное меню" },
+  { value: "webapp:/cabinet", label: "🌐 Web кабинет" },
+  { value: "webapp:/cabinet/subscribe", label: "🌐 Страница подключения" },
+  { value: "webapp:/cabinet/tickets", label: "🌐 Тикеты" },
+  { value: "__custom_url__", label: "🔗 Своя ссылка (URL)" },
+];
 
 export function BroadcastPage() {
   const { state } = useAuth();
@@ -17,6 +36,9 @@ export function BroadcastPage() {
   const [broadcastSubject, setBroadcastSubject] = useState("");
   const [broadcastMessage, setBroadcastMessage] = useState("");
   const [broadcastAttachment, setBroadcastAttachment] = useState<File | null>(null);
+  const [broadcastButtonText, setBroadcastButtonText] = useState("");
+  const [broadcastButtonAction, setBroadcastButtonAction] = useState("");
+  const [broadcastButtonCustomUrl, setBroadcastButtonCustomUrl] = useState("");
   const [broadcastLoading, setBroadcastLoading] = useState(false);
   const [broadcastResult, setBroadcastResult] = useState<BroadcastResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -45,12 +67,15 @@ export function BroadcastPage() {
     setBroadcastLoading(true);
     setBroadcastResult(null);
     try {
+      const resolvedAction = broadcastButtonAction === "__custom_url__" ? broadcastButtonCustomUrl.trim() : broadcastButtonAction;
       const r: BroadcastResult = await api.broadcast(
         token,
         {
           channel: broadcastChannel,
           subject: broadcastSubject.trim() || undefined,
           message: text,
+          buttonText: broadcastButtonText.trim() || undefined,
+          buttonUrl: resolvedAction || undefined,
         },
         broadcastAttachment ?? undefined
       );
@@ -59,6 +84,9 @@ export function BroadcastPage() {
         setBroadcastMessage("");
         setBroadcastSubject("");
         setBroadcastAttachment(null);
+        setBroadcastButtonText("");
+        setBroadcastButtonAction("");
+        setBroadcastButtonCustomUrl("");
         api.broadcastRecipientsCount(token).then(setBroadcastRecipients).catch(() => {});
       }
     } catch (err) {
@@ -172,6 +200,53 @@ export function BroadcastPage() {
                 В Telegram: изображения — как фото с подписью, остальные файлы — как документ. В email — вложение.
               </p>
             </div>
+            {(broadcastChannel === "telegram" || broadcastChannel === "both") && (
+              <div className="space-y-3 rounded-lg border border-dashed p-4">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <MousePointerClick className="h-4 w-4" />
+                  Кнопка под сообщением (необязательно, только Telegram)
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label>Действие кнопки</Label>
+                    <select
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                      value={broadcastButtonAction}
+                      onChange={(e) => setBroadcastButtonAction(e.target.value)}
+                    >
+                      {BUTTON_ACTIONS.map((a) => (
+                        <option key={a.value} value={a.value}>{a.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {broadcastButtonAction && (
+                    <div className="space-y-1">
+                      <Label>Текст кнопки</Label>
+                      <Input
+                        value={broadcastButtonText}
+                        onChange={(e) => setBroadcastButtonText(e.target.value)}
+                        placeholder="Открыть тарифы"
+                        maxLength={64}
+                      />
+                    </div>
+                  )}
+                </div>
+                {broadcastButtonAction === "__custom_url__" && (
+                  <div className="space-y-1">
+                    <Label>Ссылка (URL)</Label>
+                    <Input
+                      value={broadcastButtonCustomUrl}
+                      onChange={(e) => setBroadcastButtonCustomUrl(e.target.value)}
+                      placeholder="https://example.com/tariffs"
+                      maxLength={500}
+                    />
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Выберите действие — под сообщением появится inline-кнопка, открывающая выбранный раздел бота.
+                </p>
+              </div>
+            )}
             <Button type="submit" disabled={broadcastLoading || !broadcastMessage.trim()}>
               <Send className="h-4 w-4 mr-2" />
               {broadcastLoading ? "Отправка…" : "Отправить рассылку"}

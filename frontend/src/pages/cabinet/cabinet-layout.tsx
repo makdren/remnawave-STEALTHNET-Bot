@@ -398,6 +398,7 @@ function MobileCabinetShell() {
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const visibleItems = navItems.slice(0, MAX_VISIBLE_NAV);
   const hasMore = navItems.length > MAX_VISIBLE_NAV;
+  const isMiniapp = useIsMiniapp();
 
   useEffect(() => { setLogoError(false); }, [config?.logo]);
   useEffect(() => {
@@ -427,11 +428,13 @@ function MobileCabinetShell() {
           <div className="flex items-center gap-1.5 shrink-0">
             <ThemePopover />
             <SettingsPopover />
-            <Button variant="ghost" size="icon" className="shrink-0 bg-background/20 hover:bg-background/40 text-muted-foreground hover:text-foreground" asChild>
-              <Link to="/cabinet/login" onClick={() => logout()} title="Выйти">
-                <LogOut className="h-5 w-5" />
-              </Link>
-            </Button>
+            {!isMiniapp && (
+              <Button variant="ghost" size="icon" className="shrink-0 bg-background/20 hover:bg-background/40 text-muted-foreground hover:text-foreground" asChild>
+                <Link to="/cabinet/login" onClick={() => logout()} title="Выйти">
+                  <LogOut className="h-5 w-5" />
+                </Link>
+              </Button>
+            )}
           </div>
         </div>
       </header>

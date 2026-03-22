@@ -104,7 +104,7 @@ heleketWebhooksRouter.post("/", async (req: Request, res: Response) => {
       where: { id: payment.clientId },
       data: { balance: { increment: payment.amount } },
     });
-    await notifyBalanceToppedUp(payment.clientId, payment.amount, payment.currency || "USD").catch(() => {});
+    await notifyBalanceToppedUp(payment.clientId, payment.amount, payment.currency || "USD", "Heleket").catch(() => {});
   } else if (isExtraOption) {
     await applyExtraOptionByPaymentId(payment.id);
   } else if (payment.proxyTariffId) {

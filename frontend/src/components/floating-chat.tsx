@@ -138,9 +138,11 @@ const ChatHeader = ({ activeChat, setActiveChat, isExpanded, setIsExpanded, setI
     </div>
 
     {/* Chat Switcher */}
-    <div className="flex sm:justify-center px-4 py-3 sm:py-4 shrink-0 bg-black/5 dark:bg-white/5 border-b border-white/5">
-      <ChatSwitcher activeChat={activeChat} setActiveChat={setActiveChat} aiUnread={aiUnread} supportUnread={supportUnread} showAiTab={showAiTab} />
-    </div>
+    {showAiTab && (
+      <div className="flex sm:justify-center px-4 py-3 sm:py-4 shrink-0 bg-black/5 dark:bg-white/5 border-b border-white/5">
+        <ChatSwitcher activeChat={activeChat} setActiveChat={setActiveChat} aiUnread={aiUnread} supportUnread={supportUnread} showAiTab={showAiTab} />
+      </div>
+    )}
   </>
 );
 

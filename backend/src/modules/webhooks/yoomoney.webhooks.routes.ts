@@ -202,7 +202,7 @@ yoomoneyWebhooksRouter.post("/yoomoney", async (req, res) => {
       operationId,
       notificationType,
     });
-    await notifyBalanceToppedUp(payment.clientId, amountNum, currency || "RUB").catch(() => {});
+    await notifyBalanceToppedUp(payment.clientId, amountNum, currency || "RUB", "YooMoney").catch(() => {});
   } else {
     await prisma.payment.update({
       where: { id: payment.id },

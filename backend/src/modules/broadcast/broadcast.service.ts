@@ -5,6 +5,8 @@
 import { prisma } from "../../db.js";
 import { getSystemConfig } from "../client/client.service.js";
 import { sendEmail } from "../mail/mail.service.js";
+import { proxyFetch } from "../proxy-util/proxy-fetch.js";
+import { getProxyUrl } from "../proxy-util/get-proxy-url.js";
 
 const TELEGRAM_SEND_DELAY_MS = 60;
 const EMAIL_SEND_DELAY_MS = 200;
@@ -24,22 +26,50 @@ function delay(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+type InlineKeyboardButton =
+  | { text: string; callback_data: string }
+  | { text: string; web_app: { url: string } }
+  | { text: string; url: string };
+
+type InlineKeyboard = { inline_keyboard: InlineKeyboardButton[][] };
+
+function buildReplyMarkup(buttonText?: string, buttonAction?: string, publicAppUrl?: string | null): InlineKeyboard | undefined {
+  const label = buttonText?.trim();
+  const action = buttonAction?.trim();
+  if (!label || !action) return undefined;
+
+  let btn: InlineKeyboardButton;
+  if (action.startsWith("menu:")) {
+    btn = { text: label, callback_data: action };
+  } else if (action.startsWith("webapp:")) {
+    const path = action.slice(7);
+    const base = (publicAppUrl || "").replace(/\/+$/, "");
+    btn = { text: label, web_app: { url: `${base}${path}` } };
+  } else {
+    btn = { text: label, url: action };
+  }
+  return { inline_keyboard: [[btn]] };
+}
+
 /**
  * Отправить текстовое сообщение в Telegram.
  */
-async function sendTelegramMessage(botToken: string, chatId: string, text: string): Promise<{ ok: boolean; error?: string }> {
+async function sendTelegramMessage(botToken: string, chatId: string, text: string, replyMarkup?: InlineKeyboard): Promise<{ ok: boolean; error?: string }> {
   const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
   try {
-    const res = await fetch(url, {
+    const payload: Record<string, unknown> = {
+      chat_id: chatId,
+      text,
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+    };
+    if (replyMarkup) payload.reply_markup = replyMarkup;
+    const proxy = await getProxyUrl("telegram");
+    const res = await proxyFetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
-      }),
-    });
+      body: JSON.stringify(payload),
+    }, proxy);
     const data = (await res.json().catch(() => ({}))) as { ok?: boolean; description?: string };
     if (res.ok && data.ok) return { ok: true };
     return { ok: false, error: data.description ?? res.statusText ?? "Unknown error" };
@@ -58,7 +88,8 @@ async function sendTelegramPhoto(
   caption: string,
   buffer: Buffer,
   mimeType: string,
-  fileName: string
+  fileName: string,
+  replyMarkup?: InlineKeyboard
 ): Promise<{ ok: boolean; error?: string }> {
   const url = `https://api.telegram.org/bot${botToken}/sendPhoto`;
   try {
@@ -69,7 +100,9 @@ async function sendTelegramPhoto(
       form.append("caption", caption);
       form.append("parse_mode", "HTML");
     }
-    const res = await fetch(url, { method: "POST", body: form });
+    if (replyMarkup) form.append("reply_markup", JSON.stringify(replyMarkup));
+    const proxy = await getProxyUrl("telegram");
+    const res = await proxyFetch(url, { method: "POST", body: form }, proxy);
     const data = (await res.json().catch(() => ({}))) as { ok?: boolean; description?: string };
     if (res.ok && data.ok) return { ok: true };
     return { ok: false, error: data.description ?? res.statusText ?? "Unknown error" };
@@ -88,7 +121,8 @@ async function sendTelegramDocument(
   caption: string,
   buffer: Buffer,
   mimeType: string,
-  fileName: string
+  fileName: string,
+  replyMarkup?: InlineKeyboard
 ): Promise<{ ok: boolean; error?: string }> {
   const url = `https://api.telegram.org/bot${botToken}/sendDocument`;
   try {
@@ -99,7 +133,9 @@ async function sendTelegramDocument(
       form.append("caption", caption);
       form.append("parse_mode", "HTML");
     }
-    const res = await fetch(url, { method: "POST", body: form });
+    if (replyMarkup) form.append("reply_markup", JSON.stringify(replyMarkup));
+    const proxy = await getProxyUrl("telegram");
+    const res = await proxyFetch(url, { method: "POST", body: form }, proxy);
     const data = (await res.json().catch(() => ({}))) as { ok?: boolean; description?: string };
     if (res.ok && data.ok) return { ok: true };
     return { ok: false, error: data.description ?? res.statusText ?? "Unknown error" };
@@ -124,8 +160,10 @@ export async function runBroadcast(options: {
   subject: string;
   message: string;
   attachment?: BroadcastAttachment;
+  buttonText?: string;
+  buttonUrl?: string;
 }): Promise<BroadcastResult> {
-  const { channel, subject, message, attachment } = options;
+  const { channel, subject, message, attachment, buttonText, buttonUrl } = options;
   const result: BroadcastResult = {
     ok: true,
     sentTelegram: 0,
@@ -139,6 +177,7 @@ export async function runBroadcast(options: {
   const doTelegram = channel === "telegram" || channel === "both";
   const doEmail = channel === "email" || channel === "both";
   const isImage = attachment?.mimetype?.startsWith("image/") ?? false;
+  const replyMarkup = buildReplyMarkup(buttonText, buttonUrl, config.publicAppUrl);
 
   if (doTelegram) {
     const botToken = config.telegramBotToken?.trim();
@@ -162,7 +201,8 @@ export async function runBroadcast(options: {
                 message,
                 attachment.buffer,
                 attachment.mimetype,
-                attachment.originalname
+                attachment.originalname,
+                replyMarkup
               )
             : await sendTelegramDocument(
                 botToken,
@@ -170,9 +210,10 @@ export async function runBroadcast(options: {
                 message,
                 attachment.buffer,
                 attachment.mimetype,
-                attachment.originalname
+                attachment.originalname,
+                replyMarkup
               )
-          : await sendTelegramMessage(botToken, tid, message);
+          : await sendTelegramMessage(botToken, tid, message, replyMarkup);
         if (send.ok) result.sentTelegram++;
         else {
           result.failedTelegram++;

@@ -1,6 +1,6 @@
 {
   "name": "stealthnet-bot",
-  "version": "3.2.4",
+  "version": "3.2.5",
   "description": "STEALTHNET 3.0 — Telegram-бот для продажи подписок",
   "type": "module",
   "main": "dist/index.js",
@@ -11,7 +11,9 @@
   },
   "dependencies": {
     "dotenv": "^16.4.5",
-    "grammy": "^1.21.1"
+    "grammy": "^1.21.1",
+    "socks-proxy-agent": "^9.0.0",
+    "undici": "^7.24.5"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
