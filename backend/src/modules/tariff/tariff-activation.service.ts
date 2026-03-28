@@ -100,19 +100,30 @@ export async function activateTariffForClient(
   const trafficLimitStrategy = remnaStrategy(resetMode);
   const shouldResetTraffic = resetMode === "on_purchase" || resetMode === "monthly";
 
-  if (client.remnawaveUuid) {
-    const userRes = await remnaGetUser(client.remnawaveUuid);
+  let workingUuid = client.remnawaveUuid;
+
+  if (workingUuid) {
+    const userRes = await remnaGetUser(workingUuid);
+    if (userRes.error || !userRes.data) {
+      console.warn(`[tariff-activation] Remna user ${workingUuid} not found (status ${userRes.status}), will re-create`);
+      workingUuid = null;
+      await prisma.client.update({ where: { id: client.id }, data: { remnawaveUuid: null } });
+    }
+  }
+
+  if (workingUuid) {
+    const userRes = await remnaGetUser(workingUuid);
     const currentExpireAt = extractCurrentExpireAt(userRes.data);
     const currentSquads = extractCurrentSquads(userRes.data);
     const expireAt = calculateExpireAt(currentExpireAt, tariff.durationDays);
     const activeInternalSquads = mergeSquads(tariff.internalSquadUuids, currentSquads);
 
     if (shouldResetTraffic) {
-      await remnaResetUserTraffic(client.remnawaveUuid);
+      await remnaResetUserTraffic(workingUuid);
     }
 
     const updateRes = await remnaUpdateUser({
-      uuid: client.remnawaveUuid,
+      uuid: workingUuid,
       expireAt,
       trafficLimitBytes,
       trafficLimitStrategy,
@@ -157,12 +168,15 @@ export async function activateTariffForClient(
         ...(client.email?.trim() && { email: client.email.trim() }),
       });
       existingUuid = extractRemnaUuid(createRes.data);
+      if (!existingUuid && createRes.error) {
+        console.error("[tariff-activation] Remna createUser failed:", createRes.error, createRes.status);
+      }
     } else if (shouldResetTraffic) {
       await remnaResetUserTraffic(existingUuid);
     }
     if (!existingUuid) return { ok: false, error: "Ошибка создания пользователя VPN", status: 502 };
 
-    const currentSquads = existingUuid ? extractCurrentSquads((await remnaGetUser(existingUuid)).data) : [];
+    const currentSquads = extractCurrentSquads((await remnaGetUser(existingUuid)).data);
     const activeInternalSquads = mergeSquads(tariff.internalSquadUuids, currentSquads);
     await remnaUpdateUser({ uuid: existingUuid, expireAt, trafficLimitBytes, trafficLimitStrategy, hwidDeviceLimit, activeInternalSquads });
     await prisma.client.update({ where: { id: client.id }, data: { remnawaveUuid: existingUuid } });

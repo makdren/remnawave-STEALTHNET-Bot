@@ -7,16 +7,24 @@ import { env } from "../../config/index.js";
 
 const REMNA_API_URL = env.REMNA_API_URL?.replace(/\/$/, "") ?? "";
 const REMNA_ADMIN_TOKEN = env.REMNA_ADMIN_TOKEN ?? "";
+const REMNA_SECRET_KEY = env.REMNA_SECRET_KEY?.trim() ?? "";
 
 export function isRemnaConfigured(): boolean {
   return Boolean(REMNA_API_URL && REMNA_ADMIN_TOKEN);
 }
 
 function getHeaders(): Record<string, string> {
-  return {
+  const h: Record<string, string> = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${REMNA_ADMIN_TOKEN}`,
   };
+  if (REMNA_SECRET_KEY) {
+    const colonIdx = REMNA_SECRET_KEY.indexOf(":");
+    const cookieName = colonIdx > 0 ? REMNA_SECRET_KEY.slice(0, colonIdx) : REMNA_SECRET_KEY;
+    const cookieValue = colonIdx > 0 ? REMNA_SECRET_KEY.slice(colonIdx + 1) : REMNA_SECRET_KEY;
+    h["Cookie"] = `${cookieName}=${cookieValue}`;
+  }
+  return h;
 }
 
 export async function remnaFetch<T>(
@@ -274,4 +282,37 @@ export function remnaRemoveAllUsersFromInternalSquad(squadUuid: string) {
   return remnaFetch<unknown>(`/api/internal-squads/${squadUuid}/bulk-actions/remove-users`, {
     method: "DELETE",
   });
+}
+
+/** GET /api/bandwidth-stats/nodes/{uuid}/users — top users usage on node by range */
+export function remnaGetNodeUsersUsage(nodeUuid: string, start: string, end: string, topUsersLimit = 50) {
+  const params = new URLSearchParams({
+    topUsersLimit: String(topUsersLimit),
+    start,
+    end,
+  });
+  return remnaFetch<{
+    response: {
+      categories: string[];
+      sparklineData: number[];
+      topUsers: { color: string; username: string; total: number }[];
+    };
+  }>(`/api/bandwidth-stats/nodes/${nodeUuid}/users?${params}`);
+}
+
+/** GET /api/bandwidth-stats/nodes/realtime — realtime usage per node */
+export function remnaGetNodesRealtimeUsage() {
+  return remnaFetch<{
+    response: {
+      nodeUuid: string;
+      nodeName: string;
+      countryCode: string;
+      downloadBytes: number;
+      uploadBytes: number;
+      totalBytes: number;
+      downloadSpeedBps: number;
+      uploadSpeedBps: number;
+      totalSpeedBps: number;
+    }[];
+  }>("/api/bandwidth-stats/nodes/realtime");
 }

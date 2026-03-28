@@ -566,6 +566,7 @@ export function SettingsPage() {
         forceSubscribeEnabled: settings.forceSubscribeEnabled ?? false,
         forceSubscribeChannelId: settings.forceSubscribeChannelId ?? null,
         forceSubscribeMessage: settings.forceSubscribeMessage ?? null,
+        blacklistEnabled: settings.blacklistEnabled ?? false,
         allowUserThemeChange: (settings as any).allowUserThemeChange ?? true,
         sellOptionsEnabled: settings.sellOptionsEnabled ?? false,
         sellOptionsTrafficEnabled: settings.sellOptionsTrafficEnabled ?? false,
@@ -1705,6 +1706,30 @@ export function SettingsPage() {
                     <p className="text-xs text-muted-foreground">Текст, который увидит пользователь. Если пусто — будет использован текст по умолчанию.</p>
                   </div>
                 </div>
+
+                <div className="space-y-3 rounded-lg border p-4 bg-muted/20">
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-destructive" />
+                    <Label className="text-base font-medium">Community Blacklist</Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Если включено — бот автоматически блокирует пользователей из{" "}
+                    <a href="https://github.com/BEDOLAGA-DEV/VPN-BLACKLIST" target="_blank" rel="noopener noreferrer" className="underline text-primary">
+                      общего блеклиста
+                    </a>
+                    . Список обновляется комьюнити и кэшируется на 30 минут.
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      checked={!!settings.blacklistEnabled}
+                      onCheckedChange={(checked: boolean) =>
+                        setSettings((s) => (s ? { ...s, blacklistEnabled: checked === true } : s))
+                      }
+                    />
+                    <Label className="text-sm">Включить блеклист</Label>
+                  </div>
+                </div>
+
                 {message && <p className="text-sm text-muted-foreground">{message}</p>}
                 <Button type="submit" disabled={saving}>
                   {saving ? "Сохранение…" : "Сохранить"}

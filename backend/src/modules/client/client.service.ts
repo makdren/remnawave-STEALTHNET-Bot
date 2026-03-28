@@ -85,6 +85,7 @@ const SYSTEM_CONFIG_KEYS = [
   "theme_accent", // Глобальная цветовая тема: default, blue, violet, rose, orange, green, emerald, cyan, amber, red, pink, indigo
   "allow_user_theme_change", // Разрешить пользователям менять тему: true/false
   "force_subscribe_enabled", "force_subscribe_channel_id", "force_subscribe_message", // Принудительная подписка на канал/группу
+  "blacklist_enabled", // Блокировка пользователей из Community Blacklist
   // Продажа опций: доп. трафик, доп. устройства, доп. серверы (сквады)
   "sell_options_enabled", "sell_options_traffic_enabled", "sell_options_traffic_products",
   "sell_options_devices_enabled", "sell_options_devices_products",
@@ -521,6 +522,7 @@ export async function getSystemConfig() {
     forceSubscribeEnabled: map.force_subscribe_enabled === "true" || map.force_subscribe_enabled === "1",
     forceSubscribeChannelId: (map.force_subscribe_channel_id ?? "").trim() || null,
     forceSubscribeMessage: (map.force_subscribe_message ?? "").trim() || null,
+    blacklistEnabled: map.blacklist_enabled === "true" || map.blacklist_enabled === "1",
     sellOptionsEnabled: map.sell_options_enabled === "true" || map.sell_options_enabled === "1",
     sellOptionsTrafficEnabled: map.sell_options_traffic_enabled === "true" || map.sell_options_traffic_enabled === "1",
     sellOptionsTrafficProducts: parseSellOptionTrafficProducts(map.sell_options_traffic_products),
@@ -920,6 +922,7 @@ export async function getPublicConfig() {
     forceSubscribeEnabled: full.forceSubscribeEnabled ?? false,
     forceSubscribeChannelId: full.forceSubscribeChannelId ?? null,
     forceSubscribeMessage: full.forceSubscribeMessage ?? null,
+    blacklistEnabled: full.blacklistEnabled ?? false,
     showProxyEnabled: await prisma.proxyTariff.count({ where: { enabled: true } }).then((n) => n > 0),
     showSingboxEnabled: await prisma.singboxTariff.count({ where: { enabled: true } }).then((n) => n > 0),
     sellOptionsEnabled: (() => {

@@ -203,6 +203,14 @@ clientAuthRouter.post("/register", async (req, res) => {
       select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
     });
     if (existing) {
+      if (!existing.isBlocked) {
+        const blConfig = await getSystemConfig();
+        if (blConfig.blacklistEnabled) {
+          const { checkAndBlockIfBlacklisted } = await import("../blacklist/blacklist.service.js");
+          const blocked = await checkAndBlockIfBlacklisted(data.telegramId!);
+          if (blocked) return res.status(403).json({ message: "Account is blocked" });
+        }
+      }
       if (existing.isBlocked) return res.status(403).json({ message: "Account is blocked" });
       return res.json({ token: signClientToken(existing.id), client: toClientShape(existing) });
     }
@@ -238,6 +246,16 @@ clientAuthRouter.post("/register", async (req, res) => {
     },
   });
   notifyAdminsAboutNewClient(client.id).catch(() => {});
+
+  if (data.telegramId) {
+    const blConfig2 = await getSystemConfig();
+    if (blConfig2.blacklistEnabled) {
+      const { checkAndBlockIfBlacklisted } = await import("../blacklist/blacklist.service.js");
+      const blocked = await checkAndBlockIfBlacklisted(data.telegramId);
+      if (blocked) return res.status(403).json({ message: "Account is blocked" });
+    }
+  }
+
   const token = signClientToken(client.id);
   return res.status(201).json({ token, client: toClientShape(client) });
 });
@@ -1227,13 +1245,13 @@ clientRouter.get("/referral-stats", async (req, res) => {
 clientRouter.post("/trial", async (req, res) => {
   const client = (req as unknown as { client: { id: string; remnawaveUuid: string | null; trialUsed: boolean; email: string | null; telegramId: string | null; telegramUsername?: string | null } }).client;
   if (client.trialUsed) {
-    return res.status(400).json({ message: "Триал уже использован" });
+    return res.status(400).json({ message: "Бесплатный тест уже использован" });
   }
   const config = await getSystemConfig();
   const trialDays = config.trialDays ?? 0;
   const trialSquadUuid = config.trialSquadUuid?.trim() || null;
   if (trialDays <= 0 || !trialSquadUuid) {
-    return res.status(503).json({ message: "Триал не настроен" });
+    return res.status(503).json({ message: "Бесплатный тест не настроен" });
   }
   if (!isRemnaConfigured()) {
     return res.status(503).json({ message: "Сервис временно недоступен" });
@@ -1242,13 +1260,24 @@ clientRouter.post("/trial", async (req, res) => {
   const trafficLimitBytes = config.trialTrafficLimitBytes ?? 0;
   const hwidDeviceLimit = config.trialDeviceLimit ?? null;
 
-  if (client.remnawaveUuid) {
-    const userRes = await remnaGetUser(client.remnawaveUuid);
+  let workingUuid = client.remnawaveUuid;
+
+  if (workingUuid) {
+    const checkRes = await remnaGetUser(workingUuid);
+    if (checkRes.error || !checkRes.data) {
+      console.warn(`[trial] Remna user ${workingUuid} not found (status ${checkRes.status}), will re-create`);
+      workingUuid = null;
+      await prisma.client.update({ where: { id: client.id }, data: { remnawaveUuid: null } });
+    }
+  }
+
+  if (workingUuid) {
+    const userRes = await remnaGetUser(workingUuid);
     const currentExpireAt = extractCurrentExpireAt(userRes.data);
     const expireAt = calculateExpireAt(currentExpireAt, trialDays);
 
     const updateRes = await remnaUpdateUser({
-      uuid: client.remnawaveUuid,
+      uuid: workingUuid,
       expireAt,
       trafficLimitBytes,
       hwidDeviceLimit,
@@ -1257,9 +1286,7 @@ clientRouter.post("/trial", async (req, res) => {
     if (updateRes.error) {
       return res.status(updateRes.status >= 400 ? updateRes.status : 500).json({ message: updateRes.error });
     }
-    // Не вызываем add-users: по api-1.yaml эндпоинт добавляет ВСЕХ пользователей в сквад; назначение уже сделано через remnaUpdateUser(activeInternalSquads).
   } else {
-    // Сначала ищем существующего пользователя в Remna (по Telegram ID, email, username), чтобы не получать "username already exists"
     let existingUuid: string | null = null;
     let currentExpireAt: Date | null = null;
     if (client.telegramId?.trim()) {
@@ -1311,13 +1338,13 @@ clientRouter.post("/trial", async (req, res) => {
       hwidDeviceLimit,
       activeInternalSquads: [trialSquadUuid],
     });
-    // Не вызываем add-users: по api-1.yaml эндпоинт добавляет ВСЕХ пользователей в сквад.
+    workingUuid = existingUuid;
     await prisma.client.update({
       where: { id: client.id },
       data: { remnawaveUuid: existingUuid, trialUsed: true },
     });
     const updated = await prisma.client.findUnique({ where: { id: client.id }, select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, createdAt: true } });
-    return res.json({ message: "Триал активирован", client: updated ? toClientShape(updated) : null });
+    return res.json({ message: "Бесплатный тест активирован", client: updated ? toClientShape(updated) : null });
   }
 
   await prisma.client.update({
@@ -1325,7 +1352,7 @@ clientRouter.post("/trial", async (req, res) => {
     data: { trialUsed: true },
   });
   const updated = await prisma.client.findUnique({ where: { id: client.id }, select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, createdAt: true } });
-  return res.json({ message: "Триал активирован", client: updated ? toClientShape(updated) : null });
+  return res.json({ message: "Бесплатный тест активирован", client: updated ? toClientShape(updated) : null });
 });
 
 // ——— Активация промо-ссылки ———
@@ -1354,14 +1381,24 @@ clientRouter.post("/promo/activate", async (req, res) => {
   const trafficLimitBytes = Number(group.trafficLimitBytes);
   const hwidDeviceLimit = group.deviceLimit ?? null;
 
-  if (client.remnawaveUuid) {
-    // Получаем текущий expireAt и добавляем дни
-    const userRes = await remnaGetUser(client.remnawaveUuid);
+  let promoWorkingUuid = client.remnawaveUuid;
+
+  if (promoWorkingUuid) {
+    const checkRes = await remnaGetUser(promoWorkingUuid);
+    if (checkRes.error || !checkRes.data) {
+      console.warn(`[promo] Remna user ${promoWorkingUuid} not found (status ${checkRes.status}), will re-create`);
+      promoWorkingUuid = null;
+      await prisma.client.update({ where: { id: client.id }, data: { remnawaveUuid: null } });
+    }
+  }
+
+  if (promoWorkingUuid) {
+    const userRes = await remnaGetUser(promoWorkingUuid);
     const currentExpireAt = extractCurrentExpireAt(userRes.data);
     const expireAt = calculateExpireAt(currentExpireAt, group.durationDays);
 
     const updateRes = await remnaUpdateUser({
-      uuid: client.remnawaveUuid,
+      uuid: promoWorkingUuid,
       expireAt,
       trafficLimitBytes,
       hwidDeviceLimit,
@@ -1370,9 +1407,7 @@ clientRouter.post("/promo/activate", async (req, res) => {
     if (updateRes.error) {
       return res.status(updateRes.status >= 400 ? updateRes.status : 500).json({ message: updateRes.error });
     }
-    // Не вызываем add-users: по api-1.yaml эндпоинт добавляет ВСЕХ пользователей в сквад.
   } else {
-    // Ищем существующего пользователя или создаём нового
     let existingUuid: string | null = null;
     let currentExpireAt: Date | null = null;
     if (client.telegramId?.trim()) {
@@ -1408,7 +1443,6 @@ clientRouter.post("/promo/activate", async (req, res) => {
     if (!existingUuid) return res.status(502).json({ message: "Ошибка создания пользователя VPN" });
 
     await remnaUpdateUser({ uuid: existingUuid, expireAt, trafficLimitBytes, hwidDeviceLimit, activeInternalSquads: [group.squadUuid] });
-    // Не вызываем add-users: по api-1.yaml эндпоинт добавляет ВСЕХ пользователей в сквад.
 
     await prisma.client.update({
       where: { id: client.id },
@@ -1581,7 +1615,7 @@ async function resolveTariffDisplayName(remnaUserData: unknown): Promise<string>
     const match = tariffs.find((t) => t.internalSquadUuids.includes(squadUuid));
     if (match?.name) return match.name;
   }
-  if (trialUuid && squadUuids.includes(trialUuid)) return "Триал";
+  if (trialUuid && squadUuids.includes(trialUuid)) return "Тест";
   return "Тариф не выбран";
 }
 
@@ -1669,7 +1703,7 @@ clientRouter.get("/subscription", async (req, res) => {
   }
   let tariffDisplayName = await resolveTariffDisplayName(result.data ?? null);
   // Если по Remna показывается «Триал» или «Тариф не выбран», но клиент оплачивал тариф — берём название из последней оплаты
-  if (tariffDisplayName === "Триал" || tariffDisplayName === "Тариф не выбран") {
+  if (tariffDisplayName === "Тест" || tariffDisplayName === "Тариф не выбран") {
     const lastPaidTariff = await prisma.payment.findFirst({
       where: { clientId: client.id, status: "PAID", tariffId: { not: null } },
       orderBy: { paidAt: "desc" },
@@ -3240,7 +3274,7 @@ clientRouter.post("/ai/chat", async (req, res) => {
 
     const instructionsContext = `\n\nИНСТРУКЦИЯ ПО ПОДКЛЮЧЕНИЮ:
 Если пользователь спрашивает, как подключиться или настроить VPN, отвечай СТРОГО по следующему алгоритму (не придумывай свои методы):
-1. В личном кабинете на сайте нажать кнопку "Настроить VPN".
+1. В личном кабинете на сайте нажать кнопку "Подключить VPN".
 2. Выбрать свою платформу и скачать предложенное приложение.
 3. Вернуться на сайт и нажать кнопку "Добавить подписку" (оная автоматически добавит конфигурацию в приложение) либо отсканировать QR-код.
 

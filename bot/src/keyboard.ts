@@ -57,7 +57,7 @@ const DEFAULT_BUTTONS: BotButtonConfig[] = [
   { id: "devices", visible: true, label: "📱 Устройства", order: 1.5, style: "primary" },
   { id: "topup", visible: true, label: "💳 Пополнить баланс", order: 2, style: "success" },
   { id: "referral", visible: true, label: "🔗 Реферальная программа", order: 3, style: "primary" },
-  { id: "trial", visible: true, label: "🎁 Попробовать бесплатно", order: 4, style: "success" },
+  { id: "trial", visible: true, label: "🎁 Бесплатный Тест", order: 4, style: "success" },
   { id: "vpn", visible: true, label: "🌐 Подключиться к VPN", order: 5, style: "danger", onePerRow: true },
   { id: "cabinet", visible: true, label: "🌐 Web Кабинет", order: 6, style: "primary" },
   { id: "tickets", visible: true, label: "🎫 Тикеты", order: 6.5, style: "primary" },
@@ -683,7 +683,7 @@ export function trialConfirmButton(innerStyles?: InnerButtonStyles, emojiIds?: I
   const backSty = resolveStyle(toStyle(innerStyles?.back), "danger");
   return {
     inline_keyboard: [
-      [btn("🎁 Активировать триал", "trial:confirm", trialConfirm, emojiIds?.trial), btn("Отмена", "menu:main", backSty, emojiIds?.back)],
+      [btn("🎁 Бесплатный Тест", "trial:confirm", trialConfirm, emojiIds?.trial), btn("Отмена", "menu:main", backSty, emojiIds?.back)],
     ],
   };
 }

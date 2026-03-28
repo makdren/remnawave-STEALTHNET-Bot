@@ -94,7 +94,7 @@ export function ClientTariffsPage() {
       await api.clientActivateTrial(token);
       await refreshProfile();
     } catch (e) {
-      setTrialError(e instanceof Error ? e.message : "Ошибка активации триала");
+      setTrialError(e instanceof Error ? e.message : "Ошибка активации тестового доступа");
     } finally {
       setTrialLoading(false);
     }
@@ -644,11 +644,11 @@ export function ClientTariffsPage() {
                       <Gift className="h-6 w-6" />
                     </div>
                     <div>
-                      <p className="font-bold text-lg text-foreground">Попробовать бесплатно</p>
+                      <p className="font-bold text-lg text-foreground">Бесплатный Тест</p>
                       <p className="text-sm text-muted-foreground font-medium">
                         {trialConfig.trialDays > 0
-                          ? `${formatRuDays(trialConfig.trialDays)} триала без оплаты`
-                          : "Триал без оплаты"}
+                          ? `${formatRuDays(trialConfig.trialDays)} бесплатного доступа`
+                          : "Бесплатный доступ"}
                       </p>
                     </div>
                   </div>
@@ -658,7 +658,7 @@ export function ClientTariffsPage() {
                     disabled={trialLoading}
                   >
                     {trialLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Gift className="h-5 w-5" />}
-                    Активировать триал
+                    Бесплатный Тест
                   </Button>
                 </CardContent>
                 {trialError && <p className="text-sm text-destructive px-6 pb-4 font-medium">{trialError}</p>}

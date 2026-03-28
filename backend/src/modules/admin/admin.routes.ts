@@ -1078,6 +1078,7 @@ const updateSettingsSchema = z.object({
   forceSubscribeEnabled: z.boolean().optional(),
   forceSubscribeChannelId: z.string().max(200).nullable().optional(),
   forceSubscribeMessage: z.string().max(1000).nullable().optional(),
+  blacklistEnabled: z.boolean().optional(),
   sellOptionsEnabled: z.boolean().optional(),
   sellOptionsTrafficEnabled: z.boolean().optional(),
   sellOptionsTrafficProducts: z.string().max(10000).nullable().optional(),
@@ -1637,6 +1638,10 @@ adminRouter.patch("/settings", async (req, res) => {
   if (updates.forceSubscribeMessage !== undefined) {
     const val = (updates.forceSubscribeMessage ?? "").trim();
     await prisma.systemSetting.upsert({ where: { key: "force_subscribe_message" }, create: { key: "force_subscribe_message", value: val }, update: { value: val } });
+  }
+  if (updates.blacklistEnabled !== undefined) {
+    const val = updates.blacklistEnabled ? "true" : "false";
+    await prisma.systemSetting.upsert({ where: { key: "blacklist_enabled" }, create: { key: "blacklist_enabled", value: val }, update: { value: val } });
   }
   if (updates.sellOptionsEnabled !== undefined) {
     const val = updates.sellOptionsEnabled ? "true" : "false";

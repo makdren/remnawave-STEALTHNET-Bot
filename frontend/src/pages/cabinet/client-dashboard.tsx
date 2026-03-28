@@ -206,7 +206,7 @@ export function ClientDashboardPage() {
       await refreshProfile();
       setRefreshKey((k) => k + 1);
     } catch (e) {
-      setTrialError(e instanceof Error ? e.message : "Ошибка активации триала");
+      setTrialError(e instanceof Error ? e.message : "Ошибка активации тестового доступа");
     } finally {
       setTrialLoading(false);
     }
@@ -325,8 +325,8 @@ export function ClientDashboardPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Тариф</p>
-                      <p className="text-[14px] font-semibold truncate text-foreground" title={((tariffDisplayName ?? subParsed.productName?.trim() ?? "").trim()) || "Триал"}>
-                        {((tariffDisplayName ?? subParsed.productName?.trim() ?? "").trim()) || "Триал"}
+                      <p className="text-[14px] font-semibold truncate text-foreground" title={((tariffDisplayName ?? subParsed.productName?.trim() ?? "").trim()) || "Тест"}>
+                        {((tariffDisplayName ?? subParsed.productName?.trim() ?? "").trim()) || "Тест"}
                       </p>
                     </div>
                   </div>
@@ -416,7 +416,7 @@ export function ClientDashboardPage() {
               </p>
               <Button className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white shadow-lg h-12 rounded-xl hover:scale-[1.02] transition-transform duration-300 [&_svg]:self-center [&_span]:leading-none" onClick={activateTrial} disabled={trialLoading}>
                 {trialLoading ? <Loader2 className="h-5 w-5 shrink-0 animate-spin" /> : <Gift className="h-5 w-5 shrink-0" />}
-                <span className="inline-flex items-center leading-none font-medium text-base">Активировать триал</span>
+                <span className="inline-flex items-center leading-none font-medium text-base">Бесплатный Тест</span>
               </Button>
               {trialError && <p className="text-sm text-destructive break-words text-center">{trialError}</p>}
             </div>
@@ -516,13 +516,13 @@ export function ClientDashboardPage() {
             {showTrial ? (
               <Button size="lg" className="w-full gap-2 shadow-xl bg-green-600 hover:bg-green-700 text-white rounded-xl h-14 hover:scale-105 transition-transform [&_svg]:self-center [&_span]:leading-none" onClick={activateTrial} disabled={trialLoading}>
                 {trialLoading ? <Loader2 className="h-5 w-5 shrink-0 animate-spin" /> : <Gift className="h-5 w-5 shrink-0" />}
-                <span className="inline-flex items-center text-base font-medium leading-none">Бесплатный триал</span>
+                <span className="inline-flex items-center text-base font-medium leading-none">Бесплатный Тест</span>
               </Button>
             ) : vpnUrl ? (
               <Button size="lg" className="w-full gap-2 shadow-xl rounded-xl h-14 hover:scale-105 transition-transform bg-primary text-primary-foreground [&_svg]:self-center [&_span]:leading-none" asChild>
                 <Link to="/cabinet/subscribe" className="inline-flex items-center justify-center gap-2 leading-none">
                   <Wifi className="h-5 w-5 shrink-0" />
-                  <span className="inline-flex items-center text-base font-medium leading-none">Настроить VPN</span>
+                  <span className="inline-flex items-center text-base font-medium leading-none">Подключить VPN</span>
                 </Link>
               </Button>
             ) : (
@@ -586,7 +586,7 @@ export function ClientDashboardPage() {
                     <div className="min-w-0 flex-1">
                       <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Тариф</p>
                       <p className="text-[15px] font-semibold truncate text-foreground">
-                        {((tariffDisplayName ?? subParsed.productName?.trim() ?? "").trim()) || "Триал"}
+                        {((tariffDisplayName ?? subParsed.productName?.trim() ?? "").trim()) || "Тест"}
                       </p>
                     </div>
                   </div>
@@ -722,7 +722,7 @@ export function ClientDashboardPage() {
                 <Button variant="default" size="lg" className="w-full gap-2 rounded-xl shadow-lg h-14 text-[16px] hover:scale-105 transition-transform [&_svg]:self-center [&_span]:leading-none" asChild>
                   <Link to="/cabinet/subscribe" className="inline-flex items-center justify-center gap-2 leading-none">
                     <Wifi className="h-5 w-5 shrink-0" />
-                    <span className="inline-flex items-center leading-none">Настроить VPN</span>
+                    <span className="inline-flex items-center leading-none">Подключить VPN</span>
                   </Link>
                 </Button>
               </div>

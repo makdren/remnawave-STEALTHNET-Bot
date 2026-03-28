@@ -15,7 +15,7 @@
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
   --color-destructive: hsl(var(--destructive));
-  --color-card: hsl(var(--card));
+  --color-card: hsl(var(--card) / 0.15);
   --color-card-foreground: hsl(var(--card-foreground));
 }
 
@@ -38,19 +38,19 @@
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
+    --background: 240 11% 5.3%;
     --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
+    --card: 240 11% 5.3%;
     --card-foreground: 210 40% 98%;
     --primary: 210 40% 98%;
     --primary-foreground: 222.2 47.4% 11.2%;
-    --muted: 217.2 32.6% 17.5%;
+    --muted: 240 11% 12%;
     --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
+    --accent: 240 11% 12%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
+    --border: 240 11% 15%;
+    --input: 240 11% 15%;
     --ring: 212.7 26.8% 83.9%;
   }
 }
@@ -71,15 +71,6 @@
 
 /* ── Glassmorphism Overrides ── */
 @layer components {
-
-  /* Карточки и выпадающие меню делаем полупрозрачными */
-  .bg-card {
-    background-color: color-mix(in srgb, hsl(var(--card)) 45%, transparent) !important;
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid color-mix(in srgb, hsl(var(--foreground)) 8%, transparent);
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-  }
 
   /* Модальные окна — всегда непрозрачный фон (читаемо на любом фоне) */
   .dialog-content-solid {
@@ -156,4 +147,13 @@
     color: hsl(var(--foreground));
     padding: 0.5rem;
   }
+}
+
+/* ── Glass Card — вне @layer чтобы гарантированно побить Tailwind utilities ── */
+.glass-card {
+  background-color: color-mix(in srgb, hsl(var(--card)) 15%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid color-mix(in srgb, hsl(var(--foreground)) 10%, transparent);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
 }
