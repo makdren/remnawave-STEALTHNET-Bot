@@ -1,5 +1,5 @@
 ###############################################################################
-#  STEALTHNET 3.0 — Docker Compose
+#  STEALTHNET 3.2.7 — Docker Compose
 #  Репозиторий: https://github.com/STEALTHNET-APP/remnawave-STEALTHNET-Bot
 #  Запуск: docker compose up -d
 ###############################################################################
@@ -47,6 +47,7 @@ services:
       CORS_ORIGIN: "https://${DOMAIN:-localhost}"
       REMNA_API_URL: "${REMNA_API_URL:-}"
       REMNA_ADMIN_TOKEN: "${REMNA_ADMIN_TOKEN:-}"
+      REMNA_SECRET_KEY: "${REMNA_SECRET_KEY:-}"
       INIT_ADMIN_EMAIL: "${INIT_ADMIN_EMAIL:-admin@stealthnet.local}"
       INIT_ADMIN_PASSWORD: "${INIT_ADMIN_PASSWORD:-}"
     volumes:

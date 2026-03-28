@@ -1,5 +1,5 @@
 /**
- * STEALTHNET 3.2.6 — Telegram-бот
+ * STEALTHNET 3.2.7 — Telegram-бот
  * Полный функционал кабинета: главная, тарифы, профиль, пополнение, триал, реферальная ссылка, VPN.
  * Цветные кнопки: style primary / success / danger (Telegram Bot API).
  */
@@ -2682,17 +2682,14 @@ bot.on("callback_query:data", async (ctx) => {
       return;
     }
 
-    if (data === "menu:trial") {
-      const days = config?.trialDays ?? 0;
-      const daysText = days > 0 ? formatRuDays(days) + " триала." : "Триал без оплаты.";
-      const trialTitle = titleWithEmoji("TRIAL", `Попробовать бесплатно\n\n${daysText}\n\nАктивировать?`, config?.botEmojis);
-      await editMessageContent(ctx, trialTitle.text, trialConfirmButton(innerStyles, innerEmojiIds), trialTitle.entities);
-      return;
-    }
-
-    if (data === "trial:confirm") {
-      const result = await api.activateTrial(token);
-      await editMessageContent(ctx, `✅ ${result.message}`, backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
+    if (data === "menu:trial" || data === "trial:confirm") {
+      try {
+        const result = await api.activateTrial(token);
+        await editMessageContent(ctx, `✅ ${result.message}`, backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "Ошибка активации";
+        await editMessageContent(ctx, `❌ ${msg}`, backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
+      }
       return;
     }
 

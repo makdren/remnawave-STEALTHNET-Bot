@@ -131,7 +131,7 @@ export async function notifyBalanceToppedUp(clientId: string, amount: number, cu
   });
   if (!client) return;
   if (client.telegramId) {
-    const textForClient = `✅ <b>Баланс пополнен</b> на ${formatMoney(amount, currency)}.\nВаш баланс: ${formatMoney((client.balance ?? 0) + amount, currency)}`;
+    const textForClient = `✅ <b>Баланс пополнен</b> на ${formatMoney(amount, currency)}.\nВаш баланс: ${formatMoney(client.balance ?? 0, currency)}`;
     await sendTelegramToUser(client.telegramId, textForClient);
   }
   const clientLabel = formatClientLabel(client);
@@ -142,7 +142,7 @@ export async function notifyBalanceToppedUp(clientId: string, amount: number, cu
   ];
   if (client.telegramId) lines.push(`🆔 TG ID: <code>${escapeHtml(client.telegramId)}</code>`);
   lines.push(`💵 Сумма: <b>${formatMoney(amount, currency)}</b>`);
-  lines.push(`💰 Баланс после: ${formatMoney((client.balance ?? 0) + amount, currency)}`);
+  lines.push(`💰 Баланс после: ${formatMoney(client.balance ?? 0, currency)}`);
   if (provider) lines.push(`🏦 Провайдер: ${escapeHtml(provider)}`);
   lines.push(`🕐 ${formatDate(new Date())}`);
   await sendTelegramToAdminsForEvent("balance_topup", lines.join("\n"));

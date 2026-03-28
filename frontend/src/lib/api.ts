@@ -1427,6 +1427,7 @@ export type UpdateSettingsPayload = {
   forceSubscribeEnabled?: boolean;
   forceSubscribeChannelId?: string | null;
   forceSubscribeMessage?: string | null;
+  blacklistEnabled?: boolean;
   sellOptionsEnabled?: boolean;
   sellOptionsTrafficEnabled?: boolean;
   sellOptionsTrafficProducts?: string | null;
@@ -1710,6 +1711,8 @@ export interface AdminSettings {
   forceSubscribeEnabled?: boolean;
   forceSubscribeChannelId?: string | null;
   forceSubscribeMessage?: string | null;
+  /** Community Blacklist — автоблокировка пользователей из общего списка */
+  blacklistEnabled?: boolean;
   /** Продажа опций: доп. трафик, устройства, серверы */
   sellOptionsEnabled?: boolean;
   sellOptionsTrafficEnabled?: boolean;

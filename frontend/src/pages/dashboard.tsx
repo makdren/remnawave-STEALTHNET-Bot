@@ -228,15 +228,15 @@ function SectionHeader({
       transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
     >
       <motion.div
-        className={`relative flex items-center justify-center h-10 w-10 border border-white/20 dark:border-primary/30 bg-white/10 dark:bg-primary/20 shadow-[0_0_15px_hsl(var(--primary)/0.15)]`}
+        className={`relative flex items-center justify-center h-10 w-10 border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/5 shadow-[0_0_15px_hsl(var(--primary)/0.15)]`}
         whileHover={{ scale: 1.1, rotate: 5 }}
         transition={{ type: "spring", stiffness: 400, damping: 15 }}
       >
-        <Icon className="h-5 w-5 text-slate-800 dark:text-primary drop-shadow-[0_0_8px_hsl(var(--primary)/0.8)]" />
+        <Icon className="h-5 w-5 text-slate-800 dark:text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
       </motion.div>
       <div>
-        <h2 className="text-lg font-bold tracking-widest uppercase text-slate-800 dark:text-primary dark:drop-shadow-[0_0_8px_hsl(var(--primary)/0.5)] flex items-center gap-2">
-          <span className="text-primary/50 hidden sm:inline">&gt;</span> {title} <motion.span animate={{opacity:[0,1]}} transition={{repeat:Infinity, duration:0.9}} className="w-2 h-4 bg-primary/50 inline-block drop-shadow-[0_0_8px_hsl(var(--primary)/0.8)]"></motion.span>
+        <h2 className="text-lg font-bold tracking-widest uppercase text-slate-800 dark:text-white dark:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)] flex items-center gap-2">
+          <span className="text-primary/50 hidden sm:inline">&gt;</span> {title}
         </h2>
         <p className="text-xs text-slate-500 dark:text-primary/60 uppercase tracking-widest">{subtitle}</p>
       </div>
@@ -273,8 +273,8 @@ function StatCard({
       bracket: "text-primary/50",
       title: "text-slate-900 dark:text-white",
       iconBg: "dark:bg-primary/30",
-      iconBorder: "dark:border-primary/30",
-      iconShadow: "shadow-[0_0_10px_hsl(var(--primary)/0.1)]",
+      iconBorder: "dark:border-white/10",
+      iconShadow: "shadow-[0_0_10px_hsl(var(--primary)/0.15)]",
       iconText: "text-slate-800 dark:text-primary drop-shadow-[0_0_8px_hsl(var(--primary)/0.8)]",
       subtitle: "text-primary/70 dark:text-primary",
       valueGlow: "text-slate-900 dark:text-white dark:drop-shadow-[0_0_12px_rgba(255,255,255,0.4)]",
@@ -286,7 +286,7 @@ function StatCard({
       bracket: "text-emerald-500/50",
       title: "text-slate-900 dark:text-white",
       iconBg: "dark:bg-primary/30",
-      iconBorder: "dark:border-primary/30",
+      iconBorder: "dark:border-white/10",
       iconShadow: "shadow-[0_0_10px_rgba(16,185,129,0.1)]",
       iconText: "text-emerald-600 dark:text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.6)]",
       subtitle: "text-primary/70 dark:text-primary",
@@ -299,7 +299,7 @@ function StatCard({
       bracket: "text-amber-500/50",
       title: "text-slate-900 dark:text-white",
       iconBg: "dark:bg-primary/30",
-      iconBorder: "dark:border-primary/30",
+      iconBorder: "dark:border-white/10",
       iconShadow: "shadow-[0_0_10px_rgba(245,158,11,0.1)]",
       iconText: "text-amber-600 dark:text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]",
       subtitle: "text-primary/70 dark:text-primary",
@@ -312,7 +312,7 @@ function StatCard({
       bracket: "text-red-500/50",
       title: "text-slate-900 dark:text-white",
       iconBg: "dark:bg-primary/30",
-      iconBorder: "dark:border-primary/30",
+      iconBorder: "dark:border-white/10",
       iconShadow: "shadow-[0_0_10px_rgba(239,68,68,0.1)]",
       iconText: "text-red-600 dark:text-red-400 drop-shadow-[0_0_8px_rgba(239,68,68,0.6)]",
       subtitle: "text-primary/70 dark:text-primary",
@@ -325,7 +325,7 @@ function StatCard({
       bracket: "text-violet-500/50",
       title: "text-slate-900 dark:text-white",
       iconBg: "dark:bg-primary/30",
-      iconBorder: "dark:border-primary/30",
+      iconBorder: "dark:border-white/10",
       iconShadow: "shadow-[0_0_10px_rgba(139,92,246,0.1)]",
       iconText: "text-violet-600 dark:text-violet-400 drop-shadow-[0_0_8px_rgba(139,92,246,0.6)]",
       subtitle: "text-primary/70 dark:text-primary",
@@ -338,7 +338,7 @@ function StatCard({
       bracket: "text-cyan-500/50",
       title: "text-slate-900 dark:text-white",
       iconBg: "dark:bg-primary/30",
-      iconBorder: "dark:border-primary/30",
+      iconBorder: "dark:border-white/10",
       iconShadow: "shadow-[0_0_10px_rgba(6,182,212,0.1)]",
       iconText: "text-cyan-600 dark:text-cyan-400 drop-shadow-[0_0_8px_rgba(6,182,212,0.6)]",
       subtitle: "text-primary/70 dark:text-primary",
@@ -349,7 +349,7 @@ function StatCard({
 
   return (
     <motion.div custom={index} variants={cardVariants} initial="hidden" animate="visible">
-      <Card className={`group relative overflow-hidden bg-white/5 dark:bg-black/40 bg-gradient-to-br from-white/5 to-transparent dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] shadow-[inset_0_1px_0_rgba(255,255,255,0.4)] backdrop-blur-xl border border-white/10 dark:border-primary/30 hover:-translate-y-1 transition-all duration-500 font-mono ${theme.borderHover} ${theme.shadowHover}`}>
+      <Card className={`group relative overflow-hidden bg-white/5 dark:bg-white/5 bg-gradient-to-br from-white/5 to-transparent dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] shadow-[inset_0_1px_0_rgba(255,255,255,0.4)] backdrop-blur-md border border-white/10 dark:border-white/10 hover:-translate-y-1 transition-all duration-500 font-mono ${theme.borderHover} ${theme.shadowHover}`}>
         {/* Scanlines / Matrix background */}
         <div 
           className="absolute inset-0 opacity-[0.06] dark:opacity-[0.10] pointer-events-none"
@@ -411,7 +411,7 @@ function GlassCard({
 }) {
   return (
     <motion.div variants={cardVariants} initial="hidden" animate="visible" custom={animIndex}>
-      <Card className="group relative overflow-hidden bg-white/5 dark:bg-black/40 bg-gradient-to-br from-white/5 to-transparent backdrop-blur-xl border border-white/10 dark:border-primary/30 hover:border-white/20 dark:hover:border-primary/50 transition-all duration-500 shadow-lg dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_0_20px_hsl(var(--primary)/0.1)] font-mono">
+      <Card className="group relative overflow-hidden bg-white/5 dark:bg-white/5 bg-gradient-to-br from-white/5 to-transparent backdrop-blur-md border border-white/10 dark:border-white/10 hover:border-white/20 dark:hover:border-primary/50 transition-all duration-500 shadow-lg dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_0_20px_hsl(var(--primary)/0.15)] font-mono">
         {/* Matrix background */}
         <div 
           className="absolute inset-0 opacity-[0.06] dark:opacity-[0.10] pointer-events-none"
@@ -472,7 +472,7 @@ function DataBarSegmented({ percent, label, value, colorClass }: { percent: numb
             initial={{ opacity: 0, scaleY: 0.2 }}
             animate={{ opacity: i < activeSegments ? 1 : 0.15, scaleY: 1 }}
             transition={{ delay: i * 0.03, duration: 0.3 }}
-            className={`flex-1 rounded-[1px] ${i < activeSegments ? bgMap[colorClass] + ' ' + shadowMap[colorClass] : 'bg-slate-300 dark:bg-primary/10'}`}
+            className={`flex-1 rounded-[1px] ${i < activeSegments ? bgMap[colorClass] + ' ' + shadowMap[colorClass] : 'bg-slate-300 dark:bg-white/5'}`}
           />
         ))}
       </div>
@@ -482,7 +482,7 @@ function DataBarSegmented({ percent, label, value, colorClass }: { percent: numb
 
 function ServerCommandCenter({ serverStats }: { serverStats: ServerStats }) {
   return (
-    <Card className="relative overflow-hidden bg-white/40 dark:bg-black/40 bg-gradient-to-br from-white/5 to-transparent backdrop-blur-3xl border border-white/20 dark:border-primary/30 shadow-xl dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_0_30px_hsl(var(--primary)/0.15)] font-mono text-slate-900 dark:text-primary group transition-colors duration-500">
+    <Card className="relative overflow-hidden bg-white/40 dark:bg-white/5 bg-gradient-to-br from-white/5 to-transparent backdrop-blur-md border border-white/20 dark:border-white/10 shadow-xl dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_0_30px_hsl(var(--primary)/0.15)] font-mono text-slate-900 dark:text-white group transition-colors duration-500">
       {/* Hex Background Pattern */}
       <div 
         className="absolute inset-0 opacity-[0.06] dark:opacity-[0.10] pointer-events-none"
@@ -492,14 +492,14 @@ function ServerCommandCenter({ serverStats }: { serverStats: ServerStats }) {
       />
       
       {/* Top Bar / Terminal Header */}
-      <div className="border-b border-white/30 dark:border-primary/20 bg-white/50 dark:bg-primary/20 px-4 py-2 flex items-center justify-between text-xs transition-colors duration-500">
+      <div className="border-b border-white/30 dark:border-primary/20 bg-white/50 dark:bg-white/5 px-4 py-2 flex items-center justify-between text-xs transition-colors duration-500">
         <div className="flex items-center gap-2">
           <div className="flex gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full bg-red-500/80 shadow-[0_0_8px_#ef4444]"></span>
             <span className="h-2.5 w-2.5 rounded-full bg-amber-500/80 shadow-[0_0_8px_#f59e0b]"></span>
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/80 shadow-[0_0_8px_#10b981]"></span>
           </div>
-          <span className="ml-2 text-slate-600 dark:text-primary/70 tracking-widest uppercase text-[10px]">root@{serverStats.hostname} ~ /sys/core</span>
+          <span className="ml-2 text-slate-600 dark:text-white/70 tracking-widest uppercase text-[10px]">root@{serverStats.hostname} ~ /sys/core</span>
         </div>
         <div className="flex items-center gap-3 text-slate-500 dark:text-primary/50">
           <span className="hidden sm:inline">ARCH: {serverStats.arch}</span>
@@ -544,46 +544,48 @@ function ServerCommandCenter({ serverStats }: { serverStats: ServerStats }) {
             )}
             
             {/* Hex Dump / Mini Logs */}
-            <div className="mt-4 p-3 bg-white/60 dark:bg-black/40 border border-white/40 dark:border-primary/10 rounded overflow-hidden h-24 relative text-[10px] sm:text-xs text-slate-700 dark:text-primary/60 font-mono leading-tight shadow-inner transition-colors duration-500">
+            <div className="mt-4 p-3 bg-white/60 dark:bg-white/5 border border-white/40 dark:border-primary/10 rounded overflow-hidden h-24 relative text-[10px] sm:text-xs text-slate-700 dark:text-primary/60 font-mono leading-tight shadow-inner transition-colors duration-500">
               <motion.div
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ duration: 0.5 }}
                 className="absolute inset-x-3 bottom-3"
               >
-                <div className="flex gap-4"><span className="opacity-50">0x0000</span><span>48 65 6C 6C 6F 20 57 6F 72 6C 64 21 0A</span></div>
-                <div className="flex gap-4"><span className="opacity-50">0x0010</span><span>53 79 73 74 65 6D 20 4F 6E 6C 69 6E 65</span></div>
-                <div className="flex gap-4"><span className="opacity-50">0x0020</span><span>{serverStats.loadAvg.map(l => l.toFixed(2)).join(' ')} CPU_LOAD</span></div>
-                <div className="flex gap-4"><span className="opacity-50">0x0030</span><span className="text-slate-900 dark:text-primary font-medium">WAITING FOR COMMANDS_</span><motion.span animate={{opacity:[0,1]}} transition={{repeat:Infinity, duration:0.8}}>█</motion.span></div>
+                <div className="flex gap-4"><span className="opacity-50">0x0000</span><span className="text-white font-medium">48 65 6C 6C 6F 20 57 6F 72 6C 64 21 0A</span></div>
+                <div className="flex gap-4"><span className="opacity-50">0x0010</span><span className="text-white font-medium">53 79 73 74 65 6D 20 4F 6E 6C 69 6E 65</span></div>
+                <div className="flex gap-4"><span className="opacity-50">0x0020</span><span className="text-white font-medium">{serverStats.loadAvg.map(l => l.toFixed(2)).join(' ')} CPU_LOAD</span></div>
+                <div className="flex gap-4"><span className="opacity-50">0x0030</span><span className="text-slate-900 dark:text-white font-medium">WAITING FOR COMMANDS_</span><motion.span animate={{opacity:[0,1]}} transition={{repeat:Infinity, duration:0.8}}>█</motion.span></div>
               </motion.div>
             </div>
           </div>
 
           {/* Right Col: Digital Uptime & Status */}
           <div className="flex flex-col gap-3">
-            <div className="border border-white/40 dark:border-primary/20 bg-white/50 dark:bg-primary/10 p-4 rounded-lg flex flex-col items-center justify-center relative overflow-hidden flex-1 hover:border-white/60 dark:group-hover:border-primary/40 transition-colors duration-500 shadow-sm">
-               {/* Radar scan effect in background */}
-              <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-10 dark:opacity-20">
+            <div className="border border-white/40 dark:border-primary/20 bg-white/50 dark:bg-white/5 p-4 rounded-lg flex flex-col items-center justify-center relative overflow-hidden flex-1 hover:border-white/60 dark:group-hover:border-primary/40 transition-colors duration-500 shadow-sm">
+               {/* Soft pulsing ambient glow in background */}
+              <div className="absolute inset-0 pointer-events-none overflow-hidden">
                 <motion.div
-                   animate={{ rotate: 360 }}
-                   transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-                   className="w-[200%] h-[200%] absolute -top-1/2 -left-1/2"
-                   style={{
-                     background: "conic-gradient(from 0deg, transparent 70%, hsl(var(--primary)/0.4) 100%)"
-                   }}
+                  animate={{ opacity: [0.3, 0.6, 0.3], scale: [1, 1.1, 1] }}
+                  transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+                  className="absolute -top-[50%] -right-[50%] w-[200%] h-[200%] bg-[radial-gradient(ellipse_at_center,hsl(var(--primary)/0.15)_0%,transparent_50%)]"
+                />
+                <motion.div
+                  animate={{ opacity: [0.2, 0.5, 0.2], scale: [1, 1.15, 1] }}
+                  transition={{ duration: 8, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+                  className="absolute -bottom-[50%] -left-[50%] w-[200%] h-[200%] bg-[radial-gradient(ellipse_at_center,hsl(var(--primary)/0.15)_0%,transparent_50%)]"
                 />
               </div>
 
-              <span className="text-slate-500 dark:text-primary/50 text-xs tracking-[0.2em] mb-2 z-10 font-semibold">[ SYS_UPTIME ]</span>
+              <span className="text-slate-500 dark:text-white/60 text-xs tracking-[0.2em] mb-2 z-10 font-semibold">[ SYS_UPTIME ]</span>
               
-              <div className="text-2xl sm:text-3xl font-bold tracking-widest text-slate-800 dark:text-primary dark:drop-shadow-[0_0_15px_hsl(var(--primary)/0.8)] text-center z-10">
+              <div className="text-2xl sm:text-3xl font-bold tracking-widest text-slate-800 dark:text-white dark:drop-shadow-[0_0_15px_rgba(255,255,255,0.8)] text-center z-10">
                 {formatUptime(serverStats.uptimeSeconds).toUpperCase()}
               </div>
 
-              <div className="mt-6 flex flex-col gap-2 w-full z-10 text-slate-600 dark:text-primary font-medium">
+              <div className="mt-6 flex flex-col gap-2 w-full z-10 text-slate-600 dark:text-white font-medium">
                 <div className="flex justify-between text-xs border-b border-white/30 dark:border-primary/20 pb-1">
                   <span className="opacity-70 dark:opacity-50">LOAD_AVG</span>
-                  <span className="text-slate-900 dark:text-primary">{serverStats.loadAvg.map(l => l.toFixed(2)).join(' / ')}</span>
+                  <span className="text-slate-900 dark:text-white">{serverStats.loadAvg.map(l => l.toFixed(2)).join(' / ')}</span>
                 </div>
                 <div className="flex justify-between text-xs border-b border-white/30 dark:border-primary/20 pb-1">
                   <span className="opacity-70 dark:opacity-50">NETWORK</span>
@@ -755,19 +757,7 @@ export function DashboardPage() {
   const nodesTotal = nodes.length;
 
   return (
-    <div className="relative w-full rounded-[2rem] border border-slate-200 dark:border-white/10 bg-white/70 dark:bg-[#050507] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1),0_0_20px_rgba(0,0,0,0.05)] dark:shadow-[0_30px_80px_-15px_rgba(0,0,0,0.6),0_0_30px_rgba(0,0,0,0.3)] overflow-hidden">
-      {/* Frame glowing inner border effect (3D Bevel) */}
-      <div className="absolute inset-0 rounded-[2rem] pointer-events-none z-20 border-t border-t-white/40 dark:border-t-primary/50 border-l border-l-white/20 dark:border-l-primary/20 border-r border-r-white/5 dark:border-r-primary/5 border-b border-b-transparent shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] bg-gradient-to-b from-white/10 via-transparent to-transparent dark:from-primary/10" />
-      
-      {/* Background Matrix/Grid strictly inside the frame */}
-      <div 
-        className="absolute inset-0 opacity-[0.06] dark:opacity-[0.10] pointer-events-none z-0"
-        style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='24' height='40' viewBox='0 0 24 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 40L12 20L0 0M24 40L12 20L24 0' stroke='var(--primary)' stroke-width='1' fill='none' fill-rule='evenodd'/%3E%3C/svg%3E")`,
-        }}
-      />
-
-      <div className="relative space-y-8 p-6 sm:p-8 md:p-10 z-10">
+    <div className="w-full space-y-8 px-4 sm:px-6 md:px-8 pt-6 sm:pt-10 md:pt-14 pb-8">
       {/* Page header — Terminal Style */}
       <motion.div
         initial={{ opacity: 0, y: -16, filter: "blur(8px)" }}
@@ -776,7 +766,7 @@ export function DashboardPage() {
         className="font-mono"
       >
         <h1
-          className="text-2xl font-bold tracking-widest uppercase text-slate-900 dark:text-primary flex items-center gap-3"
+          className="text-2xl font-bold tracking-widest uppercase text-slate-900 dark:text-white flex items-center gap-3"
           style={{ textShadow: "0 0 20px hsl(var(--primary)/0.3)" }}
         >
           <span className="text-primary/50">~/</span> Дашборд <motion.span animate={{opacity:[0,1]}} transition={{repeat:Infinity, duration:0.8}} className="w-4 h-6 bg-primary inline-block"></motion.span>
@@ -797,7 +787,7 @@ export function DashboardPage() {
       {/* Manager warning */}
       {admin?.role === "MANAGER" && (!admin.allowedSections || admin.allowedSections.length === 0) && (
         <motion.div
-          className="rounded-none border border-amber-500/50 bg-amber-500/10 backdrop-blur-xl px-4 py-3 text-xs tracking-widest uppercase font-mono text-amber-600 dark:text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.2)]"
+          className="rounded-none border border-amber-500/50 bg-amber-500/10 backdrop-blur-md px-4 py-3 text-xs tracking-widest uppercase font-mono text-amber-600 dark:text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.2)]"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
         >
@@ -808,7 +798,7 @@ export function DashboardPage() {
       {/* Error display */}
       {error && (
         <motion.div
-          className="rounded-none border border-red-500/50 bg-red-500/10 backdrop-blur-xl px-4 py-3 text-xs tracking-widest uppercase font-mono text-red-600 dark:text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.2)]"
+          className="rounded-none border border-red-500/50 bg-red-500/10 backdrop-blur-md px-4 py-3 text-xs tracking-widest uppercase font-mono text-red-600 dark:text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.2)]"
           initial={{ opacity: 0, x: -8 }}
           animate={{ opacity: 1, x: 0 }}
         >
@@ -849,7 +839,7 @@ export function DashboardPage() {
 
       {/* ═══ Analytics Section ═══ */}
       <section>
-        <SectionHeader icon={Activity} title="Аналитика" subtitle="Ключевые метрики за периоды" />
+        <SectionHeader icon={Activity} title="Микроаналитика" subtitle="Ключевые метрики за периоды" />
         <GlassCard animIndex={5}>
           <CardContent className="relative pt-6">
             <div className="flex flex-col gap-6">
@@ -905,9 +895,9 @@ export function DashboardPage() {
                         key={period}
                         size="sm"
                         variant="outline"
-                        className={`h-8 px-3 text-[10px] uppercase tracking-widest border-white/20 dark:border-primary/30 bg-white/30 dark:bg-black/30 hover:bg-white/50 dark:hover:bg-primary/20 ${
+                        className={`h-8 px-3 text-[10px] uppercase tracking-widest border-white/20 dark:border-white/10 bg-white/30 dark:bg-black/30 hover:bg-white/50 dark:hover:bg-primary/20 ${
                           isActive
-                            ? "text-slate-900 dark:text-primary border-primary/50 shadow-[0_0_12px_hsl(var(--primary)/0.3)]"
+                            ? "text-slate-900 dark:text-white border-primary/50 shadow-[0_0_12px_hsl(var(--primary)/0.3)]"
                             : "text-slate-500 dark:text-primary/60"
                         }`}
                         onClick={() => setChartPeriod(period)}
@@ -918,7 +908,7 @@ export function DashboardPage() {
                   })}
                 </div>
               </div>
-              <div className="h-[320px] w-full rounded-xl border border-white/10 dark:border-primary/20 bg-white/10 dark:bg-black/30 p-4 backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]">
+              <div className="h-[320px] w-full rounded-xl border border-white/10 dark:border-primary/20 bg-white/10 dark:bg-black/30 p-4 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]">
                 <ResponsiveContainer width="100%" height={300}>
                   <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <defs>
@@ -995,7 +985,7 @@ export function DashboardPage() {
         />
         <motion.div variants={cardVariants} initial="hidden" animate="visible" custom={7}>
           {!hasRemnaNodesAccess ? (
-            <Card className="bg-white/5 dark:bg-black/40 backdrop-blur-xl border-white/10 dark:border-primary/30 rounded-none font-mono">
+            <Card className="bg-white/5 dark:bg-white/5 backdrop-blur-md border-white/10 dark:border-white/10 rounded-none font-mono">
               <CardContent className="py-8">
                 <p className="text-slate-500 dark:text-primary/60 text-xs tracking-widest uppercase text-center">
                   [ACCESS_DENIED] Нет доступа к управлению нодами Remna. Обратитесь к администратору.
@@ -1003,7 +993,7 @@ export function DashboardPage() {
               </CardContent>
             </Card>
           ) : nodes.length === 0 ? (
-            <Card className="bg-white/5 dark:bg-black/40 backdrop-blur-xl border-white/10 dark:border-primary/30 rounded-none font-mono">
+            <Card className="bg-white/5 dark:bg-white/5 backdrop-blur-md border-white/10 dark:border-white/10 rounded-none font-mono">
               <CardContent className="py-8">
                 <p className="text-slate-500 dark:text-primary/60 text-xs tracking-widest uppercase text-center">
                   [SYSTEM_EMPTY] Ноды не загружены или Remna API не настроен. Проверьте настройки.
@@ -1047,7 +1037,7 @@ export function DashboardPage() {
 
                 return (
                   <motion.div key={node.uuid} custom={idx + 8} variants={cardVariants}>
-                    <Card className={`relative overflow-hidden bg-white/40 dark:bg-black/40 bg-gradient-to-br from-white/5 to-transparent backdrop-blur-3xl border border-white/20 dark:border-primary/30 shadow-xl dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_0_30px_hsl(var(--primary)/0.15)] font-mono text-slate-900 dark:text-primary group transition-colors duration-500 ${hoverShadow}`}>
+                    <Card className={`relative overflow-hidden bg-white/40 dark:bg-white/5 bg-gradient-to-br from-white/5 to-transparent backdrop-blur-md border border-white/20 dark:border-white/10 shadow-xl dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_0_30px_hsl(var(--primary)/0.15)] font-mono text-slate-900 dark:text-white group transition-colors duration-500 ${hoverShadow}`}>
                       {/* Hex Background Pattern */}
                       <div 
                         className="absolute inset-0 opacity-[0.06] dark:opacity-[0.10] pointer-events-none"
@@ -1057,18 +1047,18 @@ export function DashboardPage() {
                       />
                       
                       {/* Top Bar / Terminal Header */}
-                      <div className="border-b border-white/30 dark:border-primary/20 bg-white/50 dark:bg-primary/20 px-4 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs transition-colors duration-500">
+                      <div className="border-b border-white/30 dark:border-primary/20 bg-white/50 dark:bg-white/5 px-4 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs transition-colors duration-500">
                         <div className="flex items-center gap-2">
                           <div className="flex gap-1.5">
                             <span className="h-2.5 w-2.5 rounded-full bg-red-500/80 shadow-[0_0_8px_#ef4444]"></span>
                             <span className="h-2.5 w-2.5 rounded-full bg-amber-500/80 shadow-[0_0_8px_#f59e0b]"></span>
                             <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/80 shadow-[0_0_8px_#10b981]"></span>
                           </div>
-                          <span className="ml-2 text-slate-600 dark:text-primary/70 tracking-widest uppercase text-[10px] truncate max-w-[200px] sm:max-w-[400px]">
+                          <span className="ml-2 text-slate-600 dark:text-white/70 tracking-widest uppercase text-[10px] truncate max-w-[200px] sm:max-w-[400px]">
                             root@{node.address} ~ /sys/node/{node.name || node.uuid.substring(0,6)}
                           </span>
                         </div>
-                        <div className="flex items-center gap-3 text-slate-500 dark:text-primary/50 justify-between sm:justify-end">
+                        <div className="flex items-center gap-3 text-slate-500 dark:text-white/50 justify-between sm:justify-end">
                           <span className="hidden sm:inline">PORT: {node.port ?? "N/A"}</span>
                           <motion.div 
                             animate={node.isConnected && !node.isDisabled ? { opacity: [1, 0, 1] } : {}} 
@@ -1123,43 +1113,45 @@ export function DashboardPage() {
                             </div>
 
                             {/* Hex Dump / Mini Logs */}
-                            <div className="mt-4 p-3 bg-white/60 dark:bg-black/40 border border-white/40 dark:border-primary/10 rounded overflow-hidden h-24 relative text-[10px] sm:text-xs text-slate-700 dark:text-primary/60 font-mono leading-tight shadow-inner transition-colors duration-500">
+                            <div className="mt-4 p-3 bg-white/60 dark:bg-white/5 border border-white/40 dark:border-primary/10 rounded overflow-hidden h-24 relative text-[10px] sm:text-xs text-slate-700 dark:text-primary/60 font-mono leading-tight shadow-inner transition-colors duration-500">
                               <motion.div
                                 initial={{ y: 20, opacity: 0 }}
                                 animate={{ y: 0, opacity: 1 }}
                                 transition={{ duration: 0.5 }}
                                 className="absolute inset-x-3 bottom-3"
                               >
-                                <div className="flex gap-4"><span className="opacity-50">0x0000</span><span>NODE_UUID: {node.uuid}</span></div>
-                                <div className="flex gap-4"><span className="opacity-50">0x0010</span><span>TRAFFIC_LIMIT: {limit > 0 ? formatBytes(limit) : 'UNLIMITED'}</span></div>
-                                <div className="flex gap-4"><span className="opacity-50">0x0020</span><span>VER: {node.name || 'UNKNOWN'}</span></div>
-                                <div className="flex gap-4"><span className="opacity-50">0x0030</span><span className="text-slate-900 dark:text-primary font-medium">STATUS: {statusLabel.toUpperCase()}_</span><motion.span animate={{opacity:[0,1]}} transition={{repeat:Infinity, duration:0.8}}>█</motion.span></div>
+                                <div className="flex gap-4"><span className="opacity-50">0x0000</span><span className="text-white font-medium">NODE_UUID: {node.uuid}</span></div>
+                                <div className="flex gap-4"><span className="opacity-50">0x0010</span><span className="text-white font-medium">TRAFFIC_LIMIT: {limit > 0 ? formatBytes(limit) : 'UNLIMITED'}</span></div>
+                                <div className="flex gap-4"><span className="opacity-50">0x0020</span><span className="text-white font-medium">VER: {node.name || 'UNKNOWN'}</span></div>
+                                <div className="flex gap-4"><span className="opacity-50">0x0030</span><span className="text-slate-900 dark:text-white font-medium">STATUS: {statusLabel.toUpperCase()}_</span><motion.span animate={{opacity:[0,1]}} transition={{repeat:Infinity, duration:0.8}}>█</motion.span></div>
                               </motion.div>
                             </div>
                           </div>
 
                           {/* Right Col: Actions */}
                           <div className="flex flex-col gap-3">
-                            <div className="border border-white/40 dark:border-primary/20 bg-white/50 dark:bg-primary/10 p-4 rounded-lg flex flex-col items-center justify-center relative overflow-hidden flex-1 hover:border-white/60 dark:hover:border-primary/40 transition-colors duration-500 shadow-sm gap-4">
-                              {/* Radar scan effect in background */}
-                              <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-10 dark:opacity-20">
+                            <div className="border border-white/40 dark:border-primary/20 bg-white/50 dark:bg-white/5 p-4 rounded-lg flex flex-col items-center justify-center relative overflow-hidden flex-1 hover:border-white/60 dark:hover:border-primary/40 transition-colors duration-500 shadow-sm gap-4">
+                              {/* Soft pulsing ambient glow in background */}
+                              <div className="absolute inset-0 pointer-events-none overflow-hidden">
                                 <motion.div
-                                  animate={{ rotate: -360 }}
-                                  transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-                                  className="w-[200%] h-[200%] absolute -top-1/2 -left-1/2"
-                                  style={{
-                                    background: "conic-gradient(from 0deg, transparent 70%, hsl(var(--primary)/0.4) 100%)"
-                                  }}
+                                  animate={{ opacity: [0.3, 0.6, 0.3], scale: [1, 1.1, 1] }}
+                                  transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
+                                  className="absolute -top-[50%] -right-[50%] w-[200%] h-[200%] bg-[radial-gradient(ellipse_at_center,hsl(var(--primary)/0.15)_0%,transparent_50%)]"
+                                />
+                                <motion.div
+                                  animate={{ opacity: [0.2, 0.5, 0.2], scale: [1, 1.15, 1] }}
+                                  transition={{ duration: 9, repeat: Infinity, ease: "easeInOut", delay: 1.5 }}
+                                  className="absolute -bottom-[50%] -left-[50%] w-[200%] h-[200%] bg-[radial-gradient(ellipse_at_center,hsl(var(--primary)/0.15)_0%,transparent_50%)]"
                                 />
                               </div>
 
-                              <span className="text-slate-500 dark:text-primary/50 text-xs tracking-[0.2em] z-10 font-semibold">[ ACTIONS ]</span>
+                              <span className="text-slate-500 dark:text-white/60 text-xs tracking-[0.2em] z-10 font-semibold">[ ACTIONS ]</span>
                               
                               <div className="flex flex-col gap-3 w-full z-10">
                                 {node.isDisabled ? (
                                   <Button
                                     variant="outline"
-                                    className="w-full h-10 text-[10px] sm:text-xs uppercase tracking-widest gap-2 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 hover:border-emerald-500/50 transition-all bg-white/50 dark:bg-black/20"
+                                    className="w-full h-10 text-[10px] sm:text-xs uppercase tracking-widest gap-2 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 hover:border-emerald-500/50 transition-all bg-white/50 dark:bg-white/5"
                                     disabled={isBusy}
                                     onClick={() => handleNodeAction(node.uuid, "enable")}
                                   >
@@ -1169,7 +1161,7 @@ export function DashboardPage() {
                                 ) : (
                                   <Button
                                     variant="outline"
-                                    className="w-full h-10 text-[10px] sm:text-xs uppercase tracking-widest gap-2 border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:border-red-500/50 transition-all bg-white/50 dark:bg-black/20"
+                                    className="w-full h-10 text-[10px] sm:text-xs uppercase tracking-widest gap-2 border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:border-red-500/50 transition-all bg-white/50 dark:bg-white/5"
                                     disabled={isBusy}
                                     onClick={() => handleNodeAction(node.uuid, "disable")}
                                   >
@@ -1179,7 +1171,7 @@ export function DashboardPage() {
                                 )}
                                 <Button
                                   variant="outline"
-                                  className="w-full h-10 text-[10px] sm:text-xs uppercase tracking-widest gap-2 border-primary/30 text-primary/80 dark:text-primary hover:bg-primary/10 hover:border-primary/50 transition-all bg-white/50 dark:bg-black/20"
+                                  className="w-full h-10 text-[10px] sm:text-xs uppercase tracking-widest gap-2 border-primary/30 text-primary/80 dark:text-primary hover:bg-primary/10 hover:border-primary/50 transition-all bg-white/50 dark:bg-white/5"
                                   disabled={isBusy}
                                   onClick={() => handleNodeAction(node.uuid, "restart")}
                                 >
@@ -1200,7 +1192,6 @@ export function DashboardPage() {
           )}
         </motion.div>
       </section>
-      </div>
     </div>
   );
 }

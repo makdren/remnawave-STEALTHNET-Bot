@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, Fragment } from "react";
 import { useAuth } from "@/contexts/auth";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { motion } from "framer-motion";
 import {
   Loader2,
   TrendingUp,
@@ -38,6 +39,83 @@ import {
   Line,
   ComposedChart,
 } from "recharts";
+
+/* ── Animation variants — God-Tier Entrance ── */
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 30, scale: 0.95, filter: "blur(10px)" },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    filter: "blur(0px)",
+    transition: {
+      delay: i * 0.08,
+      duration: 0.85,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  }),
+};
+
+const staggerContainer = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.1 } },
+};
+
+/* ── Terminal Container wrapper for major sections ── */
+
+function GlassCard({
+  children,
+  animIndex = 0,
+  className = "",
+}: {
+  children: React.ReactNode;
+  animIndex?: number;
+  className?: string;
+}) {
+  return (
+    <motion.div variants={cardVariants} initial="hidden" animate="visible" custom={animIndex} className={`h-full ${className}`}>
+      <Card className="group relative overflow-hidden !bg-white dark:!bg-[#262730] shadow-sm border !border-slate-200 dark:!border-[#3A3B42] hover:border-slate-300 dark:hover:border-[#4a4b52] transition-all duration-500 font-mono h-full flex flex-col">
+         <div className="flex-1 flex flex-col relative z-10 pt-4">
+           {children}
+         </div>
+       </Card>
+     </motion.div>
+   );
+}
+
+function SectionHeader({
+  icon: Icon,
+  title,
+  subtitle,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <motion.div
+      className="flex items-center gap-4 mb-6 font-mono mt-8"
+      initial={{ opacity: 0, x: -12 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <motion.div
+        className="relative flex items-center justify-center h-10 w-10 border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/5 shadow-[0_0_15px_hsl(var(--primary)/0.15)]"
+        whileHover={{ scale: 1.1, rotate: 5 }}
+        transition={{ type: "spring", stiffness: 400, damping: 15 }}
+      >
+        <Icon className="h-5 w-5 text-slate-800 dark:text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
+      </motion.div>
+      <div>
+        <h2 className="text-lg font-bold tracking-widest uppercase text-slate-800 dark:text-white dark:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)] flex items-center gap-2">
+          <span className="text-primary/50 hidden sm:inline">&gt;</span> {title}
+        </h2>
+        <p className="text-xs text-slate-500 dark:text-primary/60 uppercase tracking-widest">{subtitle}</p>
+      </div>
+    </motion.div>
+  );
+}
 
 const COLORS = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#14b8a6", "#f97316", "#84cc16"];
 
@@ -126,55 +204,68 @@ export function AnalyticsPage() {
   const promoWeekly = aggregateByWeekTwo(data.promoActsSeries, data.promoUsagesSeries, "Промо-ссылки", "Промокоды");
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Аналитика</h1>
-        <p className="text-muted-foreground mt-1">Полная статистика по всем направлениям</p>
-      </div>
+    <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="w-full space-y-8 px-4 sm:px-6 md:px-8 pt-6 sm:pt-10 md:pt-14 pb-8">
+      {/* Page header — Terminal Style */}
+      <motion.div
+        initial={{ opacity: 0, y: -16, filter: "blur(8px)" }}
+        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        className="font-mono"
+      >
+        <h1
+          className="text-2xl font-bold tracking-widest uppercase text-slate-900 dark:text-white flex items-center gap-3"
+          style={{ textShadow: "0 0 20px hsl(var(--primary)/0.3)" }}
+        >
+          <span className="text-primary/50">~/</span> Аналитика <motion.span animate={{opacity:[0,1]}} transition={{repeat:Infinity, duration:0.8}} className="w-4 h-6 bg-primary inline-block"></motion.span>
+        </h1>
+        <p className="text-slate-500 dark:text-primary/60 mt-2 text-xs tracking-widest uppercase">Полная статистика по всем направлениям</p>
+        {/* Animated header underline */}
+        <motion.div
+          className="h-[1px] mt-4"
+          style={{
+            background: "linear-gradient(90deg, hsl(var(--primary)/0.8), transparent)",
+          }}
+          initial={{ width: 0, opacity: 0 }}
+          animate={{ width: "100%", opacity: 1 }}
+          transition={{ delay: 0.4, duration: 1, ease: "easeOut" }}
+        />
+      </motion.div>
 
       {/* ═══ ОСНОВНЫЕ МЕТРИКИ ═══ */}
       <section>
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <TrendingUp className="h-5 w-5 text-primary" />
-          Основные метрики
-        </h2>
-        <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
-          <MetricCard icon={DollarSign} label="Поступления" value={fmt(s.totalRevenue)} sub="с платёжек, без оплаты с баланса" color="text-green-500" />
-          <MetricCard icon={DollarSign} label="Поступления 7 дн." value={fmt(s.rev7)} sub={`${s.cnt7} платежей`} color="text-green-500" />
-          <MetricCard icon={DollarSign} label="Поступления 30 дн." value={fmt(s.rev30)} sub={`${s.cnt30} платежей`} color="text-green-500" />
-          <MetricCard icon={ShoppingCart} label="Платежей с платёжек" value={fmt(s.totalPayments)} sub={`${s.paymentsPending} ожидают`} color="text-blue-500" />
-          <MetricCard icon={Target} label="Средний чек" value={fmtDec(s.avgCheck)} color="text-indigo-500" />
+        <SectionHeader icon={TrendingUp} title="Основные метрики" subtitle="Доходы и платежи" />
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
+          <MetricCard index={0} icon={DollarSign} label="Поступления" value={fmt(s.totalRevenue)} sub="без оплаты с баланса" color="text-green-500" />
+          <MetricCard index={1} icon={DollarSign} label="Поступления 7 дн." value={fmt(s.rev7)} sub={`${s.cnt7} платежей`} color="text-green-500" />
+          <MetricCard index={2} icon={DollarSign} label="Поступления 30 дн." value={fmt(s.rev30)} sub={`${s.cnt30} платежей`} color="text-green-500" />
+          <MetricCard index={3} icon={ShoppingCart} label="Платежей" value={fmt(s.totalPayments)} sub={`${s.paymentsPending} ожидают`} color="text-blue-500" />
+          <MetricCard index={4} icon={Target} label="Средний чек" value={fmtDec(s.avgCheck)} sub="на транзакцию" color="text-indigo-500" />
         </div>
       </section>
 
       {/* ═══ КЛИЕНТЫ ═══ */}
       <section>
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Users className="h-5 w-5 text-primary" />
-          Клиенты
-        </h2>
-        <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
-          <MetricCard icon={Users} label="Всего клиентов" value={fmt(s.totalClients)} sub={`${s.activeClients} с подпиской`} color="text-blue-500" />
-          <MetricCard icon={UserPlus} label="Новые 24ч / 7д / 30д" value={`${s.clientsNew24h} / ${s.clientsNew7d} / ${s.clientsNew30d}`} color="text-cyan-500" />
-          <MetricCard icon={Bot} label="Только бот" value={fmt(s.botClients)} color="text-violet-500" />
-          <MetricCard icon={Globe} label="Только сайт" value={fmt(s.siteClients)} color="text-orange-500" />
-          <MetricCard icon={Users} label="Бот + Сайт" value={fmt(s.bothClients)} color="text-emerald-500" />
-          <MetricCard icon={Wallet} label="Общий баланс" value={fmtDec(s.totalBalance)} color="text-amber-500" />
-          <MetricCard icon={Percent} label="Платящих" value={`${s.payingClients} (${s.payingPercent}%)`} color="text-rose-500" />
-          <MetricCard icon={DollarSign} label="ARPU" value={fmtDec(s.arpu)} sub="доход / клиент" color="text-indigo-500" />
-          <MetricCard icon={Award} label="По рефералу" value={fmt(s.withReferrer)} sub={`${s.totalClients > 0 ? Math.round((s.withReferrer / s.totalClients) * 100) : 0}% от всех`} color="text-pink-500" />
+        <SectionHeader icon={Users} title="Клиенты" subtitle="Статистика базы пользователей" />
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+          <MetricCard index={5} icon={Users} label="Всего клиентов" value={fmt(s.totalClients)} sub={`${s.activeClients} с подпиской`} color="text-blue-500" />
+          <MetricCard index={6} icon={UserPlus} label="Новые 24ч / 7д / 30д" value={`${s.clientsNew24h} / ${s.clientsNew7d} / ${s.clientsNew30d}`} sub="регистрации" color="text-cyan-500" />
+          <MetricCard index={7} icon={Bot} label="Только бот" value={fmt(s.botClients)} sub="клиентов" color="text-violet-500" />
+          <MetricCard index={8} icon={Globe} label="Только сайт" value={fmt(s.siteClients)} sub="клиентов" color="text-orange-500" />
+          <MetricCard index={9} icon={Users} label="Бот + Сайт" value={fmt(s.bothClients)} sub="клиентов" color="text-emerald-500" />
+          <MetricCard index={10} icon={Wallet} label="Общий баланс" value={fmtDec(s.totalBalance)} sub="внутренние счета" color="text-amber-500" />
+          <MetricCard index={11} icon={Percent} label="Платящих" value={`${s.payingClients} (${s.payingPercent}%)`} sub="от всех" color="text-rose-500" />
+          <MetricCard index={12} icon={DollarSign} label="ARPU" value={fmtDec(s.arpu)} sub="доход / клиент" color="text-indigo-500" />
+          <MetricCard index={13} icon={Award} label="По рефералу" value={fmt(s.withReferrer)} sub={`${s.totalClients > 0 ? Math.round((s.withReferrer / s.totalClients) * 100) : 0}% от всех`} color="text-pink-500" />
         </div>
       </section>
 
       {/* ═══ ТРИАЛЫ ═══ */}
       <section>
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Zap className="h-5 w-5 text-primary" />
-          Триалы
-        </h2>
-        <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-          <MetricCard icon={Zap} label="Всего триалов" value={fmt(s.trialUsedCount)} color="text-yellow-500" />
+        <SectionHeader icon={Zap} title="Триалы" subtitle="Пробный период и конверсия" />
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard index={14} icon={Zap} label="Всего триалов" value={fmt(s.trialUsedCount)} sub="активаций" color="text-yellow-500" />
           <MetricCard
+            index={15}
             icon={s.trialConversionRate > 20 ? ArrowUpRight : ArrowDownRight}
             label="Конверсия триал → покупка"
             value={`${s.trialConversionRate}%`}
@@ -188,88 +279,109 @@ export function AnalyticsPage() {
       <div className="grid gap-6 lg:grid-cols-2">
 
         {/* Доход по неделям */}
-        <ChartCard title="Доход по неделям (90 дн.)" icon={TrendingUp}>
+        <ChartCard index={16} title="Доход по неделям (90 дн.)" icon={TrendingUp}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={revenueWeekly}>
               <defs>
+                
+
                 <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                  <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} className="text-muted-foreground" />
-              <YAxis tick={{ fontSize: 11 }} className="text-muted-foreground" />
-              <Tooltip formatter={(v) => [fmt(Number(v ?? 0)), "Доход"]} />
-              <Area type="monotone" dataKey="value" stroke="#6366f1" fillOpacity={1} fill="url(#revGrad)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="stroke-slate-200 dark:stroke-white/10" />
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} className="text-slate-500" />
+              <YAxis tick={{ fontSize: 11 }} className="text-slate-500" />
+              <Tooltip
+                content={<CustomTooltip />}
+                formatter={(v) => [fmt(Number(v ?? 0)), "Доход"]}
+              />
+              <Area type="monotone" dataKey="value" stroke="hsl(var(--primary))" strokeWidth={2} fillOpacity={1} fill="url(#revGrad)"  />
             </AreaChart>
           </ResponsiveContainer>
         </ChartCard>
 
         {/* Новые пользователи */}
-        <ChartCard title="Новые пользователи по неделям (90 дн.)" icon={UserPlus}>
+        <ChartCard index={17} title="Новые пользователи по неделям (90 дн.)" icon={UserPlus}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={clientsWeekly}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} className="text-muted-foreground" />
-              <YAxis tick={{ fontSize: 11 }} className="text-muted-foreground" allowDecimals={false} />
-              <Tooltip formatter={(v) => [Number(v ?? 0), "Пользователей"]} />
-              <Bar dataKey="value" fill="#22c55e" radius={[4, 4, 0, 0]} />
+              
+              <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="stroke-slate-200 dark:stroke-white/10" />
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} className="text-slate-500" />
+              <YAxis tick={{ fontSize: 11 }} className="text-slate-500" allowDecimals={false} />
+              <Tooltip
+                content={<CustomTooltip />}
+                formatter={(v) => [Number(v ?? 0), "Пользователей"]}
+              />
+              <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]}  />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
 
         {/* Триалы по неделям */}
-        <ChartCard title="Триалы по неделям (90 дн.)" icon={Zap}>
+        <ChartCard index={18} title="Триалы по неделям (90 дн.)" icon={Zap}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={trialsWeekly}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} className="text-muted-foreground" />
-              <YAxis tick={{ fontSize: 11 }} className="text-muted-foreground" allowDecimals={false} />
-              <Tooltip formatter={(v) => [Number(v ?? 0), "Триалов"]} />
-              <Bar dataKey="value" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+              
+              <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="stroke-slate-200 dark:stroke-white/10" />
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} className="text-slate-500" />
+              <YAxis tick={{ fontSize: 11 }} className="text-slate-500" allowDecimals={false} />
+              <Tooltip
+                content={<CustomTooltip />}
+                formatter={(v) => [Number(v ?? 0), "Триалов"]}
+              />
+              <Bar dataKey="value" fill="#f59e0b" radius={[4, 4, 0, 0]}  />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
 
         {/* Реферальные выплаты по неделям */}
-        <ChartCard title="Реферальные выплаты по неделям (90 дн.)" icon={Award}>
+        <ChartCard index={19} title="Реферальные выплаты по неделям (90 дн.)" icon={Award}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={refCreditsWeekly}>
               <defs>
+                
+                
+
                 <linearGradient id="refGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#ec4899" stopOpacity={0.3} />
                   <stop offset="95%" stopColor="#ec4899" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} className="text-muted-foreground" />
-              <YAxis tick={{ fontSize: 11 }} className="text-muted-foreground" />
-              <Tooltip formatter={(v) => [fmtDec(Number(v ?? 0)), "Выплаты"]} />
-              <Area type="monotone" dataKey="value" stroke="#ec4899" fillOpacity={1} fill="url(#refGrad)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="stroke-slate-200 dark:stroke-white/10" />
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} className="text-slate-500" />
+              <YAxis tick={{ fontSize: 11 }} className="text-slate-500" />
+              <Tooltip
+                content={<CustomTooltip />}
+                formatter={(v) => [fmtDec(Number(v ?? 0)), "Выплаты"]}
+              />
+              <Area type="monotone" dataKey="value" stroke="#ec4899" strokeWidth={2} fillOpacity={1} fill="url(#refGrad)"  />
             </AreaChart>
           </ResponsiveContainer>
         </ChartCard>
 
         {/* Промо активации (ссылки + коды) */}
-        <ChartCard title="Промо активации по неделям (90 дн.)" icon={Gift}>
+        <ChartCard index={20} title="Промо активации по неделям (90 дн.)" icon={Gift}>
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={promoWeekly}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} className="text-muted-foreground" />
-              <YAxis tick={{ fontSize: 11 }} className="text-muted-foreground" allowDecimals={false} />
-              <Tooltip />
-              <Bar dataKey="v1" name="Промо-ссылки" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-              <Line type="monotone" dataKey="v2" name="Промокоды" stroke="#06b6d4" strokeWidth={2} dot={false} />
-              <Legend />
+              
+              <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="stroke-slate-200 dark:stroke-white/10" />
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} className="text-slate-500" />
+              <YAxis tick={{ fontSize: 11 }} className="text-slate-500" allowDecimals={false} />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar dataKey="v1" name="Промо-ссылки" fill="#8b5cf6" radius={[4, 4, 0, 0]}  />
+              <Line type="monotone" dataKey="v2" name="Промокоды" stroke="#06b6d4" strokeWidth={2} dot={false}  />
+              <Legend wrapperStyle={{ fontSize: "11px", color: "rgba(148,163,184,0.9)" }} />
             </ComposedChart>
           </ResponsiveContainer>
         </ChartCard>
 
         {/* Источники клиентов — пирог */}
-        <ChartCard title="Источники клиентов" icon={Users}>
+        <ChartCard index={21} title="Источники клиентов" icon={Users}>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
+              
               <Pie
                 data={[
                   { name: "Только бот", value: s.botClients },
@@ -281,25 +393,33 @@ export function AnalyticsPage() {
                 cx="50%"
                 cy="50%"
                 outerRadius={90}
+                stroke="hsl(var(--background))"
+                strokeWidth={2}
+                
                 label={({ name, percent }: { name?: string; percent?: number }) => `${name ?? ""} ${((percent ?? 0) * 100).toFixed(0)}%`}
               >
                 {[COLORS[0], COLORS[2], COLORS[1]].map((c, i) => (
                   <Cell key={i} fill={c} />
                 ))}
               </Pie>
-              <Tooltip formatter={(v) => [Number(v ?? 0), "Клиентов"]} />
-              <Legend />
+              <Tooltip
+                content={<CustomTooltip />}
+                formatter={(v) => [Number(v ?? 0), "Клиентов"]}
+              />
+              <Legend wrapperStyle={{ fontSize: "11px", color: "rgba(148,163,184,0.9)" }} />
             </PieChart>
           </ResponsiveContainer>
         </ChartCard>
 
         {/* Доход по провайдерам */}
-        <ChartCard title="Доход по способам оплаты (90 дн.)" icon={Tag}>
+        <ChartCard index={22} title="Доход по способам оплаты (90 дн.)" icon={Tag}>
           {data.providerSeries.length === 0 ? (
             <NoData />
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
+
+              
                 <Pie
                   data={data.providerSeries}
                   dataKey="amount"
@@ -307,31 +427,41 @@ export function AnalyticsPage() {
                   cx="50%"
                   cy="50%"
                   outerRadius={90}
+                stroke="hsl(var(--background))"
+                strokeWidth={2}
+                
                   label={({ name, percent }: { name?: string; percent?: number }) => `${name ?? ""} ${((percent ?? 0) * 100).toFixed(0)}%`}
                 >
                   {data.providerSeries.map((_, i) => (
                     <Cell key={i} fill={COLORS[i % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(v) => [fmt(Number(v ?? 0)), "Сумма"]} />
-                <Legend />
+                <Tooltip
+                  content={<CustomTooltip />}
+                  formatter={(v) => [fmt(Number(v ?? 0)), "Сумма"]}
+                />
+                <Legend wrapperStyle={{ fontSize: "11px", color: "rgba(148,163,184,0.9)" }} />
               </PieChart>
             </ResponsiveContainer>
           )}
         </ChartCard>
 
         {/* Топ тарифов */}
-        <ChartCard title="Топ тарифов по доходу (90 дн.)" icon={ShoppingCart}>
+        <ChartCard index={23} title="Топ тарифов по доходу (90 дн.)" icon={ShoppingCart}>
           {data.topTariffs.length === 0 ? (
             <NoData />
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.topTariffs} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis type="number" tick={{ fontSize: 11 }} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={130} />
-                <Tooltip formatter={(v: any) => [fmt(Number(v ?? 0)), "Доход"]} />
-                <Bar dataKey="revenue" fill="#6366f1" name="Доход" radius={[0, 4, 4, 0]} />
+              <BarChart data={data.topTariffs} layout="vertical" margin={{ top: 0, right: 0, left: 10, bottom: 0 }}>
+              
+                <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="stroke-slate-200 dark:stroke-white/10" />
+                <XAxis type="number" tick={{ fontSize: 11 }} className="text-slate-500" />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={110} className="text-slate-500" />
+                <Tooltip
+                  content={<CustomTooltip />}
+                  formatter={(v: any) => [fmt(Number(v ?? 0)), "Доход"]}
+                />
+                <Bar dataKey="revenue" fill="hsl(var(--primary))" name="Доход" radius={[0, 4, 4, 0]}  />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -340,81 +470,79 @@ export function AnalyticsPage() {
 
       {/* ═══ ИСТОЧНИКИ ТРАФИКА (UTM / КАМПАНИИ) ═══ */}
       <section>
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Target className="h-5 w-5 text-primary" />
-          Источники трафика (UTM)
-        </h2>
+        <SectionHeader icon={Target} title="Источники трафика (UTM)" subtitle="Статистика по рекламным кампаниям" />
         {!data.campaignsStats?.length ? (
-          <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">Нет данных по источникам. Используйте ссылки с utm_source, utm_campaign или бот с start=c_источник_кампания</CardContent></Card>
+          <GlassCard animIndex={24}>
+            <CardContent className="py-8 text-center text-sm font-mono text-muted-foreground uppercase tracking-widest">[ НЕТ_ДАННЫХ_ПО_ИСТОЧНИКАМ ]</CardContent>
+          </GlassCard>
         ) : (
-          <Card>
+          <GlassCard animIndex={24}>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm font-mono text-slate-800 dark:text-white/90">
                   <thead>
-                    <tr className="border-b bg-muted/50">
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Источник</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Кампания</th>
-                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">Регистрации</th>
-                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">Триалы</th>
-                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">Платежи</th>
-                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">Доход</th>
+                    <tr className="border-b border-slate-200 dark:border-[#2a2b2e] bg-slate-50/50 dark:bg-transparent text-xs tracking-widest uppercase text-slate-500 dark:text-slate-400">
+                      <th className="text-left px-4 py-3 font-medium">Источник</th>
+                      <th className="text-left px-4 py-3 font-medium">Кампания</th>
+                      <th className="text-right px-4 py-3 font-medium">Регистрации</th>
+                      <th className="text-right px-4 py-3 font-medium">Триалы</th>
+                      <th className="text-right px-4 py-3 font-medium">Платежи</th>
+                      <th className="text-right px-4 py-3 font-medium">Доход</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.campaignsStats.map((row, i) => (
-                      <tr key={i} className="border-b hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-3 font-medium">{row.source}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{row.campaign ?? "—"}</td>
+                      <tr key={i} className="border-b border-slate-100 dark:border-[#2a2b2e]/50 hover:bg-slate-50 dark:hover:bg-[#2a2b2e]/30 transition-colors">
+                        <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{row.source}</td>
+                        <td className="px-4 py-3 opacity-70">{row.campaign ?? "—"}</td>
                         <td className="px-4 py-3 text-right">{fmt(row.registrations)}</td>
                         <td className="px-4 py-3 text-right">{fmt(row.trials)}</td>
                         <td className="px-4 py-3 text-right">{fmt(row.payments)}</td>
-                        <td className="px-4 py-3 text-right font-medium text-green-600 dark:text-green-400">{fmtDec(row.revenue)}</td>
+                        <td className="px-4 py-3 text-right font-medium text-emerald-600 dark:text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]">{fmtDec(row.revenue)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             </CardContent>
-          </Card>
+          </GlassCard>
         )}
       </section>
 
       {/* ═══ ТОП РЕФЕРАЛОВ ═══ */}
       <section>
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Award className="h-5 w-5 text-primary" />
-          Топ рефералов
-        </h2>
+        <SectionHeader icon={Award} title="Топ рефералов" subtitle="Самые активные партнеры" />
         {data.topReferrers.length === 0 ? (
-          <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">Нет данных</CardContent></Card>
+          <GlassCard animIndex={25}>
+            <CardContent className="py-8 text-center text-sm font-mono text-muted-foreground uppercase tracking-widest">[ НЕТ_ДАННЫХ_ПО_РЕФЕРАЛАМ ]</CardContent>
+          </GlassCard>
         ) : (
-          <Card>
+          <GlassCard animIndex={25}>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm font-mono text-slate-800 dark:text-white/90">
                   <thead>
-                    <tr className="border-b bg-muted/50">
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">#</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Реферер</th>
-                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">Рефералов</th>
-                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">Заработок</th>
-                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">L1</th>
-                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">L2</th>
-                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">L3</th>
-                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">Начислений</th>
+                    <tr className="border-b border-slate-200 dark:border-[#2a2b2e] bg-slate-50/50 dark:bg-transparent text-xs tracking-widest uppercase text-slate-500 dark:text-slate-400">
+                      <th className="text-left px-4 py-3 font-medium">#</th>
+                      <th className="text-left px-4 py-3 font-medium">Реферер</th>
+                      <th className="text-right px-4 py-3 font-medium">Рефералов</th>
+                      <th className="text-right px-4 py-3 font-medium">Заработок</th>
+                      <th className="text-right px-4 py-3 font-medium opacity-70">L1</th>
+                      <th className="text-right px-4 py-3 font-medium opacity-70">L2</th>
+                      <th className="text-right px-4 py-3 font-medium opacity-70">L3</th>
+                      <th className="text-right px-4 py-3 font-medium">Начислений</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.topReferrers.map((r, i) => (
-                      <tr key={r.id} className="border-b hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-3 text-muted-foreground">{i + 1}</td>
-                        <td className="px-4 py-3 font-medium">{r.name}</td>
+                      <tr key={r.id} className="border-b border-slate-100 dark:border-[#2a2b2e]/50 hover:bg-slate-50 dark:hover:bg-[#2a2b2e]/30 transition-colors">
+                        <td className="px-4 py-3 opacity-50">{i + 1}</td>
+                        <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{r.name}</td>
                         <td className="px-4 py-3 text-right">{r.referrals}</td>
-                        <td className="px-4 py-3 text-right font-medium text-green-600 dark:text-green-400">{fmtDec(r.earnings)}</td>
-                        <td className="px-4 py-3 text-right text-muted-foreground">{fmtDec(r.l1)}</td>
-                        <td className="px-4 py-3 text-right text-muted-foreground">{fmtDec(r.l2)}</td>
-                        <td className="px-4 py-3 text-right text-muted-foreground">{fmtDec(r.l3)}</td>
+                        <td className="px-4 py-3 text-right font-medium text-emerald-600 dark:text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]">{fmtDec(r.earnings)}</td>
+                        <td className="px-4 py-3 text-right opacity-70">{fmtDec(r.l1)}</td>
+                        <td className="px-4 py-3 text-right opacity-70">{fmtDec(r.l2)}</td>
+                        <td className="px-4 py-3 text-right opacity-70">{fmtDec(r.l3)}</td>
                         <td className="px-4 py-3 text-right">{r.credits}</td>
                       </tr>
                     ))}
@@ -422,49 +550,48 @@ export function AnalyticsPage() {
                 </table>
               </div>
             </CardContent>
-          </Card>
+          </GlassCard>
         )}
       </section>
 
       {/* ═══ ПРОМО СТАТИСТИКА ═══ */}
       <section>
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Gift className="h-5 w-5 text-primary" />
-          Промо-статистика
-        </h2>
-        <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 mb-4">
-          <MetricCard icon={Gift} label="Промо-ссылки активаций" value={fmt(s.promoActivations)} color="text-violet-500" />
-          <MetricCard icon={Tag} label="Промокоды использований" value={fmt(s.promoCodeUsages)} color="text-cyan-500" />
-          <MetricCard icon={Percent} label="Реферальные выплаты" value={fmtDec(s.totalReferralPaid)} color="text-pink-500" />
+        <SectionHeader icon={Gift} title="Промо-статистика" subtitle="Активации кодов и ссылок" />
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-3 mb-6">
+          <MetricCard index={26} icon={Gift} label="Промо-ссылки активаций" value={fmt(s.promoActivations)} color="text-violet-500" />
+          <MetricCard index={27} icon={Tag} label="Промокоды использований" value={fmt(s.promoCodeUsages)} color="text-cyan-500" />
+          <MetricCard index={28} icon={Percent} label="Реферальные выплаты" value={fmtDec(s.totalReferralPaid)} color="text-pink-500" />
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Промо-ссылки */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Промо-ссылки (топ 10)</CardTitle>
+          <GlassCard animIndex={29}>
+            <CardHeader className="pb-2 relative pt-4 px-5">
+              <CardTitle className="text-sm font-mono tracking-widest uppercase text-slate-800 dark:text-slate-300">
+                <span className="text-slate-400 dark:text-[#4a4b4e]">[</span> Промо-ссылки (топ 10) <span className="text-slate-400 dark:text-[#4a4b4e]">]</span>
+              </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {data.promoGroupStats.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">Нет данных</p>
+                <p className="text-sm text-muted-foreground text-center py-8 font-mono tracking-widest uppercase opacity-50">[ НЕТ_ДАННЫХ ]</p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm font-mono text-slate-800 dark:text-white/90">
                     <thead>
-                      <tr className="border-b bg-muted/50">
-                        <th className="text-left px-4 py-2 font-medium text-muted-foreground">Название</th>
-                        <th className="text-left px-4 py-2 font-medium text-muted-foreground">Код</th>
-                        <th className="text-right px-4 py-2 font-medium text-muted-foreground">Активаций</th>
-                        <th className="text-right px-4 py-2 font-medium text-muted-foreground">Лимит</th>
+                      <tr className="border-b border-slate-200 dark:border-[#2a2b2e] bg-slate-50/50 dark:bg-transparent text-xs tracking-widest uppercase text-slate-500 dark:text-slate-400">
+                        <th className="text-left px-4 py-3 font-medium">Название</th>
+                        <th className="text-left px-4 py-3 font-medium">Код</th>
+                        <th className="text-right px-4 py-3 font-medium">Активаций</th>
+                        <th className="text-right px-4 py-3 font-medium">Лимит</th>
                       </tr>
                     </thead>
                     <tbody>
                       {data.promoGroupStats.map((g) => (
-                        <tr key={g.code} className="border-b hover:bg-muted/30">
-                          <td className="px-4 py-2">{g.name}</td>
-                          <td className="px-4 py-2 font-mono text-xs">{g.code}</td>
-                          <td className="px-4 py-2 text-right font-medium">{g.activations}</td>
-                          <td className="px-4 py-2 text-right text-muted-foreground">{g.maxActivations || "∞"}</td>
+                        <tr key={g.code} className="border-b border-slate-100 dark:border-[#2a2b2e]/50 hover:bg-slate-50 dark:hover:bg-[#2a2b2e]/30 transition-colors">
+                          <td className="px-4 py-3 text-slate-900 dark:text-white font-medium">{g.name}</td>
+                          <td className="px-4 py-3 text-xs text-primary/80">{g.code}</td>
+                          <td className="px-4 py-3 text-right font-medium">{g.activations}</td>
+                          <td className="px-4 py-3 text-right opacity-50">{g.maxActivations || "∞"}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -472,40 +599,44 @@ export function AnalyticsPage() {
                 </div>
               )}
             </CardContent>
-          </Card>
+          </GlassCard>
 
           {/* Промокоды */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Промокоды (топ 10)</CardTitle>
+          <GlassCard animIndex={30}>
+            <CardHeader className="pb-2 relative pt-4 px-5">
+              <CardTitle className="text-sm font-mono tracking-widest uppercase text-slate-800 dark:text-slate-300">
+                <span className="text-slate-400 dark:text-[#4a4b4e]">[</span> Промокоды (топ 10) <span className="text-slate-400 dark:text-[#4a4b4e]">]</span>
+              </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {data.promoCodeStats.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">Нет данных</p>
+                <p className="text-sm text-muted-foreground text-center py-8 font-mono tracking-widest uppercase opacity-50">[ НЕТ_ДАННЫХ ]</p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm font-mono text-slate-800 dark:text-white/90">
                     <thead>
-                      <tr className="border-b bg-muted/50">
-                        <th className="text-left px-4 py-2 font-medium text-muted-foreground">Код</th>
-                        <th className="text-left px-4 py-2 font-medium text-muted-foreground">Тип</th>
-                        <th className="text-right px-4 py-2 font-medium text-muted-foreground">Использований</th>
-                        <th className="text-right px-4 py-2 font-medium text-muted-foreground">Лимит</th>
+                      <tr className="border-b border-slate-200 dark:border-[#2a2b2e] bg-slate-50/50 dark:bg-transparent text-xs tracking-widest uppercase text-slate-500 dark:text-slate-400">
+                        <th className="text-left px-4 py-3 font-medium">Код</th>
+                        <th className="text-left px-4 py-3 font-medium">Тип</th>
+                        <th className="text-right px-4 py-3 font-medium">Использований</th>
+                        <th className="text-right px-4 py-3 font-medium">Лимит</th>
                       </tr>
                     </thead>
                     <tbody>
                       {data.promoCodeStats.map((c) => (
-                        <tr key={c.code} className="border-b hover:bg-muted/30">
-                          <td className="px-4 py-2 font-mono text-xs">{c.code}</td>
-                          <td className="px-4 py-2">
-                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                              c.type === "DISCOUNT" ? "bg-green-500/15 text-green-700 dark:text-green-400" : "bg-blue-500/15 text-blue-700 dark:text-blue-400"
+                        <tr key={c.code} className="border-b border-slate-100 dark:border-[#2a2b2e]/50 hover:bg-slate-50 dark:hover:bg-[#2a2b2e]/30 transition-colors">
+                          <td className="px-4 py-3 text-xs text-primary/80">{c.code}</td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center border px-2 py-0.5 text-[10px] tracking-widest uppercase font-bold ${
+                              c.type === "DISCOUNT" 
+                                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]" 
+                                : "border-cyan-500/30 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.1)]"
                             }`}>
-                              {c.type === "DISCOUNT" ? "Скидка" : "Дни"}
+                              {c.type === "DISCOUNT" ? "СКИДКА" : "ДНИ"}
                             </span>
                           </td>
-                          <td className="px-4 py-2 text-right font-medium">{c.usages}</td>
-                          <td className="px-4 py-2 text-right text-muted-foreground">{c.maxUses || "∞"}</td>
+                          <td className="px-4 py-3 text-right font-medium">{c.usages}</td>
+                          <td className="px-4 py-3 text-right opacity-50">{c.maxUses || "∞"}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -513,52 +644,147 @@ export function AnalyticsPage() {
                 </div>
               )}
             </CardContent>
-          </Card>
+          </GlassCard>
         </div>
       </section>
-    </div>
+    </motion.div>
   );
 }
 
 // ─── Компоненты ───
 
-function MetricCard({ icon: Icon, label, value, sub, color }: { icon: React.ElementType; label: string; value: string | number; sub?: string; color?: string }) {
-  return (
-    <Card>
-      <CardContent className="pt-5 pb-4 px-4">
-        <div className="flex items-start gap-3">
-          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted ${color ?? "text-primary"}`}>
-            <Icon className="h-4 w-4" />
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white/90 dark:bg-slate-950/90 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 backdrop-blur-md px-3 py-2 rounded-lg shadow-xl text-xs font-mono z-50">
+        {label && <p className="font-bold mb-1.5 opacity-80 border-b border-slate-200 dark:border-white/10 pb-1">{label}</p>}
+        {payload.map((entry: any, index: number) => (
+          <div key={index} className="flex items-center justify-between gap-4 py-0.5">
+            <div className="flex items-center gap-1.5">
+              <div 
+                className="w-2 h-2 rounded-full shadow-[0_0_5px_currentColor]" 
+                style={{ 
+                  backgroundColor: entry.color || entry.payload?.fill || 'hsl(var(--primary))',
+                  color: entry.color || entry.payload?.fill || 'hsl(var(--primary))'
+                }} 
+              />
+              <span className="opacity-80">{entry.name}</span>
+            </div>
+            <span className="font-bold">{entry.value}</span>
           </div>
-          <div className="min-w-0">
-            <p className="text-[11px] text-muted-foreground leading-tight truncate">{label}</p>
-            <p className="text-lg font-bold leading-tight mt-0.5">{value}</p>
-            {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
+
+
+function MetricCard({
+  index = 0,
+  icon: Icon,
+  label,
+  value,
+  sub,
+  color: _color,
+}: {
+  index?: number;
+  icon: React.ElementType;
+  label: string;
+  value: string | number;
+  sub?: string;
+  color?: string;
+}) {
+  const theme = {
+    borderHover: "hover:border-slate-300 dark:hover:border-[#3a3b3e]",
+    shadowHover: "hover:shadow-md dark:hover:shadow-xl",
+    bracket: "text-slate-400 dark:text-[#4a4b4e]",
+    title: "text-slate-600 dark:text-slate-400",
+    iconBg: "bg-slate-100 dark:bg-[#2a2b2e]",
+    iconBorder: "border-slate-200 dark:border-[#3a3b3e]",
+    iconText: "text-slate-600 dark:text-slate-400",
+    subtitle: "text-slate-500 dark:text-slate-500",
+    valueGlow: "",
+  };
+
+  const renderValue = () => {
+    if (typeof value === "string" && value.includes(" / ")) {
+      const parts = value.split(" / ");
+      return (
+        <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+          {parts.map((part, i) => (
+            <Fragment key={i}>
+              <div className={`px-2 py-0.5 rounded bg-slate-100 dark:bg-[#2a2b2e] border border-slate-200 dark:border-[#3a3b3e] text-lg sm:text-xl font-black tracking-tight text-slate-900 dark:text-white ${theme.valueGlow}`}>
+                {part}
+              </div>
+              {i < parts.length - 1 && (
+                <span className="text-slate-400 dark:text-slate-600 font-bold text-sm">/</span>
+              )}
+            </Fragment>
+          ))}
+        </div>
+      );
+    }
+    return (
+      <div className={`text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white mb-1.5 ${theme.valueGlow}`}>
+        {value}
+      </div>
+    );
+  };
+
+   return (
+     <motion.div custom={index} variants={cardVariants} initial="hidden" animate="visible" className="h-full">
+       <Card className={`group relative h-full overflow-hidden !bg-white dark:!bg-[#262730] shadow-sm border !border-slate-200 dark:!border-[#3A3B42] hover:-translate-y-1 transition-all duration-500 font-mono flex flex-col ${theme.borderHover} ${theme.shadowHover}`}>
+         
+         <div className="p-4 sm:p-5 flex flex-col h-full justify-between relative z-10 min-h-[120px]">
+          <div className="flex justify-between items-start w-full mb-4">
+            <div className="flex items-center gap-1.5 overflow-hidden pr-2 mt-1">
+              <span className={`${theme.bracket} text-[10px] sm:text-xs font-bold`}>[</span>
+              <h3 className={`text-[10px] sm:text-xs font-bold tracking-[0.1em] uppercase ${theme.title} truncate`}>{label}</h3>
+              <span className={`${theme.bracket} text-[10px] sm:text-xs font-bold`}>]</span>
+            </div>
+            <motion.div
+              className={`relative flex items-center justify-center w-8 h-8 rounded-md border ${theme.iconBg} ${theme.iconBorder}`}
+              whileHover={{ scale: 1.1, rotate: 5 }}
+              transition={{ type: "spring", stiffness: 400, damping: 10 }}
+            >
+              <Icon className={`w-4 h-4 ${theme.iconText}`} />
+            </motion.div>
+          </div>
+          
+          <div className="mt-auto">
+            {renderValue()}
+            <div className={`text-[9px] sm:text-[10px] tracking-widest uppercase font-semibold ${theme.subtitle} flex items-center gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity`}>
+              <span className={`${theme.bracket} opacity-70`}>&gt;</span>
+              <span className="truncate">{sub || "DATA_POINT"}</span>
+            </div>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </Card>
+    </motion.div>
   );
 }
 
-function ChartCard({ title, icon: Icon, children }: { title: string; icon: React.ElementType; children: React.ReactNode }) {
+function ChartCard({ title, icon: Icon, children, index = 0 }: { title: string; icon: React.ElementType; children: React.ReactNode; index?: number }) {
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Icon className="h-5 w-5 text-primary" />
+    <GlassCard animIndex={index} className="flex flex-col">
+      <CardHeader className="pb-2 relative pt-4 px-5">
+        <CardTitle className="flex items-center gap-2 text-sm font-mono tracking-widest uppercase text-slate-800 dark:text-slate-300">
+          <span className="text-slate-400 dark:text-[#4a4b4e]">[</span>
+          <Icon className="h-4 w-4 text-slate-600 dark:text-slate-400" />
           {title}
+          <span className="text-slate-400 dark:text-[#4a4b4e]">]</span>
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="h-72">{children}</div>
+      <CardContent className="pt-2 pb-5 px-5 relative flex-1">
+        <div className="h-72 w-full">{children}</div>
       </CardContent>
-    </Card>
+    </GlassCard>
   );
 }
 
 function NoData() {
-  return <p className="text-sm text-muted-foreground py-8 text-center h-72 flex items-center justify-center">Нет данных</p>;
+  return <p className="text-sm text-slate-500 dark:text-primary/60 py-8 text-center h-72 flex items-center justify-center tracking-widest uppercase font-mono">[ НЕТ_ДАННЫХ ]</p>;
 }
 
 // ─── Утилиты ───

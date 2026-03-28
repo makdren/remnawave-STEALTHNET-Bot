@@ -100,8 +100,9 @@ export async function syncFromRemna(): Promise<{
           const existing = existingByUuid || existingByTg || existingByEmail;
 
           if (existing) {
-            const data: { remnawaveUuid: string; telegramId?: string; email?: string | null; telegramUsername?: string } = {
+            const data: { remnawaveUuid: string; telegramId?: string; email?: string | null; telegramUsername?: string; trialUsed?: boolean } = {
               remnawaveUuid: uuid,
+              trialUsed: true,
             };
             if (telegramId) {
               const otherWithTg = await prisma.client.findFirst({
@@ -133,6 +134,7 @@ export async function syncFromRemna(): Promise<{
                 preferredLang: defaultLang,
                 preferredCurrency: defaultCurrency,
                 autoRenewEnabled: config.defaultAutoRenewEnabled ?? false,
+                trialUsed: true,
               },
             });
             result.created++;
@@ -299,7 +301,7 @@ export async function createRemnaUsersForClientsWithoutUuid(): Promise<{
       if (uuid) {
         await prisma.client.update({
           where: { id: c.id },
-          data: { remnawaveUuid: uuid },
+          data: { remnawaveUuid: uuid, trialUsed: true },
         });
       } else {
         result.errors.push(`Client ${c.id}: не удалось получить или создать UUID в Remna`);
