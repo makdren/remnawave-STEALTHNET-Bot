@@ -23,6 +23,7 @@ import { adminReferralsRouter } from "./modules/admin/referrals.routes.js";
 import { trafficAbuseRouter } from "./modules/admin/traffic-abuse.routes.js";
 import { apiKeysAdminRouter } from "./modules/api-keys/api-keys.admin.routes.js";
 import { externalApiRouter } from "./modules/api-keys/external-api.routes.js";
+import { geoMapRouter } from "./modules/geo-map/geo-map.routes.js";
 
 const app = express();
 
@@ -122,6 +123,7 @@ app.use("/api/admin", adminRouter);
 app.use("/api/admin/referrals", adminReferralsRouter);
 app.use("/api/admin/traffic-abuse", trafficAbuseRouter);
 app.use("/api/admin/api-keys", apiKeysAdminRouter);
+app.use("/api/admin/geo-map", geoMapRouter);
 app.use("/api/admin/contests", contestAdminRouter);
 app.use("/api/admin/proxy", proxyAdminRouter);
 app.use("/api/admin/singbox", singboxAdminRouter);

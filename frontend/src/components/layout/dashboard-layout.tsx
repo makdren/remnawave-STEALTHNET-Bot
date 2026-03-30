@@ -5,51 +5,65 @@ import {
   Shield, LayoutDashboard, Users, CreditCard, Settings, LogOut, KeyRound,
   Megaphone, Tag, BarChart3, FileText, ExternalLink, Sun, Moon, Monitor,
   Palette, Menu, X, Database, Target, UserCog, Send, CalendarClock, Globe, Server, MessageSquare, Trophy,
-  Network, ShieldAlert, Key,
+  Network, ShieldAlert, Key, Map, Video, Languages,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { useAdminLanguageSync } from "@/i18n/use-language-sync";
 import { useAuth } from "@/contexts/auth";
 import { useTheme, ACCENT_PALETTES, type ThemeMode, type ThemeAccent } from "@/contexts/theme";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { api, type AdminNotificationCounters } from "@/lib/api";
 
-const PANEL_VERSION = "3.2.7";
+const PANEL_VERSION = "3.2.8";
 const GITHUB_URL = "https://github.com/systemmaster1200-eng/remnawave-STEALTHNET-Bot";
 
-const navWithSections: { to: string; label: string; icon: typeof LayoutDashboard; section: string; category: string }[] = [
-  { to: "/admin", label: "Дашборд", icon: LayoutDashboard, section: "dashboard", category: "ОБЗОР" },
-  { to: "/admin/analytics", label: "Аналитика", icon: BarChart3, section: "analytics", category: "ОБЗОР" },
-  { to: "/admin/sales-report", label: "Отчёты продаж", icon: FileText, section: "sales-report", category: "ОБЗОР" },
-  { to: "/admin/traffic-abuse", label: "Анализ трафика", icon: ShieldAlert, section: "analytics", category: "ОБЗОР" },
-  { to: "/admin/clients", label: "Клиенты", icon: Users, section: "clients", category: "УПРАВЛЕНИЕ" },
-  { to: "/admin/proxy", label: "Прокси", icon: Globe, section: "proxy", category: "УПРАВЛЕНИЕ" },
-  { to: "/admin/singbox", label: "Sing-box", icon: Server, section: "singbox", category: "УПРАВЛЕНИЕ" },
-  { to: "/admin/backup", label: "Бэкапы", icon: Database, section: "backup", category: "УПРАВЛЕНИЕ" },
-  { to: "/admin/tickets", label: "Тикеты", icon: MessageSquare, section: "tickets", category: "УПРАВЛЕНИЕ" },
-  { to: "/admin/tariffs", label: "Тарифы", icon: CreditCard, section: "tariffs", category: "ПОДПИСКА" },
-  { to: "/admin/promo", label: "Промо-ссылки", icon: Megaphone, section: "promo", category: "ПОДПИСКА" },
-  { to: "/admin/promo-codes", label: "Промокоды", icon: Tag, section: "promo-codes", category: "ПОДПИСКА" },
-  { to: "/admin/marketing", label: "Маркетинг", icon: Target, section: "marketing", category: "ПОДПИСКА" },
-  { to: "/admin/referral-network", label: "Реф. сеть", icon: Network, section: "clients", category: "ПОДПИСКА" },
-  { to: "/admin/broadcast", label: "Рассылка", icon: Send, section: "broadcast", category: "ИНСТРУМЕНТЫ" },
-  { to: "/admin/auto-broadcast", label: "Авто-рассылка", icon: CalendarClock, section: "auto-broadcast", category: "ИНСТРУМЕНТЫ" },
-  { to: "/admin/contests", label: "Конкурсы", icon: Trophy, section: "contests", category: "ИНСТРУМЕНТЫ" },
-  { to: "/admin/settings", label: "Настройки", icon: Settings, section: "settings", category: "НАСТРОЙКИ" },
-  { to: "/admin/admins", label: "Менеджеры", icon: UserCog, section: "admins", category: "НАСТРОЙКИ" },
-  { to: "/admin/api-keys", label: "API Ключи", icon: Key, section: "settings", category: "НАСТРОЙКИ" },
-];
+type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; section: string; category: string };
+
+const CATEGORY_ORDER = ["overview", "management", "subscription", "tools", "settings"];
+
+const CATEGORY_I18N: Record<string, string> = {
+  overview: "admin.nav.category_overview",
+  management: "admin.nav.category_management",
+  subscription: "admin.nav.category_subscription",
+  tools: "admin.nav.category_tools",
+  settings: "admin.nav.category_settings",
+};
+
+function useNavSections(): NavItem[] {
+  const { t } = useTranslation();
+  return [
+    { to: "/admin", label: t("admin.nav.dashboard"), icon: LayoutDashboard, section: "dashboard", category: "overview" },
+    { to: "/admin/analytics", label: t("admin.nav.analytics"), icon: BarChart3, section: "analytics", category: "overview" },
+    { to: "/admin/sales-report", label: t("admin.nav.sales_report"), icon: FileText, section: "sales-report", category: "overview" },
+    { to: "/admin/traffic-abuse", label: t("admin.nav.traffic_abuse"), icon: ShieldAlert, section: "analytics", category: "overview" },
+    { to: "/admin/geo-map", label: t("admin.nav.geo_map"), icon: Map, section: "analytics", category: "overview" },
+    { to: "/admin/clients", label: t("admin.nav.clients"), icon: Users, section: "clients", category: "management" },
+    { to: "/admin/proxy", label: t("admin.nav.proxy"), icon: Globe, section: "proxy", category: "management" },
+    { to: "/admin/singbox", label: t("admin.nav.singbox"), icon: Server, section: "singbox", category: "management" },
+    { to: "/admin/backup", label: t("admin.nav.backups"), icon: Database, section: "backup", category: "management" },
+    { to: "/admin/tickets", label: t("admin.nav.tickets"), icon: MessageSquare, section: "tickets", category: "management" },
+    { to: "/admin/tariffs", label: t("admin.nav.tariffs"), icon: CreditCard, section: "tariffs", category: "subscription" },
+    { to: "/admin/promo", label: t("admin.nav.promo_links"), icon: Megaphone, section: "promo", category: "subscription" },
+    { to: "/admin/promo-codes", label: t("admin.nav.promo_codes"), icon: Tag, section: "promo-codes", category: "subscription" },
+    { to: "/admin/marketing", label: t("admin.nav.marketing"), icon: Target, section: "marketing", category: "subscription" },
+    { to: "/admin/referral-network", label: t("admin.nav.referral_network"), icon: Network, section: "clients", category: "subscription" },
+    { to: "/admin/video-instructions", label: t("admin.nav.video_instructions"), icon: Video, section: "video-instructions", category: "tools" },
+    { to: "/admin/broadcast", label: t("admin.nav.broadcast"), icon: Send, section: "broadcast", category: "tools" },
+    { to: "/admin/auto-broadcast", label: t("admin.nav.auto_broadcast"), icon: CalendarClock, section: "auto-broadcast", category: "tools" },
+    { to: "/admin/contests", label: t("admin.nav.contests"), icon: Trophy, section: "contests", category: "tools" },
+    { to: "/admin/settings", label: t("admin.nav.settings"), icon: Settings, section: "settings", category: "settings" },
+    { to: "/admin/languages", label: t("admin.nav.languages"), icon: Languages, section: "settings", category: "settings" },
+    { to: "/admin/admins", label: t("admin.nav.managers"), icon: UserCog, section: "admins", category: "settings" },
+    { to: "/admin/api-keys", label: t("admin.nav.api_keys"), icon: Key, section: "settings", category: "settings" },
+  ];
+}
 
 function canAccessSection(role: string, allowedSections: string[] | undefined, section: string): boolean {
   if (role === "ADMIN") return true;
   if (section === "admins") return false;
   return Array.isArray(allowedSections) && allowedSections.includes(section);
 }
-
-const MODE_OPTIONS: { value: ThemeMode; icon: typeof Sun; label: string }[] = [
-  { value: "light", icon: Sun, label: "Светлая" },
-  { value: "dark", icon: Moon, label: "Тёмная" },
-  { value: "system", icon: Monitor, label: "Система" },
-];
 
 function isNavActive(pathname: string, to: string): boolean {
   if (to === "/admin") return pathname === "/admin";
@@ -62,20 +76,21 @@ function isNavActive(pathname: string, to: string): boolean {
 }
 
 function NavItems({ onClick }: { onClick?: () => void }) {
+  const { t } = useTranslation();
   const location = useLocation();
   const admin = useAuth().state.admin;
+  const allNav = useNavSections();
   const nav = admin
-    ? navWithSections.filter((item) => canAccessSection(admin.role, admin.allowedSections, item.section))
-    : navWithSections;
+    ? allNav.filter((item) => canAccessSection(admin.role, admin.allowedSections, item.section))
+    : allNav;
 
   const groupedNav = nav.reduce((acc, item) => {
     if (!acc[item.category]) acc[item.category] = [];
     acc[item.category].push(item);
     return acc;
-  }, {} as Record<string, typeof navWithSections>);
+  }, {} as Record<string, NavItem[]>);
 
-  const categoryOrder = ["ОБЗОР", "УПРАВЛЕНИЕ", "ПОДПИСКА", "ИНСТРУМЕНТЫ", "НАСТРОЙКИ"];
-  const sortedCategories = Object.keys(groupedNav).sort((a, b) => categoryOrder.indexOf(a) - categoryOrder.indexOf(b));
+  const sortedCategories = Object.keys(groupedNav).sort((a, b) => CATEGORY_ORDER.indexOf(a) - CATEGORY_ORDER.indexOf(b));
 
   return (
     <>
@@ -84,7 +99,7 @@ function NavItems({ onClick }: { onClick?: () => void }) {
           {index > 0 && <div className="mx-6 mb-4 border-t border-dotted border-white/10 dark:border-white/20"></div>}
           <div className="flex items-center gap-2 px-6 mb-2">
             <div className="w-[2px] h-[12px] bg-primary"></div>
-            <div className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">{category}</div>
+            <div className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">{t(CATEGORY_I18N[category] ?? category)}</div>
           </div>
           <div className="space-y-1.5 px-3">
             {groupedNav[category].map((item) => {
@@ -117,8 +132,16 @@ function NavItems({ onClick }: { onClick?: () => void }) {
 }
 
 export function DashboardLayout() {
+  const { t } = useTranslation();
+  useAdminLanguageSync();
   const { state, logout } = useAuth();
   const { config: themeConfig, setMode, setAccent } = useTheme();
+
+  const MODE_OPTIONS: { value: ThemeMode; icon: typeof Sun; label: string }[] = [
+    { value: "light", icon: Sun, label: t("admin.header.theme_light") },
+    { value: "dark", icon: Moon, label: t("admin.header.theme_dark") },
+    { value: "system", icon: Monitor, label: t("admin.header.theme_system") },
+  ];
   const navigate = useNavigate();
   const location = useLocation();
   const [brand, setBrand] = useState<{ serviceName: string; logo: string | null }>({ serviceName: "", logo: null });
@@ -172,10 +195,10 @@ export function DashboardLayout() {
           const newPayments = data.totalTariffPayments - last.totalTariffPayments;
           const newTopups = data.totalBalanceTopups - last.totalBalanceTopups;
           const newTickets = data.totalTickets - last.totalTickets;
-          if (newClients > 0) pushToast(newClients === 1 ? "Новый клиент зарегистрировался" : `+${newClients} новых клиентов`, "\u{1F464}");
-          if (newPayments > 0) pushToast(newPayments === 1 ? "Новая оплата тарифа" : `+${newPayments} оплат тарифов`, "\u{1F4E6}");
-          if (newTopups > 0) pushToast(newTopups === 1 ? "Пополнение баланса" : `+${newTopups} пополнений баланса`, "\u{1F4B0}");
-          if (newTickets > 0) pushToast(newTickets === 1 ? "Новый тикет" : `+${newTickets} новых тикетов`, "\u{1F4AC}");
+          if (newClients > 0) pushToast(newClients === 1 ? t("admin.header.notification_new_client") : t("admin.header.notification_new_clients", { newClients }), "\u{1F464}");
+          if (newPayments > 0) pushToast(newPayments === 1 ? t("admin.header.notification_new_payment") : t("admin.header.notification_new_payments", { newPayments }), "\u{1F4E6}");
+          if (newTopups > 0) pushToast(newTopups === 1 ? t("admin.header.notification_new_topup") : t("admin.header.notification_new_topups", { newTopups }), "\u{1F4B0}");
+          if (newTickets > 0) pushToast(newTickets === 1 ? t("admin.header.notification_new_ticket") : t("admin.header.notification_new_tickets", { newTickets }), "\u{1F4AC}");
         }
         lastCountersRef.current = data;
       } catch { /* ignore */ }
@@ -221,13 +244,13 @@ export function DashboardLayout() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
-            [ ONLINE ]
+            {t("admin.header.online")}
           </div>
           <div className="text-xs font-mono text-muted-foreground truncate px-3 py-1 mb-2">{state.admin?.email}</div>
           <Link to="/admin/change-password" className="block">
             <Button variant="ghost" size="sm" className="w-full justify-start gap-2 hover:bg-primary/10 hover:text-primary transition-all font-mono text-[13px]">
               <KeyRound className="h-4 w-4" />
-              Изменить пароль
+              {t("admin.header.change_password")}
             </Button>
           </Link>
           <Button 
@@ -237,7 +260,7 @@ export function DashboardLayout() {
             onClick={handleLogout}
           >
             <LogOut className="h-4 w-4" />
-            [ ВЫЙТИ ]
+            {t("admin.header.logout")}
           </Button>
         </div>
       </aside>
@@ -272,13 +295,13 @@ export function DashboardLayout() {
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                   </span>
-                  [ ONLINE ]
+                  {t("admin.header.online")}
                 </div>
                 <div className="text-xs font-mono text-muted-foreground truncate px-3 py-1 mb-2">{state.admin?.email}</div>
                 <Link to="/admin/change-password" className="block" onClick={() => setMobileMenuOpen(false)}>
                   <Button variant="ghost" size="sm" className="w-full justify-start gap-2 hover:bg-primary/10 hover:text-primary transition-all font-mono text-[13px]">
                     <KeyRound className="h-4 w-4" />
-                    Изменить пароль
+                    {t("admin.header.change_password")}
                   </Button>
                 </Link>
                 <Button 
@@ -288,7 +311,7 @@ export function DashboardLayout() {
                   onClick={handleLogout}
                 >
                   <LogOut className="h-4 w-4" />
-                  [ ВЫЙТИ ]
+                  {t("admin.header.logout")}
                 </Button>
               </div>
             </motion.aside>
@@ -298,24 +321,24 @@ export function DashboardLayout() {
 
       {/* ═══ Main content ═══ */}
       <main className="flex-1 min-w-0 flex flex-col md:pl-[290px] w-full relative z-10">
-        <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between gap-2 px-4 md:pr-6 md:-ml-[290px] md:pl-[calc(290px+1.5rem)] bg-card/60 backdrop-blur-xl border-b border-white/10 md:border-r rounded-none md:rounded-br-[2rem] shadow-sm md:mr-6 transition-all">
-          <div className="flex items-center gap-2 min-w-0">
+        <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between gap-2 px-4 md:px-6 bg-background/70 backdrop-blur-xl border-b border-border/40 transition-all">
+          <div className="flex items-center gap-3 min-w-0">
             <Button variant="ghost" size="icon" className="md:hidden shrink-0" onClick={() => setMobileMenuOpen(true)}>
               <Menu className="h-5 w-5" />
             </Button>
-            {brand.serviceName ? <span className="text-sm text-muted-foreground md:hidden truncate">{brand.serviceName}</span> : null}
+            {brand.serviceName ? <span className="text-sm font-medium text-muted-foreground md:hidden truncate">{brand.serviceName}</span> : null}
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             <div className="relative">
-              <Button variant="ghost" size="sm" className="gap-1.5 text-xs h-8 px-2" onClick={() => setShowThemePanel(!showThemePanel)}>
+              <Button variant="ghost" size="sm" className="gap-1.5 text-xs h-8 px-2.5 rounded-lg" onClick={() => setShowThemePanel(!showThemePanel)}>
                 <Palette className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Тема</span>
+                <span className="hidden sm:inline">{t("admin.header.theme")}</span>
               </Button>
               {showThemePanel && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowThemePanel(false)} />
-                  <div className="absolute right-0 top-full z-50 mt-1 w-72 rounded-xl border bg-card p-4 shadow-xl">
-                    <p className="text-xs font-medium text-muted-foreground mb-2">Режим</p>
+                  <div className="absolute right-0 top-full z-50 mt-2 w-72 rounded-xl border bg-card/95 backdrop-blur-xl p-4 shadow-xl">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">{t("admin.header.mode")}</p>
                     <div className="flex gap-1 mb-4">
                       {MODE_OPTIONS.map((opt) => (
                         <button key={opt.value} onClick={() => setMode(opt.value)}
@@ -325,7 +348,7 @@ export function DashboardLayout() {
                         </button>
                       ))}
                     </div>
-                    <p className="text-xs font-medium text-muted-foreground mb-2">Акцент</p>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">{t("admin.header.accent")}</p>
                     <div className="grid grid-cols-4 gap-2">
                       {(Object.entries(ACCENT_PALETTES) as [ThemeAccent, typeof ACCENT_PALETTES["default"]][]).map(([key, palette]) => (
                         <button key={key} onClick={() => setAccent(key)}
@@ -342,11 +365,11 @@ export function DashboardLayout() {
             </div>
             <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer"
               className="hidden sm:flex items-center gap-1.5 rounded-full border bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent">
-              <Shield className="h-3 w-3" />Версия {PANEL_VERSION}<ExternalLink className="h-3 w-3 opacity-50" />
+              <Shield className="h-3 w-3" />{t("admin.header.version")} {PANEL_VERSION}<ExternalLink className="h-3 w-3 opacity-50" />
             </a>
           </div>
         </header>
-        <div className="flex-1 px-4 md:px-6 pb-6 animate-in fade-in duration-300 relative z-10">
+        <div className="flex-1 px-4 md:px-6 pt-6 pb-6 animate-in fade-in duration-300 relative z-10">
           <Outlet />
         </div>
       </main>

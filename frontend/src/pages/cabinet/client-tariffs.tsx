@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import { Package, Calendar, Wifi, Smartphone, CreditCard, Loader2, Gift, Tag, Check, Wallet, ChevronDown, Shield, Zap, ArrowLeft } from "lucide-react";
 import { useClientAuth } from "@/contexts/client-auth";
@@ -33,6 +34,7 @@ function formatMoney(amount: number, currency: string) {
 type TariffForPay = { id: string; name: string; price: number; currency: string; description?: string | null; durationDays?: number; trafficLimitBytes?: number | null; trafficResetMode?: string; deviceLimit?: number | null };
 
 export function ClientTariffsPage() {
+  const { t } = useTranslation();
   const { state, refreshProfile } = useClientAuth();
   const token = state.token;
   const client = state.client;
@@ -94,7 +96,7 @@ export function ClientTariffsPage() {
       await api.clientActivateTrial(token);
       await refreshProfile();
     } catch (e) {
-      setTrialError(e instanceof Error ? e.message : "Ошибка активации тестового доступа");
+      setTrialError(e instanceof Error ? e.message : t("cabinet.tariffs.error_trial"));
     } finally {
       setTrialLoading(false);
     }
@@ -120,7 +122,7 @@ export function ClientTariffsPage() {
         return;
       }
     } catch (e) {
-      setPromoError(e instanceof Error ? e.message : "Ошибка");
+      setPromoError(e instanceof Error ? e.message : t("cabinet.tariffs.error_promo"));
       setPromoResult(null);
     } finally {
       setPromoChecking(false);
@@ -157,7 +159,7 @@ export function ClientTariffsPage() {
       setPromoResult(null);
       openPaymentInBrowser(res.paymentUrl);
     } catch (e) {
-      setPayError(e instanceof Error ? e.message : "Ошибка создания платежа");
+      setPayError(e instanceof Error ? e.message : t("cabinet.tariffs.error_payment"));
     } finally {
       setPayLoading(false);
     }
@@ -178,7 +180,7 @@ export function ClientTariffsPage() {
       alert(res.message);
       await refreshProfile();
     } catch (e) {
-      setPayError(e instanceof Error ? e.message : "Ошибка оплаты");
+      setPayError(e instanceof Error ? e.message : t("cabinet.tariffs.error_payment"));
     } finally {
       setPayLoading(false);
     }
@@ -187,7 +189,7 @@ export function ClientTariffsPage() {
   async function startYoomoneyPayment(tariff: TariffForPay) {
     if (!token) return;
     if (tariff.currency.toUpperCase() !== "RUB") {
-      setPayError("ЮMoney принимает только рубли. Выберите тариф в RUB или оплатите картой Platega.");
+      setPayError(t("cabinet.tariffs.error_yoomoney_rub"));
       return;
     }
     setPayError(null);
@@ -204,7 +206,7 @@ export function ClientTariffsPage() {
       setPromoResult(null);
       if (res.paymentUrl) openPaymentInBrowser(res.paymentUrl);
     } catch (e) {
-      setPayError(e instanceof Error ? e.message : "Ошибка создания платежа");
+      setPayError(e instanceof Error ? e.message : t("cabinet.tariffs.error_payment"));
     } finally {
       setPayLoading(false);
     }
@@ -213,7 +215,7 @@ export function ClientTariffsPage() {
   async function startYookassaPayment(tariff: TariffForPay) {
     if (!token) return;
     if (tariff.currency.toUpperCase() !== "RUB") {
-      setPayError("ЮKassa принимает только рубли (RUB).");
+      setPayError(t("cabinet.tariffs.error_yookassa_rub"));
       return;
     }
     setPayError(null);
@@ -230,7 +232,7 @@ export function ClientTariffsPage() {
       setPromoResult(null);
       if (res.confirmationUrl) openPaymentInBrowser(res.confirmationUrl);
     } catch (e) {
-      setPayError(e instanceof Error ? e.message : "Ошибка создания платежа");
+      setPayError(e instanceof Error ? e.message : t("cabinet.tariffs.error_payment"));
     } finally {
       setPayLoading(false);
     }
@@ -252,7 +254,7 @@ export function ClientTariffsPage() {
       setPromoResult(null);
       if (res.payUrl) openPaymentInBrowser(res.payUrl);
     } catch (e) {
-      setPayError(e instanceof Error ? e.message : "Ошибка создания платежа");
+      setPayError(e instanceof Error ? e.message : t("cabinet.tariffs.error_payment"));
     } finally {
       setPayLoading(false);
     }
@@ -274,7 +276,7 @@ export function ClientTariffsPage() {
       setPromoResult(null);
       if (res.payUrl) openPaymentInBrowser(res.payUrl);
     } catch (e) {
-      setPayError(e instanceof Error ? e.message : "Ошибка создания платежа");
+      setPayError(e instanceof Error ? e.message : t("cabinet.tariffs.error_payment"));
     } finally {
       setPayLoading(false);
     }
@@ -303,7 +305,7 @@ export function ClientTariffsPage() {
           <div className="flex justify-between items-start gap-4 relative z-10">
             <div className="space-y-1.5">
               <p className={cn("font-medium", isMobileOrMiniapp ? "text-sm text-muted-foreground" : "text-muted-foreground")}>
-                {isMobileOrMiniapp ? "Итого к оплате" : "Тариф:"}
+                {isMobileOrMiniapp ? t("cabinet.tariffs.total") : t("cabinet.tariffs.tariff_label")}
               </p>
               {!isMobileOrMiniapp && <p className="font-bold text-foreground">{tariff.name}</p>}
               
@@ -338,17 +340,17 @@ export function ClientTariffsPage() {
           {isMobileOrMiniapp && (
             <div className="mt-4 pt-4 border-t border-white/5 grid grid-cols-2 gap-3 relative z-10">
               <div className="bg-background/40 rounded-2xl p-3 border border-white/5">
-                <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider mb-1">Срок</p>
+                <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider mb-1">{t("cabinet.tariffs.duration_label")}</p>
                 <div className="flex items-center gap-1.5 font-bold text-sm">
                   <Calendar className="h-4 w-4 text-primary" />
-                  {tariff.durationDays} дн.
+                  {tariff.durationDays} {t("cabinet.tariffs.days_short")}
                 </div>
               </div>
               <div className="bg-background/40 rounded-2xl p-3 border border-white/5">
-                <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider mb-1">Трафик</p>
+                <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider mb-1">{t("cabinet.tariffs.traffic_label")}</p>
                 <div className="flex items-center gap-1.5 font-bold text-sm">
                   <Wifi className="h-4 w-4 text-primary" />
-                  {tariff.trafficLimitBytes != null && tariff.trafficLimitBytes > 0 ? `${(tariff.trafficLimitBytes / 1024 / 1024 / 1024).toFixed(1)} ГБ${tariff.trafficResetMode === "monthly" ? "/мес" : ""}` : "∞"}
+                  {tariff.trafficLimitBytes != null && tariff.trafficLimitBytes > 0 ? `${(tariff.trafficLimitBytes / 1024 / 1024 / 1024).toFixed(1)} ${t("cabinet.tariffs.gb_unit")}${tariff.trafficResetMode === "monthly" || tariff.trafficResetMode === "monthly_rolling" ? t("cabinet.tariffs.per_month") : ""}` : "∞"}
                 </div>
               </div>
             </div>
@@ -360,7 +362,7 @@ export function ClientTariffsPage() {
           {!isMobileOrMiniapp && <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />}
           <div className="flex items-center gap-2 text-sm font-bold text-foreground pl-1 relative z-10">
             {isMobileOrMiniapp ? <Tag className="h-4 w-4 text-primary" /> : <div className="p-1.5 bg-primary/10 rounded-lg"><Tag className="h-4 w-4 text-primary" /></div>}
-            Промокод
+            {t("cabinet.tariffs.promo_code")}
           </div>
           <div className="flex gap-2 relative z-10">
             <Input
@@ -369,7 +371,7 @@ export function ClientTariffsPage() {
               inputMode="text"
               value={promoInput}
               onChange={(e) => { setPromoInput(e.target.value); if (promoResult) { setPromoResult(null); setPromoError(null); } }}
-              placeholder="Введите промокод"
+              placeholder={t("cabinet.tariffs.promo_placeholder")}
               className={cn("font-mono font-medium focus-visible:ring-primary/50", isMobileOrMiniapp ? "text-base bg-card/40 border-white/5 h-14 rounded-2xl" : "text-sm bg-background border-border/50 h-12 rounded-xl shadow-sm")}
               disabled={payLoading || promoChecking}
             />
@@ -379,7 +381,7 @@ export function ClientTariffsPage() {
               disabled={!promoInput.trim() || payLoading || promoChecking}
               className={cn("shrink-0 font-bold bg-primary text-primary-foreground shadow-md transition-all hover:scale-105 active:scale-95", isMobileOrMiniapp ? "h-14 px-6 rounded-2xl text-base" : "h-12 px-5 rounded-xl text-sm border-0 hover:bg-primary/90")}
             >
-              {promoChecking ? <Loader2 className="h-5 w-5 animate-spin" /> : "Применить"}
+              {promoChecking ? <Loader2 className="h-5 w-5 animate-spin" /> : t("cabinet.tariffs.promo_apply")}
             </Button>
           </div>
           <AnimatePresence>
@@ -409,7 +411,7 @@ export function ClientTariffsPage() {
         <div className={cn("space-y-3")}>
           <div className="flex items-center gap-2 pt-2 pb-1">
             <Wallet className={cn("text-primary", isMobileOrMiniapp ? "h-5 w-5" : "h-4 w-4")} />
-            <span className={cn("font-bold", isMobileOrMiniapp ? "text-lg" : "text-sm")}>Способ оплаты</span>
+            <span className={cn("font-bold", isMobileOrMiniapp ? "text-lg" : "text-sm")}>{t("cabinet.tariffs.payment_method")}</span>
           </div>
 
           {payError && (
@@ -432,7 +434,7 @@ export function ClientTariffsPage() {
                   <>
                     <div className="flex items-center gap-3">
                       {payLoading ? <Loader2 className="h-6 w-6 text-white animate-spin" /> : <Wallet className="h-6 w-6 text-white" />}
-                      <span className="text-base font-bold text-white">Оплатить с баланса</span>
+                      <span className="text-base font-bold text-white">{t("cabinet.tariffs.pay_balance")}</span>
                     </div>
                     <span className="text-white/80 font-mono font-medium bg-black/20 px-2 py-1 rounded-lg">
                       {formatMoney(client.balance, tariff.currency)}
@@ -441,7 +443,7 @@ export function ClientTariffsPage() {
                 ) : (
                   <>
                     {payLoading ? <Loader2 className="h-5 w-5 animate-spin relative z-10" /> : <Wallet className="h-5 w-5 relative z-10" />}
-                    <span className="text-base font-semibold relative z-10">Оплатить с баланса</span>
+                    <span className="text-base font-semibold relative z-10">{t("cabinet.tariffs.pay_balance")}</span>
                     <span className="opacity-90 font-medium ml-1 bg-black/10 px-2 py-0.5 rounded-md relative z-10">
                       ({formatMoney(client.balance, payModal.tariff.currency)})
                     </span>
@@ -470,7 +472,7 @@ export function ClientTariffsPage() {
                     <div className="absolute left-6 p-1.5 rounded-lg bg-yellow-500/10 group-hover:bg-yellow-500/20 transition-colors">
                       {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-yellow-500" /> : <Zap className="h-5 w-5 text-yellow-500" />}
                     </div>
-                    <span className="text-base font-medium">⚡ Crypto Bot (Криптовалюта)</span>
+                    <span className="text-base font-medium">⚡ Crypto Bot ({t("cabinet.tariffs.crypto")})</span>
                   </>
                 )}
               </Button>
@@ -496,7 +498,7 @@ export function ClientTariffsPage() {
                     <div className="absolute left-6 p-1.5 rounded-lg bg-orange-500/10 group-hover:bg-orange-500/20 transition-colors">
                       {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-orange-500" /> : <Zap className="h-5 w-5 text-orange-500" />}
                     </div>
-                    <span className="text-base font-medium">⚡ Heleket (Криптовалюта)</span>
+                    <span className="text-base font-medium">⚡ Heleket ({t("cabinet.tariffs.crypto")})</span>
                   </>
                 )}
               </Button>
@@ -515,14 +517,14 @@ export function ClientTariffsPage() {
                     <div className="p-2 rounded-xl bg-green-500/10">
                       {payLoading ? <Loader2 className="h-6 w-6 animate-spin text-green-500" /> : <CreditCard className="h-6 w-6 text-green-500" />}
                     </div>
-                    <span className="text-base font-bold">СБП / Карты РФ</span>
+                    <span className="text-base font-bold">{t("cabinet.tariffs.sbp_cards_ru")}</span>
                   </>
                 ) : (
                   <>
                     <div className="absolute left-6 p-1.5 rounded-lg bg-green-500/10 group-hover:bg-green-500/20 transition-colors">
                       {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-green-500" /> : <CreditCard className="h-5 w-5 text-green-500" />}
                     </div>
-                    <span className="text-base font-medium">💳 СБП</span>
+                    <span className="text-base font-medium">💳 {t("cabinet.tariffs.sbp")}</span>
                   </>
                 )}
               </Button>
@@ -541,14 +543,14 @@ export function ClientTariffsPage() {
                     <div className="p-2 rounded-xl bg-green-500/10">
                       {payLoading ? <Loader2 className="h-6 w-6 animate-spin text-green-500" /> : <CreditCard className="h-6 w-6 text-green-500" />}
                     </div>
-                    <span className="text-base font-bold">ЮMoney / Карты</span>
+                    <span className="text-base font-bold">{t("cabinet.tariffs.yoomoney_cards")}</span>
                   </>
                 ) : (
                   <>
                     <div className="absolute left-6 p-1.5 rounded-lg bg-green-500/10 group-hover:bg-green-500/20 transition-colors">
                       {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-green-500" /> : <CreditCard className="h-5 w-5 text-green-500" />}
                     </div>
-                    <span className="text-base font-medium">💳 Карты</span>
+                    <span className="text-base font-medium">💳 {t("cabinet.tariffs.cards_label")}</span>
                   </>
                 )}
               </Button>
@@ -610,7 +612,7 @@ export function ClientTariffsPage() {
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-sm sm:text-base font-bold truncate text-foreground">Оплата тарифа</h2>
+                  <h2 className="text-sm sm:text-base font-bold truncate text-foreground">{t("cabinet.tariffs.payment_title")}</h2>
                   <p className="text-[11px] font-medium text-muted-foreground truncate">{payModal.tariff.name}</p>
                 </div>
               </div>
@@ -630,9 +632,9 @@ export function ClientTariffsPage() {
             className="space-y-8 max-w-6xl mx-auto"
           >
             <div className="flex flex-col gap-2">
-              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">Тарифы</h1>
+              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">{t("cabinet.tariffs.title")}</h1>
               <p className="text-muted-foreground text-[15px] font-medium max-w-2xl">
-                Выберите подходящий тариф и оплатите.
+                {t("cabinet.tariffs.subtitle")}
               </p>
             </div>
 
@@ -644,11 +646,11 @@ export function ClientTariffsPage() {
                       <Gift className="h-6 w-6" />
                     </div>
                     <div>
-                      <p className="font-bold text-lg text-foreground">Бесплатный Тест</p>
+                      <p className="font-bold text-lg text-foreground">{t("cabinet.tariffs.free_trial")}</p>
                       <p className="text-sm text-muted-foreground font-medium">
                         {trialConfig.trialDays > 0
-                          ? `${formatRuDays(trialConfig.trialDays)} бесплатного доступа`
-                          : "Бесплатный доступ"}
+                          ? `${formatRuDays(trialConfig.trialDays)} ${t("cabinet.tariffs.free_access")}`
+                          : t("cabinet.tariffs.free_access_0")}
                       </p>
                     </div>
                   </div>
@@ -658,7 +660,7 @@ export function ClientTariffsPage() {
                     disabled={trialLoading}
                   >
                     {trialLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Gift className="h-5 w-5" />}
-                    Бесплатный Тест
+                    {t("cabinet.tariffs.free_trial")}
                   </Button>
                 </CardContent>
                 {trialError && <p className="text-sm text-destructive px-6 pb-4 font-medium">{trialError}</p>}
@@ -673,7 +675,7 @@ export function ClientTariffsPage() {
               <Card className="rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl shadow-sm">
                 <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-4">
                   <Package className="h-12 w-12 opacity-20" />
-                  <p className="text-base font-medium text-center">Тарифы пока не опубликованы.<br />Обратитесь в поддержку.</p>
+                  <p className="text-base font-medium text-center">{t("cabinet.tariffs.empty")}</p>
                 </CardContent>
               </Card>
             ) : useCategoryCardLayout ? (
@@ -708,44 +710,44 @@ export function ClientTariffsPage() {
                       </CollapsibleTrigger>
                       <CollapsibleContent>
                         <div className="px-3 pb-4 pt-1 flex flex-col gap-3">
-                          {cat.tariffs.map((t) => (
-                            <Card key={t.id} className="rounded-2xl border border-border/50 bg-background/50 backdrop-blur-md shadow-sm hover:shadow-md transition-all duration-300">
+                          {cat.tariffs.map((tf) => (
+                            <Card key={tf.id} className="rounded-2xl border border-border/50 bg-background/50 backdrop-blur-md shadow-sm hover:shadow-md transition-all duration-300">
                               <CardContent className="flex flex-row items-center gap-4 py-4 px-4 min-h-0 min-w-0">
                                 <div className="flex-1 min-w-0 space-y-1.5">
-                                  <p className="text-[15px] font-bold leading-tight truncate text-foreground">{t.name}</p>
-                                  {t.description?.trim() ? (
-                                    <p className="text-xs text-muted-foreground font-medium line-clamp-2">{t.description}</p>
+                                  <p className="text-[15px] font-bold leading-tight truncate text-foreground">{tf.name}</p>
+                                  {tf.description?.trim() ? (
+                                    <p className="text-xs text-muted-foreground font-medium line-clamp-2">{tf.description}</p>
                                   ) : null}
                                   <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                                     <span className="flex items-center gap-1.5 bg-background/50 px-2 py-1 rounded-md border border-border/50">
                                       <Calendar className="h-3 w-3 text-primary" />
-                                      {t.durationDays} дн.
+                                      {tf.durationDays} {t("cabinet.tariffs.days_short")}
                                     </span>
                                     <span className="flex items-center gap-1.5 bg-background/50 px-2 py-1 rounded-md border border-border/50">
                                       <Wifi className="h-3 w-3 text-primary" />
-                                      {t.trafficLimitBytes != null && t.trafficLimitBytes > 0 ? `${(t.trafficLimitBytes / 1024 / 1024 / 1024).toFixed(1)} ГБ${t.trafficResetMode === "monthly" ? "/мес" : ""}` : "∞"}
+                                      {tf.trafficLimitBytes != null && tf.trafficLimitBytes > 0 ? `${(tf.trafficLimitBytes / 1024 / 1024 / 1024).toFixed(1)} ${t("cabinet.tariffs.gb_unit")}${tf.trafficResetMode === "monthly" || tf.trafficResetMode === "monthly_rolling" ? t("cabinet.tariffs.per_month") : ""}` : "∞"}
                                     </span>
                                     <span className="flex items-center gap-1.5 bg-background/50 px-2 py-1 rounded-md border border-border/50">
                                       <Smartphone className="h-3 w-3 text-primary" />
-                                      {t.deviceLimit != null && t.deviceLimit > 0 ? `${t.deviceLimit}` : "∞"}
+                                      {tf.deviceLimit != null && tf.deviceLimit > 0 ? `${tf.deviceLimit}` : "∞"}
                                     </span>
                                   </div>
                                 </div>
                                 <div className="flex flex-col items-center justify-center gap-2.5 shrink-0 min-w-[90px]">
-                                  <span className="text-lg font-bold tabular-nums whitespace-nowrap text-foreground" title={formatMoney(t.price, t.currency)}>
-                                    {formatMoney(t.price, t.currency)}
+                                  <span className="text-lg font-bold tabular-nums whitespace-nowrap text-foreground" title={formatMoney(tf.price, tf.currency)}>
+                                    {formatMoney(tf.price, tf.currency)}
                                   </span>
                                   {token ? (
                                     <Button
                                       size="sm"
                                       className="w-full h-9 rounded-xl shadow-md text-xs font-semibold gap-1.5 hover:scale-105 transition-transform"
-                                      onClick={() => setPayModal({ tariff: { ...t } })}
+                                      onClick={() => setPayModal({ tariff: { ...tf } })}
                                     >
                                       <CreditCard className="h-3.5 w-3.5 shrink-0" />
-                                      Оплатить
+                                      {t("cabinet.tariffs.pay")}
                                     </Button>
                                   ) : (
-                                    <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground bg-muted/50 px-2 py-1 rounded-md">В боте</span>
+                                    <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground bg-muted/50 px-2 py-1 rounded-md">{t("cabinet.tariffs.in_bot")}</span>
                                   )}
                                 </div>
                               </CardContent>
@@ -773,13 +775,13 @@ export function ClientTariffsPage() {
                       {cat.name}
                     </h2>
                     <div className="grid gap-4 sm:gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                      {cat.tariffs.map((t) => (
-                        <Card key={t.id} className="rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col group hover:-translate-y-1">
+                      {cat.tariffs.map((tf) => (
+                        <Card key={tf.id} className="rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col group hover:-translate-y-1">
                           <CardContent className="flex-1 flex flex-col p-5 min-h-0 min-w-0">
                             <div className="mb-4">
-                              <p className="text-lg font-bold leading-tight line-clamp-2 text-foreground group-hover:text-primary transition-colors">{t.name}</p>
-                              {t.description?.trim() ? (
-                                <p className="text-sm text-muted-foreground font-medium mt-1.5 line-clamp-2">{t.description}</p>
+                              <p className="text-lg font-bold leading-tight line-clamp-2 text-foreground group-hover:text-primary transition-colors">{tf.name}</p>
+                              {tf.description?.trim() ? (
+                                <p className="text-sm text-muted-foreground font-medium mt-1.5 line-clamp-2">{tf.description}</p>
                               ) : null}
                             </div>
 
@@ -788,42 +790,42 @@ export function ClientTariffsPage() {
                                 <div className="bg-primary/20 p-1.5 rounded-lg text-primary">
                                   <Calendar className="h-4 w-4 shrink-0" />
                                 </div>
-                                <span>{t.durationDays} дней</span>
+                                <span>{tf.durationDays} {t("cabinet.tariffs.days_label")}</span>
                               </div>
                               <div className="flex items-center gap-3 bg-background/50 px-3 py-2 rounded-xl border border-border/50">
                                 <div className="bg-primary/20 p-1.5 rounded-lg text-primary">
                                   <Wifi className="h-4 w-4 shrink-0" />
                                 </div>
                                 <span>
-                                  {t.trafficLimitBytes != null && t.trafficLimitBytes > 0
-                                    ? `${(t.trafficLimitBytes / 1024 / 1024 / 1024).toFixed(1)} ГБ${t.trafficResetMode === "monthly" ? "/мес" : ""}`
-                                    : "Безлимитный трафик"}
+                                  {tf.trafficLimitBytes != null && tf.trafficLimitBytes > 0
+                                    ? `${(tf.trafficLimitBytes / 1024 / 1024 / 1024).toFixed(1)} ${t("cabinet.tariffs.gb_unit")}${tf.trafficResetMode === "monthly" || tf.trafficResetMode === "monthly_rolling" ? t("cabinet.tariffs.per_month") : ""}`
+                                    : t("cabinet.tariffs.unlimited_traffic")}
                                 </span>
                               </div>
                               <div className="flex items-center gap-3 bg-background/50 px-3 py-2 rounded-xl border border-border/50">
                                 <div className="bg-primary/20 p-1.5 rounded-lg text-primary">
                                   <Smartphone className="h-4 w-4 shrink-0" />
                                 </div>
-                                <span>{t.deviceLimit != null && t.deviceLimit > 0 ? `${t.deviceLimit}` : "∞"} устройств</span>
+                                <span>{tf.deviceLimit != null && tf.deviceLimit > 0 ? `${tf.deviceLimit}` : "∞"} {t("cabinet.tariffs.devices")}</span>
                               </div>
                             </div>
 
                             <div className="pt-4 border-t border-border/50 mt-auto flex flex-col gap-3 min-w-0">
-                              <span className="text-2xl font-black tabular-nums truncate min-w-0 text-foreground text-center" title={formatMoney(t.price, t.currency)}>
-                                {formatMoney(t.price, t.currency)}
+                              <span className="text-2xl font-black tabular-nums truncate min-w-0 text-foreground text-center" title={formatMoney(tf.price, tf.currency)}>
+                                {formatMoney(tf.price, tf.currency)}
                               </span>
                               {token ? (
                                 <Button
                                   size="lg"
                                   className="w-full h-12 rounded-xl shadow-md text-[15px] font-bold gap-2 hover:scale-[1.02] transition-transform"
-                                  onClick={() => setPayModal({ tariff: { ...t } })}
+                                  onClick={() => setPayModal({ tariff: { ...tf } })}
                                 >
                                   <CreditCard className="h-5 w-5 shrink-0" />
-                                  Оплатить
+                                  {t("cabinet.tariffs.pay")}
                                 </Button>
                               ) : (
                                 <div className="w-full h-12 rounded-xl bg-muted/50 border border-border/50 flex items-center justify-center">
-                                  <span className="text-sm font-bold uppercase tracking-wider text-muted-foreground">В боте</span>
+                                  <span className="text-sm font-bold uppercase tracking-wider text-muted-foreground">{t("cabinet.tariffs.in_bot")}</span>
                                 </div>
                               )}
                             </div>
@@ -848,7 +850,7 @@ export function ClientTariffsPage() {
                 <div className="p-2 bg-primary/10 rounded-xl">
                   <Shield className="h-6 w-6 text-primary" />
                 </div>
-                Оплата тарифа
+                {t("cabinet.tariffs.payment_title")}
               </DialogTitle>
               <DialogDescription className="hidden" />
             </DialogHeader>
@@ -857,7 +859,7 @@ export function ClientTariffsPage() {
 
             <DialogFooter className="mt-4 sm:justify-center border-t border-border/50 pt-4">
               <Button variant="ghost" onClick={closePayment} disabled={payLoading} className="rounded-xl hover:bg-background/50 hover:text-foreground text-muted-foreground transition-colors">
-                Отмена
+                {t("cabinet.tariffs.cancel")}
               </Button>
             </DialogFooter>
           </DialogContent>

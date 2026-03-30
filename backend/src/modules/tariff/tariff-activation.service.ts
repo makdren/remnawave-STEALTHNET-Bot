@@ -68,10 +68,12 @@ function mergeSquads(tariffSquadUuids: string[], currentSquadUuids: string[]): s
   return [...tariffSquadUuids, ...extra];
 }
 
-export type TrafficResetMode = "no_reset" | "on_purchase" | "monthly";
+export type TrafficResetMode = "no_reset" | "on_purchase" | "monthly" | "monthly_rolling";
 
-function remnaStrategy(mode: TrafficResetMode): "NO_RESET" | "MONTH" {
-  return mode === "monthly" ? "MONTH" : "NO_RESET";
+function remnaStrategy(mode: TrafficResetMode): "NO_RESET" | "MONTH" | "MONTH_ROLLING" {
+  if (mode === "monthly") return "MONTH";
+  if (mode === "monthly_rolling") return "MONTH_ROLLING";
+  return "NO_RESET";
 }
 
 /**

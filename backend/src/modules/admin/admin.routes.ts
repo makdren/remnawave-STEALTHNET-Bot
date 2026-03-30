@@ -36,6 +36,9 @@ import {
   remnaGetUserByEmail,
   extractRemnaUuid,
   isRemnaConfigured,
+  remnaGetUserHwidDevices,
+  remnaDeleteUserHwidDevice,
+  remnaGetUserBandwidthStats,
 } from "../remna/remna.client.js";
 import { getSystemConfig } from "../client/client.service.js";
 import { getServerStats, getSshConfig, updateSshConfig } from "../server/server.service.js";
@@ -50,6 +53,7 @@ import {
 } from "../notification/telegram-notify.service.js";
 import { runRule, runAllRules, getEligibleClientIds } from "../auto-broadcast/auto-broadcast.service.js";
 import { testNalogConnection } from "../nalog/nalog.service.js";
+import { languageRouter } from "./language.routes.js";
 
 export const adminRouter = Router();
 adminRouter.use(requireAuth);
@@ -64,6 +68,8 @@ function asyncRoute(
 }
 
 registerBackupRoutes(adminRouter, asyncRoute);
+
+adminRouter.use("/languages", languageRouter);
 
 adminRouter.use(requireAdminSection);
 
@@ -499,7 +505,7 @@ adminRouter.delete("/tariff-categories/:id", async (req, res) => {
 
 // ——— Тарифы ———
 const tariffIdSchema = z.object({ id: z.string().min(1) });
-const TRAFFIC_RESET_MODES = ["no_reset", "on_purchase", "monthly"] as const;
+const TRAFFIC_RESET_MODES = ["no_reset", "on_purchase", "monthly", "monthly_rolling"] as const;
 const createTariffSchema = z.object({
   categoryId: z.string().min(1),
   name: z.string().min(1).max(255),
@@ -838,7 +844,7 @@ adminRouter.get("/clients/:id/remna", async (req, res) => {
 
 const remnaUpdateBodySchema = z.object({
   trafficLimitBytes: z.number().int().min(0).optional(),
-  trafficLimitStrategy: z.enum(["NO_RESET", "DAY", "WEEK", "MONTH"]).optional(),
+  trafficLimitStrategy: z.enum(["NO_RESET", "DAY", "WEEK", "MONTH", "MONTH_ROLLING"]).optional(),
   hwidDeviceLimit: z.number().int().min(0).nullable().optional(),
   expireAt: z.string().datetime().optional(),
   activeInternalSquads: z.array(z.string().uuid()).optional(),
@@ -973,6 +979,44 @@ adminRouter.post("/clients/:id/remna/squads/remove", async (req, res) => {
   return res.json(result.data ?? {});
 });
 
+adminRouter.get("/clients/:id/remna/devices", async (req, res) => {
+  const parsed = clientIdParam.safeParse(req.params);
+  if (!parsed.success) return res.status(400).json({ message: "Invalid client id" });
+  const remnaUuid = await getClientRemnaUuid(parsed.data.id);
+  if (!remnaUuid) return res.status(400).json({ message: "Клиент не привязан к Remna" });
+  const result = await remnaGetUserHwidDevices(remnaUuid);
+  if (result.error) return res.status(result.status >= 400 ? result.status : 500).json({ message: result.error });
+  return res.json(result.data ?? {});
+});
+
+const deleteDeviceSchema = z.object({ hwid: z.string().min(1) });
+
+adminRouter.post("/clients/:id/remna/devices/delete", async (req, res) => {
+  const parsed = clientIdParam.safeParse(req.params);
+  if (!parsed.success) return res.status(400).json({ message: "Invalid client id" });
+  const remnaUuid = await getClientRemnaUuid(parsed.data.id);
+  if (!remnaUuid) return res.status(400).json({ message: "Клиент не привязан к Remna" });
+  const body = deleteDeviceSchema.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ message: "Invalid input" });
+  const result = await remnaDeleteUserHwidDevice(remnaUuid, body.data.hwid);
+  if (result.error) return res.status(result.status >= 400 ? result.status : 500).json({ message: result.error });
+  return res.json(result.data ?? { success: true });
+});
+
+adminRouter.get("/clients/:id/remna/usage", async (req, res) => {
+  const parsed = clientIdParam.safeParse(req.params);
+  if (!parsed.success) return res.status(400).json({ message: "Invalid client id" });
+  const remnaUuid = await getClientRemnaUuid(parsed.data.id);
+  if (!remnaUuid) return res.status(400).json({ message: "Клиент не привязан к Remna" });
+  const days = Math.min(Math.max(parseInt(req.query.days as string) || 30, 1), 90);
+  const end = new Date();
+  const start = new Date(end.getTime() - days * 86400000);
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const result = await remnaGetUserBandwidthStats(remnaUuid, fmt(start), fmt(end));
+  if (result.error) return res.status(result.status >= 400 ? result.status : 500).json({ message: result.error });
+  return res.json(result.data ?? {});
+});
+
 // Настройки (языки, валюты, название сервиса) — для бота, mini app, сайта
 adminRouter.get("/settings", asyncRoute(async (_req, res) => {
   const config = await getSystemConfig();
@@ -1038,6 +1082,9 @@ const updateSettingsSchema = z.object({
   notificationTopicNewClients: z.string().max(50).nullable().optional(),
   notificationTopicPayments: z.string().max(50).nullable().optional(),
   notificationTopicTickets: z.string().max(50).nullable().optional(),
+  notificationTopicBackups: z.string().max(50).nullable().optional(),
+  autoBackupEnabled: z.boolean().optional(),
+  autoBackupCron: z.string().max(50).nullable().optional(),
   plategaMerchantId: z.string().max(200).nullable().optional(),
   plategaSecret: z.string().max(500).nullable().optional(),
   plategaMethods: z.string().max(2000).nullable().optional(),
@@ -1225,6 +1272,9 @@ const updateSettingsSchema = z.object({
   nalogPassword: z.string().max(200).nullable().optional(),
   nalogDeviceId: z.string().max(100).nullable().optional(),
   nalogServiceName: z.string().max(300).nullable().optional(),
+  geoMapEnabled: z.boolean().optional(),
+  geoCacheTtl: z.number().min(10).max(3600).optional(),
+  maxmindDbPath: z.string().max(500).nullable().optional(),
 });
 
 adminRouter.patch("/settings", async (req, res) => {
@@ -1422,12 +1472,27 @@ adminRouter.patch("/settings", async (req, res) => {
     ["notificationTopicNewClients", "notification_topic_new_clients"],
     ["notificationTopicPayments", "notification_topic_payments"],
     ["notificationTopicTickets", "notification_topic_tickets"],
+    ["notificationTopicBackups", "notification_topic_backups"],
   ];
   for (const [key, dbKey] of topicKeys) {
     if (updates[key] !== undefined) {
       const val = (String(updates[key] ?? "")).trim() || "";
       await prisma.systemSetting.upsert({ where: { key: dbKey }, create: { key: dbKey, value: val }, update: { value: val } });
     }
+  }
+  if (updates.autoBackupEnabled !== undefined) {
+    const val = updates.autoBackupEnabled ? "true" : "false";
+    await prisma.systemSetting.upsert({ where: { key: "auto_backup_enabled" }, create: { key: "auto_backup_enabled", value: val }, update: { value: val } });
+  }
+  if (updates.autoBackupCron !== undefined) {
+    const val = (updates.autoBackupCron ?? "").trim() || "";
+    await prisma.systemSetting.upsert({ where: { key: "auto_backup_cron" }, create: { key: "auto_backup_cron", value: val }, update: { value: val } });
+    const { restartAutoBackupScheduler } = await import("../backup/auto-backup.scheduler.js");
+    await restartAutoBackupScheduler();
+  }
+  if (updates.autoBackupEnabled !== undefined) {
+    const { restartAutoBackupScheduler } = await import("../backup/auto-backup.scheduler.js");
+    await restartAutoBackupScheduler();
   }
   if (updates.plategaMerchantId !== undefined) {
     const val = updates.plategaMerchantId ?? "";
@@ -1930,6 +1995,21 @@ adminRouter.patch("/settings", async (req, res) => {
     ["nalogServiceName", "nalog_service_name"],
   ];
   for (const [key, dbKey] of nalogKeys) {
+    const v = updates[key];
+    if (v === undefined) continue;
+    const val = typeof v === "boolean" ? (v ? "true" : "false") : (v === null ? "" : String(v));
+    await prisma.systemSetting.upsert({
+      where: { key: dbKey },
+      create: { key: dbKey, value: val },
+      update: { value: val },
+    });
+  }
+  const geoMapKeys: [keyof typeof updates, string][] = [
+    ["geoMapEnabled", "geo_map_enabled"],
+    ["geoCacheTtl", "geo_cache_ttl"],
+    ["maxmindDbPath", "maxmind_db_path"],
+  ];
+  for (const [key, dbKey] of geoMapKeys) {
     const v = updates[key];
     if (v === undefined) continue;
     const val = typeof v === "boolean" ? (v ? "true" : "false") : (v === null ? "" : String(v));
@@ -2869,14 +2949,144 @@ adminRouter.get("/analytics", async (_req, res) => {
 //  ОТЧЁТЫ ПРОДАЖ
 // ═══════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════
+//  АВТО-БЭКАП — ручной запуск
+// ═══════════════════════════════════════════════════════════════
+
+adminRouter.post("/backup/send-to-telegram", asyncRoute(async (_req, res) => {
+  const { runAutoBackup } = await import("../backup/auto-backup.scheduler.js");
+  try {
+    await runAutoBackup();
+    return res.json({ ok: true, message: "Бэкап создан и отправлен в Telegram" });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return res.status(500).json({ ok: false, message: msg });
+  }
+}));
+
+// ═══════════════════════════════════════════════════════════════
+//  ВИДЕО-ИНСТРУКЦИИ
+// ═══════════════════════════════════════════════════════════════
+
+adminRouter.get("/video-instructions", async (_req, res) => {
+  const [enabledRow, dataRow] = await Promise.all([
+    prisma.systemSetting.findUnique({ where: { key: "video_instructions_enabled" } }),
+    prisma.systemSetting.findUnique({ where: { key: "video_instructions" } }),
+  ]);
+  let items: { id: string; title: string; telegramFileId: string; sortOrder: number }[] = [];
+  try { items = JSON.parse(dataRow?.value || "[]"); } catch { /* empty */ }
+  return res.json({ enabled: enabledRow?.value === "true", items });
+});
+
+adminRouter.put("/video-instructions/toggle", async (req, res) => {
+  const enabled = req.body.enabled === true;
+  await prisma.systemSetting.upsert({
+    where: { key: "video_instructions_enabled" },
+    create: { key: "video_instructions_enabled", value: enabled ? "true" : "false" },
+    update: { value: enabled ? "true" : "false" },
+  });
+  return res.json({ ok: true, enabled });
+});
+
+adminRouter.post("/video-instructions", async (req, res) => {
+  const { title, telegramFileId } = req.body;
+  if (!title || !telegramFileId) return res.status(400).json({ error: "title and telegramFileId required" });
+
+  const row = await prisma.systemSetting.findUnique({ where: { key: "video_instructions" } });
+  let items: { id: string; title: string; telegramFileId: string; sortOrder: number }[] = [];
+  try { items = JSON.parse(row?.value || "[]"); } catch { /* empty */ }
+
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const sortOrder = items.length > 0 ? Math.max(...items.map((i) => i.sortOrder)) + 1 : 0;
+  items.push({ id, title: String(title).trim(), telegramFileId: String(telegramFileId).trim(), sortOrder });
+
+  await prisma.systemSetting.upsert({
+    where: { key: "video_instructions" },
+    create: { key: "video_instructions", value: JSON.stringify(items) },
+    update: { value: JSON.stringify(items) },
+  });
+  return res.json({ ok: true, items });
+});
+
+adminRouter.put("/video-instructions/:id", async (req, res) => {
+  const { id } = req.params;
+  const { title, telegramFileId } = req.body;
+
+  const row = await prisma.systemSetting.findUnique({ where: { key: "video_instructions" } });
+  let items: { id: string; title: string; telegramFileId: string; sortOrder: number }[] = [];
+  try { items = JSON.parse(row?.value || "[]"); } catch { /* empty */ }
+
+  const idx = items.findIndex((i) => i.id === id);
+  if (idx === -1) return res.status(404).json({ error: "not found" });
+
+  if (title !== undefined) items[idx].title = String(title).trim();
+  if (telegramFileId !== undefined) items[idx].telegramFileId = String(telegramFileId).trim();
+
+  await prisma.systemSetting.upsert({
+    where: { key: "video_instructions" },
+    create: { key: "video_instructions", value: JSON.stringify(items) },
+    update: { value: JSON.stringify(items) },
+  });
+  return res.json({ ok: true, items });
+});
+
+adminRouter.delete("/video-instructions/:id", async (req, res) => {
+  const { id } = req.params;
+
+  const row = await prisma.systemSetting.findUnique({ where: { key: "video_instructions" } });
+  let items: { id: string; title: string; telegramFileId: string; sortOrder: number }[] = [];
+  try { items = JSON.parse(row?.value || "[]"); } catch { /* empty */ }
+
+  items = items.filter((i) => i.id !== id);
+
+  await prisma.systemSetting.upsert({
+    where: { key: "video_instructions" },
+    create: { key: "video_instructions", value: JSON.stringify(items) },
+    update: { value: JSON.stringify(items) },
+  });
+  return res.json({ ok: true, items });
+});
+
+adminRouter.put("/video-instructions/reorder", async (req, res) => {
+  const { order } = req.body;
+  if (!Array.isArray(order)) return res.status(400).json({ error: "order must be an array of ids" });
+
+  const row = await prisma.systemSetting.findUnique({ where: { key: "video_instructions" } });
+  let items: { id: string; title: string; telegramFileId: string; sortOrder: number }[] = [];
+  try { items = JSON.parse(row?.value || "[]"); } catch { /* empty */ }
+
+  const sorted: typeof items = [];
+  for (let i = 0; i < order.length; i++) {
+    const found = items.find((it) => it.id === order[i]);
+    if (found) { found.sortOrder = i; sorted.push(found); }
+  }
+  for (const it of items) {
+    if (!sorted.includes(it)) sorted.push(it);
+  }
+
+  await prisma.systemSetting.upsert({
+    where: { key: "video_instructions" },
+    create: { key: "video_instructions", value: JSON.stringify(sorted) },
+    update: { value: JSON.stringify(sorted) },
+  });
+  return res.json({ ok: true, items: sorted });
+});
+
 adminRouter.get("/sales-report", async (req, res) => {
   const from = typeof req.query.from === "string" ? req.query.from : null;
   const to = typeof req.query.to === "string" ? req.query.to : null;
   const provider = typeof req.query.provider === "string" ? req.query.provider : null;
+  const search = typeof req.query.search === "string" ? req.query.search.trim() : null;
+  const status = typeof req.query.status === "string" ? req.query.status : null;
   const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
   const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50));
 
-  const where: Record<string, unknown> = { status: "PAID" };
+  const where: Record<string, unknown> = {};
+  if (status && status !== "all") {
+    where.status = status;
+  } else {
+    where.status = "PAID";
+  }
   if (from || to) {
     const paidAt: Record<string, Date> = {};
     if (from) paidAt.gte = new Date(from);
@@ -2884,6 +3094,15 @@ adminRouter.get("/sales-report", async (req, res) => {
     where.paidAt = paidAt;
   }
   if (provider) where.provider = provider;
+  if (search) {
+    where.OR = [
+      { orderId: { contains: search, mode: "insensitive" } },
+      { client: { email: { contains: search, mode: "insensitive" } } },
+      { client: { telegramUsername: { contains: search, mode: "insensitive" } } },
+      { client: { telegramId: search } },
+      { tariff: { name: { contains: search, mode: "insensitive" } } },
+    ];
+  }
 
   const [total, payments] = await Promise.all([
     prisma.payment.count({ where }),
@@ -2899,8 +3118,18 @@ adminRouter.get("/sales-report", async (req, res) => {
     }),
   ]);
 
-  // Суммы
   const agg = await prisma.payment.aggregate({ where, _sum: { amount: true }, _count: true });
+
+  const byCurrency: Record<string, { sum: number; count: number }> = {};
+  const byProvider: Record<string, number> = {};
+  for (const p of payments) {
+    const cur = p.currency ?? "RUB";
+    if (!byCurrency[cur]) byCurrency[cur] = { sum: 0, count: 0 };
+    byCurrency[cur].sum += p.amount;
+    byCurrency[cur].count += 1;
+    const prov = p.provider ?? "unknown";
+    byProvider[prov] = (byProvider[prov] ?? 0) + 1;
+  }
 
   return res.json({
     items: payments.map((p) => ({
@@ -2911,6 +3140,8 @@ adminRouter.get("/sales-report", async (req, res) => {
       provider: p.provider ?? "unknown",
       status: p.status,
       tariffName: p.tariff?.name ?? null,
+      tariffId: p.tariff?.id ?? null,
+      clientId: p.client?.id ?? null,
       clientEmail: p.client?.email ?? null,
       clientTelegramId: p.client?.telegramId ?? null,
       clientTelegramUsername: p.client?.telegramUsername ?? null,
@@ -2923,7 +3154,17 @@ adminRouter.get("/sales-report", async (req, res) => {
     limit,
     totalAmount: agg._sum.amount ?? 0,
     totalCount: agg._count,
+    byCurrency,
+    byProvider,
   });
+});
+
+adminRouter.delete("/sales-report/:paymentId", async (req, res) => {
+  const { paymentId } = req.params;
+  const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
+  if (!payment) return res.status(404).json({ error: "Платёж не найден" });
+  await prisma.payment.delete({ where: { id: paymentId } });
+  return res.json({ ok: true });
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -2942,8 +3183,10 @@ export const ADMIN_ALLOWED_SECTIONS = [
   "sales-report",
   "broadcast",
   "auto-broadcast",
+  "video-instructions",
   "backup",
   "settings",
+  "languages",
 ] as const;
 
 /** Список админов и менеджеров (только ADMIN). */

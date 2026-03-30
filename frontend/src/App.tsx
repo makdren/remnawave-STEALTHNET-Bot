@@ -22,6 +22,7 @@ import { AnalyticsPage } from "@/pages/analytics";
 import { MarketingPage } from "@/pages/marketing";
 import { AdminsPage } from "@/pages/admins";
 import { SalesReportPage } from "@/pages/sales-report";
+import { VideoInstructionsPage } from "@/pages/video-instructions";
 import { BackupPage } from "@/pages/backup";
 import { ContestsPage } from "@/pages/contests";
 import { AdminTicketsPage } from "@/pages/admin-tickets";
@@ -31,8 +32,10 @@ import { ReferralNetworkPage } from "@/pages/referral-network";
 import { TrafficAbusePage } from "@/pages/traffic-abuse";
 import { ApiKeysPage } from "@/pages/api-keys";
 import { ApiDocsPage } from "@/pages/api-docs";
+import { GeoMapPage } from "@/pages/geo-map";
 import { ProxyPage } from "@/pages/proxy";
 import { SingboxPage } from "@/pages/singbox";
+import LanguagesPage from "@/pages/languages";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { CabinetLayout } from "@/pages/cabinet/cabinet-layout";
 import { ClientLoginPage } from "@/pages/cabinet/client-login";
@@ -195,6 +198,7 @@ function AppRoutes() {
         <Route path="marketing" element={<ForceChangePassword><MarketingPage /></ForceChangePassword>} />
         <Route path="admins" element={<ForceChangePassword><AdminsPage /></ForceChangePassword>} />
         <Route path="sales-report" element={<ForceChangePassword><SalesReportPage /></ForceChangePassword>} />
+        <Route path="video-instructions" element={<ForceChangePassword><VideoInstructionsPage /></ForceChangePassword>} />
         <Route path="broadcast" element={<ForceChangePassword><BroadcastPage /></ForceChangePassword>} />
         <Route path="auto-broadcast" element={<ForceChangePassword><AutoBroadcastPage /></ForceChangePassword>} />
         <Route path="proxy" element={<ForceChangePassword><ProxyPage /></ForceChangePassword>} />
@@ -205,7 +209,9 @@ function AppRoutes() {
         <Route path="referral-network" element={<ForceChangePassword><ReferralNetworkPage /></ForceChangePassword>} />
         <Route path="traffic-abuse" element={<ForceChangePassword><TrafficAbusePage /></ForceChangePassword>} />
         <Route path="api-keys" element={<ForceChangePassword><ApiKeysPage /></ForceChangePassword>} />
+        <Route path="languages" element={<ForceChangePassword><LanguagesPage /></ForceChangePassword>} />
         <Route path="api-docs" element={<ForceChangePassword><ApiDocsPage /></ForceChangePassword>} />
+        <Route path="geo-map" element={<ForceChangePassword><GeoMapPage /></ForceChangePassword>} />
       </Route>
       {/* Онбординг — вне CabinetLayout (без навбара) */}
       <Route

@@ -3,7 +3,10 @@ import { useAuth } from "@/contexts/auth";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, Upload, AlertTriangle, Loader2, RotateCcw, HardDrive } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Download, Upload, AlertTriangle, Loader2, RotateCcw, HardDrive, Clock, Send } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -39,8 +42,61 @@ export function BackupPage() {
   const [list, setList] = useState<BackupItem[]>([]);
   const [listLoading, setListLoading] = useState(true);
 
+  const [autoBackupEnabled, setAutoBackupEnabled] = useState(false);
+  const [autoBackupCron, setAutoBackupCron] = useState("0 7 * * *");
+  const [autoBackupSaving, setAutoBackupSaving] = useState(false);
+  const [autoBackupSending, setAutoBackupSending] = useState(false);
+  const [autoBackupMsg, setAutoBackupMsg] = useState<string | null>(null);
+
   const token = state.accessToken;
   if (!token) return null;
+
+  async function loadAutoBackupSettings() {
+    const t = state.accessToken;
+    if (!t) return;
+    try {
+      const s = await api.getSettings(t);
+      setAutoBackupEnabled((s as any).autoBackupEnabled ?? false);
+      setAutoBackupCron((s as any).autoBackupCron || "0 7 * * *");
+    } catch { /* ignore */ }
+  }
+
+  async function saveAutoBackup() {
+    const t = state.accessToken;
+    if (!t) return;
+    setAutoBackupSaving(true);
+    try {
+      await api.updateSettings(t, {
+        autoBackupEnabled,
+        autoBackupCron: autoBackupCron.trim() || "0 7 * * *",
+      } as any);
+      flashAutoBackup(autoBackupEnabled ? "Авто-бэкапы включены" : "Авто-бэкапы выключены");
+    } catch {
+      flashAutoBackup("Ошибка сохранения");
+    } finally {
+      setAutoBackupSaving(false);
+    }
+  }
+
+  async function sendBackupNow() {
+    const t = state.accessToken;
+    if (!t) return;
+    setAutoBackupSending(true);
+    try {
+      const res = await api.sendBackupToTelegram(t);
+      flashAutoBackup(res.message || "Бэкап отправлен");
+      await loadList();
+    } catch (e) {
+      flashAutoBackup(e instanceof Error ? e.message : "Ошибка отправки");
+    } finally {
+      setAutoBackupSending(false);
+    }
+  }
+
+  function flashAutoBackup(msg: string) {
+    setAutoBackupMsg(msg);
+    setTimeout(() => setAutoBackupMsg(null), 4000);
+  }
 
   async function loadList() {
     const t = state.accessToken;
@@ -58,6 +114,7 @@ export function BackupPage() {
 
   useEffect(() => {
     loadList();
+    loadAutoBackupSettings();
   }, [state.accessToken]);
 
   async function handleCreateBackup() {
@@ -230,6 +287,72 @@ export function BackupPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Авто-бэкап в Telegram
+          </CardTitle>
+          <CardDescription>
+            Автоматическая отправка SQL-бэкапа в Telegram-группу по расписанию. Настройте топик «Авто-бэкапы» в разделе Настройки → Уведомления.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+                autoBackupEnabled ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground"
+              )}>
+                <Clock className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-medium text-sm">{autoBackupEnabled ? "Авто-бэкапы включены" : "Авто-бэкапы выключены"}</p>
+                <p className="text-xs text-muted-foreground">Бэкап отправляется в Telegram-группу по cron-расписанию</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setAutoBackupEnabled((v) => !v)}
+              className={cn(
+                "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                autoBackupEnabled ? "bg-emerald-500" : "bg-muted-foreground/30"
+              )}
+            >
+              <span className={cn(
+                "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg ring-0 transition-transform",
+                autoBackupEnabled ? "translate-x-5" : "translate-x-0"
+              )} />
+            </button>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Расписание (cron)</Label>
+            <Input
+              value={autoBackupCron}
+              onChange={(e) => setAutoBackupCron(e.target.value)}
+              placeholder="0 7 * * *"
+              className="max-w-xs font-mono text-sm h-8"
+            />
+            <p className="text-xs text-muted-foreground">
+              По умолчанию: <code className="bg-muted px-1 rounded">0 7 * * *</code> — каждый день в 7:00 UTC
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={saveAutoBackup} disabled={autoBackupSaving}>
+              {autoBackupSaving ? "Сохранение…" : "Сохранить"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={sendBackupNow} disabled={autoBackupSending} className="gap-1.5">
+              <Send className="h-3.5 w-3.5" />
+              {autoBackupSending ? "Отправка…" : "Отправить сейчас"}
+            </Button>
+            {autoBackupMsg && (
+              <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">{autoBackupMsg}</span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

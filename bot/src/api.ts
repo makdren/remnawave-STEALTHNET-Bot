@@ -127,6 +127,8 @@ export async function getPublicConfig(): Promise<{
   agreementLink?: string | null;
   offerLink?: string | null;
   instructionsLink?: string | null;
+  videoInstructionsEnabled?: boolean;
+  videoInstructions?: { id: string; title: string; telegramFileId: string; sortOrder: number }[];
   ticketsEnabled?: boolean;
   forceSubscribeEnabled?: boolean;
   forceSubscribeChannelId?: string | null;
@@ -142,6 +144,8 @@ export async function getPublicConfig(): Promise<{
   proxyUrl?: string | null;
   proxyTelegram?: boolean;
   proxyPayments?: boolean;
+  defaultLanguage?: string;
+  translations?: Record<string, Record<string, unknown>>;
 } | null> {
   return fetchJson("/api/public/config");
 }
@@ -158,7 +162,7 @@ export async function registerByTelegram(body: {
   utm_campaign?: string;
   utm_content?: string;
   utm_term?: string;
-}): Promise<{ token: string; client: { id: string; telegramUsername?: string | null; preferredCurrency: string; balance: number; trialUsed?: boolean; referralCode?: string | null } }> {
+}): Promise<{ token: string; client: { id: string; telegramUsername?: string | null; preferredLang?: string; preferredCurrency: string; balance: number; trialUsed?: boolean; referralCode?: string | null } }> {
   return fetchJson("/api/client/auth/register", { method: "POST", body });
 }
 

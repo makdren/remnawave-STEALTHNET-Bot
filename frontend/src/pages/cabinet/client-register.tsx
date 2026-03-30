@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { UserPlus, Shield, Mail, Loader2 } from "lucide-react";
 import { useClientAuth } from "@/contexts/client-auth";
@@ -78,6 +79,7 @@ declare global {
 }
 
 export function ClientRegisterPage() {
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [emailError, setEmailError] = useState("");
@@ -107,15 +109,15 @@ export function ClientRegisterPage() {
   const navigate = useNavigate();
 
   function validateEmail(value: string): string {
-    if (!value.trim()) return "Email обязателен";
+    if (!value.trim()) return t("cabinet.register.email_required");
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(value)) return "Введите корректный email";
+    if (!emailRegex.test(value)) return t("cabinet.register.email_invalid");
     return "";
   }
 
   function validatePassword(value: string): string {
-    if (!value) return "Пароль обязателен";
-    if (value.length < 6) return "Пароль должен быть минимум 6 символов";
+    if (!value) return t("cabinet.register.password_required");
+    if (value.length < 6) return t("cabinet.register.password_min_length");
     return "";
   }
 
@@ -195,7 +197,7 @@ export function ClientRegisterPage() {
         if (attempts > maxAttempts) {
           if (tgPollRef.current) clearInterval(tgPollRef.current);
           setTgAuthPending(false);
-          setError("Время ожидания истекло. Попробуйте снова.");
+          setError(t("cabinet.login.error_timeout"));
           return;
         }
         try {
@@ -213,9 +215,9 @@ export function ClientRegisterPage() {
       }, 2000);
     } catch (err) {
       setTgAuthPending(false);
-      setError(err instanceof Error ? err.message : "Ошибка авторизации через Telegram");
+      setError(err instanceof Error ? err.message : t("cabinet.login.error_telegram"));
     }
-  }, [telegramBotUsername, tgAuthPending, loginByTelegramDeepLink, navigate]);
+  }, [telegramBotUsername, tgAuthPending, loginByTelegramDeepLink, navigate, t]);
 
   // Обработка OAuth авторизации через Telegram (popup)
   const tgOAuthPopupRef = useRef<Window | null>(null);
@@ -238,9 +240,9 @@ export function ClientRegisterPage() {
         ...utm,
       })
         .then(() => navigate("/cabinet/dashboard", { replace: true }))
-        .catch((err: unknown) => setError(err instanceof Error ? err.message : "Ошибка авторизации через Telegram"));
+        .catch((err: unknown) => setError(err instanceof Error ? err.message : t("cabinet.login.error_telegram")));
     },
-    [registerByTelegram, navigate, refCode, utm],
+    [registerByTelegram, navigate, refCode, utm, t],
   );
 
   // Слушаем postMessage от попапа (Telegram шлёт JSON-строку с event:"auth_result")
@@ -353,9 +355,9 @@ export function ClientRegisterPage() {
     setLoading(true);
     loginByGoogle(idToken)
       .then(() => navigate("/cabinet/dashboard", { replace: true }))
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Ошибка Google"))
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : t("cabinet.login.error_google")))
       .finally(() => setLoading(false));
-  }, [loginByGoogle, navigate]);
+  }, [loginByGoogle, navigate, t]);
 
   const handleAppleLogin = useCallback(async () => {
     if (!appleEnabled) return;
@@ -377,10 +379,10 @@ export function ClientRegisterPage() {
       url.searchParams.set("state", state);
       window.location.href = url.toString();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка Apple");
+      setError(err instanceof Error ? err.message : t("cabinet.login.error_apple"));
       setLoading(false);
     }
-  }, [appleEnabled]);
+  }, [appleEnabled, t]);
 
   useEffect(() => {
     const hash = window.location.hash?.replace("#", "") || "";
@@ -393,9 +395,9 @@ export function ClientRegisterPage() {
     setLoading(true);
     loginByApple(idToken)
       .then(() => navigate("/cabinet/dashboard", { replace: true }))
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Ошибка Apple"))
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : t("cabinet.login.error_apple")))
       .finally(() => setLoading(false));
-  }, [loginByApple, navigate]);
+  }, [loginByApple, navigate, t]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -422,7 +424,7 @@ export function ClientRegisterPage() {
         navigate("/cabinet/dashboard", { replace: true });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка регистрации");
+      setError(err instanceof Error ? err.message : t("cabinet.register.error"));
     } finally {
       setLoading(false);
     }
@@ -455,8 +457,8 @@ export function ClientRegisterPage() {
                 <UserPlus className="h-10 w-10 text-primary" />
               </div>
             </div>
-            <CardTitle className="text-2xl">Регистрация</CardTitle>
-            <p className="text-muted-foreground text-sm">Создайте аккаунт в кабинете</p>
+            <CardTitle className="text-2xl">{t("cabinet.register.title")}</CardTitle>
+            <p className="text-muted-foreground text-sm">{t("cabinet.register.subtitle")}</p>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -485,7 +487,7 @@ export function ClientRegisterPage() {
                 {emailError && <p className="text-xs text-destructive">{emailError}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Пароль</Label>
+                <Label htmlFor="password">{t("cabinet.register.password_label")}</Label>
                 <Input
                   id="password"
                   type="password"
@@ -500,23 +502,23 @@ export function ClientRegisterPage() {
                 />
                 {passwordError && <p className="text-xs text-destructive">{passwordError}</p>}
                 {!passwordError && password && (
-                  <p className="text-xs text-green-500">Пароль принят</p>
+                  <p className="text-xs text-green-500">{t("cabinet.register.password_accepted")}</p>
                 )}
               </div>
               {emailSent && (
                 <div className="rounded-md bg-green-500/10 text-green-700 dark:text-green-400 text-sm p-3 flex items-center gap-2">
                   <Mail className="h-4 w-4 shrink-0" />
-                  На вашу почту отправлена ссылка для подтверждения. Перейдите по ней, чтобы завершить регистрацию.
+                  {t("cabinet.register.email_sent")}
                 </div>
               )}
               <Button type="submit" className="w-full" disabled={loading || !email || !password}>
-                {loading ? "Регистрация…" : "Зарегистрироваться"}
+                {loading ? t("cabinet.register.submit_loading") : t("cabinet.register.submit")}
               </Button>
               {(telegramBotUsername || googleEnabled || appleEnabled) && (
                 <div className="space-y-3">
                   <div className="relative flex items-center gap-2">
                     <div className="flex-1 border-t border-border" />
-                    <span className="text-xs text-muted-foreground px-2">или</span>
+                    <span className="text-xs text-muted-foreground px-2">{t("cabinet.login.or")}</span>
                     <div className="flex-1 border-t border-border" />
                   </div>
                   {googleEnabled && googleClientId && (
@@ -525,7 +527,7 @@ export function ClientRegisterPage() {
                         type="button"
                         onClick={handleGoogleLogin}
                         disabled={loading}
-                        title="Зарегистрироваться через Google"
+                        title={t("cabinet.register.google_title")}
                         className={cn(
                           "h-11 w-11 shrink-0 rounded-full flex items-center justify-center",
                           "border border-border bg-muted/50 hover:bg-muted transition-colors",
@@ -545,7 +547,7 @@ export function ClientRegisterPage() {
                       disabled={loading}
                     >
                       <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
-                      Зарегистрироваться через Apple
+                      {t("cabinet.register.apple")}
                     </Button>
                   )}
                   {telegramBotUsername && (
@@ -560,12 +562,12 @@ export function ClientRegisterPage() {
                         {tgAuthPending ? (
                           <>
                             <Loader2 className="h-4 w-4 animate-spin" />
-                            Ожидаем подтверждение…
+                            {t("cabinet.register.telegram_pending")}
                           </>
                         ) : (
                           <>
                             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
-                            Зарегистрироваться через Telegram
+                            {t("cabinet.register.telegram")}
                           </>
                         )}
                       </Button>
@@ -577,7 +579,7 @@ export function ClientRegisterPage() {
                           onClick={handleTelegramOAuthFallback}
                         >
                           <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
-                          Не открылся Telegram? Войти через веб-версию
+                          {t("cabinet.register.telegram_fallback")}
                         </Button>
                       )}
                     </div>
@@ -585,9 +587,9 @@ export function ClientRegisterPage() {
                 </div>
               )}
               <p className="text-center text-sm text-muted-foreground">
-                Уже есть аккаунт?{" "}
+                {t("cabinet.register.has_account")}{" "}
                 <Link to="/cabinet/login" className="text-primary hover:underline">
-                  Войти
+                  {t("cabinet.register.login_link")}
                 </Link>
               </p>
             </form>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/auth";
 import { api, type AdminSettings, type AutoRenewStats, type SyncResult, type SyncToRemnaResult, type SyncCreateRemnaForMissingResult, type SubscriptionPageConfig, type SshConfig } from "@/lib/api";
 import { SubscriptionPageEditor } from "@/components/subscription-page-editor";
@@ -9,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { RefreshCw, Download, Upload, Link2, Settings2, Gift, Users, ArrowLeftRight, Mail, MessageCircle, CreditCard, ChevronDown, Copy, Check, Bot, FileJson, Palette, Wallet, Package, Plus, Trash2, KeyRound, Loader2, Sparkles, Layers, Globe, BarChart3, RotateCw, Shield, Terminal, FileText } from "lucide-react";
+import { RefreshCw, Download, Upload, Link2, Settings2, Gift, Users, ArrowLeftRight, Mail, MessageCircle, CreditCard, ChevronDown, Copy, Check, Bot, FileJson, Palette, Wallet, Package, Plus, Trash2, KeyRound, Loader2, Sparkles, Layers, Globe, BarChart3, RotateCw, Shield, Terminal, FileText, MapPin } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ACCENT_PALETTES } from "@/contexts/theme";
@@ -149,6 +150,7 @@ const BOT_MENU_TEXT_LABELS: Record<string, string> = {
 };
 
 export function SettingsPage() {
+  const { t } = useTranslation();
   const { state, updateAdmin } = useAuth();
   const [settings, setSettings] = useState<AdminSettings | null>(null);
   const [twoFaEnableOpen, setTwoFaEnableOpen] = useState(false);
@@ -336,11 +338,11 @@ export function SettingsPage() {
       const r: SyncResult = await api.syncFromRemna(token);
       setSyncMessage(
         r.ok
-          ? `Из Remna: создано ${r.created}, обновлено ${r.updated}, пропущено ${r.skipped}`
-          : `Ошибки: ${r.errors.join("; ")}`
+          ? t("admin.settings.sync_from_result", { created: r.created, updated: r.updated, skipped: r.skipped })
+          : t("admin.settings.sync_errors", { errors: r.errors.join("; ") })
       );
     } catch (e) {
-      setSyncMessage(e instanceof Error ? e.message : "Ошибка синхронизации");
+      setSyncMessage(e instanceof Error ? e.message : t("admin.settings.sync_error"));
     } finally {
       setSyncLoading(null);
     }
@@ -352,13 +354,13 @@ export function SettingsPage() {
     try {
       const r: SyncToRemnaResult = await api.syncToRemna(token);
       const parts: string[] = [];
-      if (r.updated > 0) parts.push(`Обновлено: ${r.updated}`);
-      if (r.unlinked > 0) parts.push(`Отвязано (не найдены в Remna): ${r.unlinked}`);
-      const successMsg = parts.length > 0 ? parts.join(". ") : "Нет изменений";
-      const msg = r.ok ? successMsg : (r.errors.length > 0 ? `Ошибки: ${r.errors.join("; ")}` : "") + (r.unlinked > 0 ? (r.errors.length ? ". " : "") + `Отвязано: ${r.unlinked}` : "");
+      if (r.updated > 0) parts.push(`${t("admin.settings.sync_updated")}: ${r.updated}`);
+      if (r.unlinked > 0) parts.push(`${t("admin.settings.sync_unlinked")}: ${r.unlinked}`);
+      const successMsg = parts.length > 0 ? parts.join(". ") : t("admin.settings.sync_no_changes");
+      const msg = r.ok ? successMsg : (r.errors.length > 0 ? `${t("admin.settings.error")}: ${r.errors.join("; ")}` : "") + (r.unlinked > 0 ? (r.errors.length ? ". " : "") + `${t("admin.settings.sync_unlinked")}: ${r.unlinked}` : "");
       setSyncMessage(msg || successMsg);
     } catch (e) {
-      setSyncMessage(e instanceof Error ? e.message : "Ошибка синхронизации");
+      setSyncMessage(e instanceof Error ? e.message : t("admin.settings.sync_error"));
     } finally {
       setSyncLoading(null);
     }
@@ -371,11 +373,11 @@ export function SettingsPage() {
       const r: SyncCreateRemnaForMissingResult = await api.syncCreateRemnaForMissing(token);
       setSyncMessage(
         r.ok
-          ? `Привязано: создано в Remna ${r.created}, привязано существующих ${r.linked}`
-          : `Ошибки: ${r.errors.join("; ")}`
+          ? `${t("admin.settings.sync_created")}: ${r.created}, ${t("admin.settings.sync_linked")}: ${r.linked}`
+          : `${t("admin.settings.error")}: ${r.errors.join("; ")}`
       );
     } catch (e) {
-      setSyncMessage(e instanceof Error ? e.message : "Ошибка");
+      setSyncMessage(e instanceof Error ? e.message : t("admin.settings.error"));
     } finally {
       setSyncLoading(null);
     }
@@ -392,7 +394,7 @@ export function SettingsPage() {
       const data = await api.admin2FASetup(token);
       setTwoFaSetupData(data);
     } catch (e) {
-      setTwoFaError(e instanceof Error ? e.message : "Ошибка настройки 2FA");
+      setTwoFaError(e instanceof Error ? e.message : t("admin.settings.error"));
     } finally {
       setTwoFaLoading(false);
     }
@@ -406,7 +408,7 @@ export function SettingsPage() {
   }
   async function confirmTwoFaEnable() {
     if (!twoFaCode.trim() || twoFaCode.length !== 6) {
-      setTwoFaError("Введите 6-значный код из приложения");
+      setTwoFaError(t("admin.settings.2fa_enter_code_error"));
       return;
     }
     setTwoFaError(null);
@@ -417,7 +419,7 @@ export function SettingsPage() {
       updateAdmin(admin);
       closeTwoFaEnable();
     } catch (e) {
-      setTwoFaError(e instanceof Error ? e.message : "Неверный код");
+      setTwoFaError(e instanceof Error ? e.message : t("admin.settings.2fa_invalid_code"));
     } finally {
       setTwoFaLoading(false);
     }
@@ -429,7 +431,7 @@ export function SettingsPage() {
   }
   async function confirmTwoFaDisable() {
     if (!twoFaCode.trim() || twoFaCode.length !== 6) {
-      setTwoFaError("Введите 6-значный код из приложения");
+      setTwoFaError(t("admin.settings.2fa_enter_code_error"));
       return;
     }
     setTwoFaError(null);
@@ -441,7 +443,7 @@ export function SettingsPage() {
       setTwoFaDisableOpen(false);
       setTwoFaCode("");
     } catch (e) {
-      setTwoFaError(e instanceof Error ? e.message : "Неверный код");
+      setTwoFaError(e instanceof Error ? e.message : t("admin.settings.2fa_invalid_code"));
     } finally {
       setTwoFaLoading(false);
     }
@@ -464,9 +466,9 @@ export function SettingsPage() {
       const updated = await api.updateSettings(token, payload);
       const u = updated as AdminSettings;
       setSettings((prev) => (prev ? { ...prev, ...u } : prev));
-      setMessage("Настройки опций сохранены");
+      setMessage(t("admin.settings.saved"));
     } catch {
-      setMessage("Ошибка сохранения");
+      setMessage(t("admin.settings.save_error"));
     } finally {
       setSaving(false);
     }
@@ -522,6 +524,7 @@ export function SettingsPage() {
         notificationTopicNewClients: settings.notificationTopicNewClients ?? null,
         notificationTopicPayments: settings.notificationTopicPayments ?? null,
         notificationTopicTickets: settings.notificationTopicTickets ?? null,
+        notificationTopicBackups: settings.notificationTopicBackups ?? null,
         plategaMerchantId: settings.plategaMerchantId ?? null,
         plategaSecret: settings.plategaSecret && settings.plategaSecret !== "********" ? settings.plategaSecret : undefined,
         plategaMethods: settings.plategaMethods != null ? JSON.stringify(settings.plategaMethods) : undefined,
@@ -701,6 +704,9 @@ export function SettingsPage() {
         nalogPassword: settings.nalogPassword ?? null,
         nalogDeviceId: settings.nalogDeviceId ?? null,
         nalogServiceName: settings.nalogServiceName ?? null,
+        geoMapEnabled: settings.geoMapEnabled ?? false,
+        geoCacheTtl: settings.geoCacheTtl ?? 60,
+        maxmindDbPath: settings.maxmindDbPath ?? null,
       })
       .then((updated) => {
         const u = updated as AdminSettings;
@@ -711,91 +717,95 @@ export function SettingsPage() {
             ...(settings.botInnerButtonStyles ?? {}),
           },
         });
-        setMessage("Сохранено");
+        setMessage(t("admin.settings.saved"));
       })
-      .catch(() => setMessage("Ошибка"))
+      .catch(() => setMessage(t("admin.settings.error")))
       .finally(() => setSaving(false));
   }
 
-  if (loading) return <div className="text-muted-foreground">Загрузка…</div>;
-  if (!settings) return <div className="text-destructive">Ошибка загрузки</div>;
+  if (loading) return <div className="text-muted-foreground">{t("admin.common.loading")}</div>;
+  if (!settings) return <div className="text-destructive">{t("admin.common.loading_error")}</div>;
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Настройки</h1>
-        <p className="text-muted-foreground">Языки, валюты, триал и параметры для бота, Mini App и сайта</p>
+        <h1 className="text-3xl font-bold tracking-tight">{t("admin.settings.title")}</h1>
+        <p className="text-muted-foreground">{t("admin.settings.subtitle")}</p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full grid grid-cols-2 sm:grid-cols-10 gap-2 p-2 h-auto bg-muted/50 rounded-2xl border shadow-sm">
           <TabsTrigger value="general" className="gap-2 py-3 px-4 rounded-xl">
             <Settings2 className="h-4 w-4 shrink-0" />
-            Общие
+            {t("admin.settings.tab_general")}
           </TabsTrigger>
           <TabsTrigger value="trial" className="gap-2 py-3 px-4 rounded-xl">
             <Gift className="h-4 w-4 shrink-0" />
-            Триал
+            {t("admin.settings.tab_trial")}
           </TabsTrigger>
           <TabsTrigger value="referral" className="gap-2 py-3 px-4 rounded-xl">
             <Users className="h-4 w-4 shrink-0" />
-            Рефералы
+            {t("admin.settings.tab_referral")}
           </TabsTrigger>
           <TabsTrigger value="payments" className="gap-2 py-3 px-4 rounded-xl">
             <CreditCard className="h-4 w-4 shrink-0" />
-            Платежи
+            {t("admin.settings.tab_payments")}
           </TabsTrigger>
           <TabsTrigger value="bot" className="gap-2 py-3 px-4 rounded-xl">
             <Bot className="h-4 w-4 shrink-0" />
-            Бот
+            {t("admin.settings.tab_bot")}
           </TabsTrigger>
           <TabsTrigger value="ai" className="gap-2 py-3 px-4 rounded-xl">
             <Sparkles className="h-4 w-4 shrink-0" />
-            AI Чат
+            {t("admin.settings.tab_ai")}
           </TabsTrigger>
           <TabsTrigger value="mail-telegram" className="gap-2 py-3 px-4 rounded-xl">
             <Mail className="h-4 w-4 shrink-0" />
-            Почта и Telegram
+            {t("admin.settings.tab_mail_telegram")}
           </TabsTrigger>
           <TabsTrigger value="subpage" className="gap-2 py-3 px-4 rounded-xl">
             <FileJson className="h-4 w-4 shrink-0" />
-            Страница подписки
+            {t("admin.settings.tab_subpage")}
           </TabsTrigger>
           <TabsTrigger value="theme" className="gap-2 py-3 px-4 rounded-xl">
             <Palette className="h-4 w-4 shrink-0" />
-            Тема
+            {t("admin.settings.tab_theme")}
           </TabsTrigger>
           <TabsTrigger value="options" className="gap-2 py-3 px-4 rounded-xl">
             <Package className="h-4 w-4 shrink-0" />
-            Опции
+            {t("admin.settings.tab_options")}
           </TabsTrigger>
           <TabsTrigger value="custom-build" className="gap-2 py-3 px-4 rounded-xl">
             <Layers className="h-4 w-4 shrink-0" />
-            Гибкий тариф
+            {t("admin.settings.tab_custom_build")}
           </TabsTrigger>
           <TabsTrigger value="oauth" className="gap-2 py-3 px-4 rounded-xl">
             <KeyRound className="h-4 w-4 shrink-0" />
-            OAuth
+            {t("admin.settings.tab_oauth")}
           </TabsTrigger>
           <TabsTrigger value="landing" className="gap-2 py-3 px-4 rounded-xl">
             <Globe className="h-4 w-4 shrink-0" />
-            Лендинг
+            {t("admin.settings.tab_landing")}
           </TabsTrigger>
           <TabsTrigger value="server-ssh" className="gap-2 py-3 px-4 rounded-xl">
             <Terminal className="h-4 w-4 shrink-0" />
-            SSH
+            {t("admin.settings.tab_ssh")}
           </TabsTrigger>
           <TabsTrigger value="proxy-settings" className="gap-2 py-3 px-4 rounded-xl">
             <Shield className="h-4 w-4 shrink-0" />
-            Прокси
+            {t("admin.settings.tab_proxy")}
           </TabsTrigger>
           <TabsTrigger value="nalog-settings" className="gap-2 py-3 px-4 rounded-xl">
             <FileText className="h-4 w-4 shrink-0" />
-            Мой Налог
+            {t("admin.settings.tab_nalog")}
+          </TabsTrigger>
+          <TabsTrigger value="geo-map" className="gap-2 py-3 px-4 rounded-xl">
+            <MapPin className="h-4 w-4 shrink-0" />
+            {t("admin.settings.tab_map")}
           </TabsTrigger>
           <TabsTrigger value="sync" className="gap-2 py-3 px-4 rounded-xl">
             <ArrowLeftRight className="h-4 w-4 shrink-0" />
-            Синхронизация
+            {t("admin.settings.tab_sync")}
           </TabsTrigger>
         </TabsList>
 
@@ -803,8 +813,8 @@ export function SettingsPage() {
           <TabsContent value="general">
             <Card>
               <CardHeader>
-                <CardTitle>Общие</CardTitle>
-                <p className="text-sm text-muted-foreground">Название, логотип, тикет-система, языки и валюты</p>
+                <CardTitle>{t("admin.settings.general_title")}</CardTitle>
+                <p className="text-sm text-muted-foreground">{t("admin.settings.general_subtitle")}</p>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-3 rounded-lg border p-4 bg-muted/20">
@@ -817,9 +827,9 @@ export function SettingsPage() {
                       }
                     />
                     <div>
-                      <Label htmlFor="tickets-enabled-general" className="text-base font-medium cursor-pointer">Тикет-система</Label>
+                      <Label htmlFor="tickets-enabled-general" className="text-base font-medium cursor-pointer">{t("admin.settings.ticket_system")}</Label>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Раздел «Тикеты» в кабинете (сайт и мини-апп) и кнопка «🎫 Тикеты» в боте — обращения в поддержку и переписка.
+                        {t("admin.settings.ticket_hint")}
                       </p>
                     </div>
                   </div>
@@ -837,10 +847,10 @@ export function SettingsPage() {
                     />
                     <div>
                       <Label htmlFor="admin-front-notifications" className="text-base font-medium cursor-pointer">
-                        Всплывающие уведомления в админке
+                        {t("admin.settings.popup_notifications")}
                       </Label>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Короткие уведомления о новых регистрациях, пополнениях, оплатах и тикетах в панели администратора.
+                        {t("admin.settings.popup_hint")}
                       </p>
                     </div>
                   </div>
@@ -855,56 +865,65 @@ export function SettingsPage() {
                       }
                     />
                     <div>
-                      <Label htmlFor="ai-chat-enabled" className="text-base font-medium cursor-pointer">AI-чат в кабинете</Label>
+                      <Label htmlFor="ai-chat-enabled" className="text-base font-medium cursor-pointer">{t("admin.settings.ai_chat_label")}</Label>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Включить встроенный AI-ассистент в кабинете (иконка чата). Если выключить — чат полностью скрыт.
+                        {t("admin.settings.ai_chat_hint")}
                       </p>
                     </div>
                   </div>
                 </div>
                 <div className="space-y-4 rounded-lg border p-4 bg-muted/20">
                   <div className="space-y-2">
-                    <Label>Группа для уведомлений (Telegram Chat ID)</Label>
+                    <Label>{t("admin.settings.notification_group")}</Label>
                     <Input
                       value={settings.notificationTelegramGroupId ?? ""}
                       onChange={(e) => setSettings((s) => (s ? { ...s, notificationTelegramGroupId: e.target.value.trim() || null } : s))}
                       placeholder="-1001234567890"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Если указать Chat ID группы или канала, туда будут дублироваться все админские уведомления. Добавьте бота в группу. У супергрупп ID обычно начинается с -100.
+                      {t("admin.settings.notification_group_hint")}
                     </p>
                   </div>
                   {settings.notificationTelegramGroupId?.trim() && (
                     <div className="space-y-3 pl-4 border-l-2 border-primary/30">
-                      <p className="text-sm font-medium text-muted-foreground">Топики (для супергрупп с темами)</p>
+                      <p className="text-sm font-medium text-muted-foreground">{t("admin.settings.topics")}</p>
                       <p className="text-xs text-muted-foreground">
-                        Укажите ID топика (message_thread_id), чтобы уведомления разного типа приходили в разные темы группы. Оставьте пустым — уведомления пойдут в общий чат.
+                        {t("admin.settings.topics_hint")}
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="space-y-1">
-                          <Label className="text-xs">Новые клиенты</Label>
+                          <Label className="text-xs">{t("admin.settings.topic_new_clients")}</Label>
                           <Input
                             value={settings.notificationTopicNewClients ?? ""}
                             onChange={(e) => setSettings((s) => (s ? { ...s, notificationTopicNewClients: e.target.value.trim() || null } : s))}
-                            placeholder="ID топика"
+                            placeholder={t("admin.settings.topic_id_placeholder")}
                             className="h-8 text-sm"
                           />
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-xs">Платежи</Label>
+                          <Label className="text-xs">{t("admin.settings.topic_payments")}</Label>
                           <Input
                             value={settings.notificationTopicPayments ?? ""}
                             onChange={(e) => setSettings((s) => (s ? { ...s, notificationTopicPayments: e.target.value.trim() || null } : s))}
-                            placeholder="ID топика"
+                            placeholder={t("admin.settings.topic_id_placeholder")}
                             className="h-8 text-sm"
                           />
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-xs">Тикеты</Label>
+                          <Label className="text-xs">{t("admin.settings.topic_tickets")}</Label>
                           <Input
                             value={settings.notificationTopicTickets ?? ""}
                             onChange={(e) => setSettings((s) => (s ? { ...s, notificationTopicTickets: e.target.value.trim() || null } : s))}
-                            placeholder="ID топика"
+                            placeholder={t("admin.settings.topic_id_placeholder")}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">{t("admin.settings.topic_backups")}</Label>
+                          <Input
+                            value={settings.notificationTopicBackups ?? ""}
+                            onChange={(e) => setSettings((s) => (s ? { ...s, notificationTopicBackups: e.target.value.trim() || null } : s))}
+                            placeholder={t("admin.settings.topic_id_placeholder")}
                             className="h-8 text-sm"
                           />
                         </div>
@@ -913,21 +932,21 @@ export function SettingsPage() {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label>Название сервиса</Label>
+                  <Label>{t("admin.settings.service_name")}</Label>
                   <Input
                     value={settings.serviceName}
                     onChange={(e) => setSettings((s) => (s ? { ...s, serviceName: e.target.value } : s))}
                   />
-                  <p className="text-xs text-muted-foreground">Отображается в шапке админки и в кабинете клиента</p>
+                  <p className="text-xs text-muted-foreground">{t("admin.settings.service_name_hint")}</p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Логотип</Label>
+                  <Label>{t("admin.settings.logo")}</Label>
                   {settings.logo ? (
                     <div className="flex items-center gap-3">
-                      <img src={settings.logo} alt="Логотип" className="h-12 object-contain rounded border" />
+                      <img src={settings.logo} alt={t("admin.settings.logo_alt")} className="h-12 object-contain rounded border" />
                       <div className="flex gap-2">
                         <Label className="cursor-pointer">
-                          <span className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground h-9 px-4">Загрузить другой</span>
+                          <span className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground h-9 px-4">{t("admin.settings.upload_another")}</span>
                           <input
                             type="file"
                             accept="image/*"
@@ -942,14 +961,14 @@ export function SettingsPage() {
                           />
                         </Label>
                         <Button type="button" variant="outline" size="sm" onClick={() => setSettings((s) => (s ? { ...s, logo: null } : s))}>
-                          Удалить
+                          {t("admin.settings.delete")}
                         </Button>
                       </div>
                     </div>
                   ) : (
                     <div>
                       <Label className="cursor-pointer">
-                        <span className="inline-flex items-center justify-center rounded-md text-sm font-medium border border-input bg-background h-9 px-4 hover:bg-accent">Загрузить логотип</span>
+                        <span className="inline-flex items-center justify-center rounded-md text-sm font-medium border border-input bg-background h-9 px-4 hover:bg-accent">{t("admin.settings.upload_logo")}</span>
                         <input
                           type="file"
                           accept="image/*"
@@ -965,16 +984,16 @@ export function SettingsPage() {
                       </Label>
                     </div>
                   )}
-                  <p className="text-xs text-muted-foreground">Для сайта и кабинета (шапка, логин)</p>
+                  <p className="text-xs text-muted-foreground">{t("admin.settings.logo_hint")}</p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Логотип для бота</Label>
+                  <Label>{t("admin.settings.bot_logo")}</Label>
                   {settings.logoBot ? (
                     <div className="flex items-center gap-3">
-                      <img src={settings.logoBot} alt="Логотип бота" className="h-12 object-contain rounded border" />
+                      <img src={settings.logoBot} alt={t("admin.settings.bot_logo_alt")} className="h-12 object-contain rounded border" />
                       <div className="flex gap-2">
                         <Label className="cursor-pointer">
-                          <span className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground h-9 px-4">Загрузить другой</span>
+                          <span className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground h-9 px-4">{t("admin.settings.upload_another")}</span>
                           <input
                             type="file"
                             accept="image/*"
@@ -989,14 +1008,14 @@ export function SettingsPage() {
                           />
                         </Label>
                         <Button type="button" variant="outline" size="sm" onClick={() => setSettings((s) => (s ? { ...s, logoBot: null } : s))}>
-                          Удалить
+                          {t("admin.settings.delete")}
                         </Button>
                       </div>
                     </div>
                   ) : (
                     <div>
                       <Label className="cursor-pointer">
-                        <span className="inline-flex items-center justify-center rounded-md text-sm font-medium border border-input bg-background h-9 px-4 hover:bg-accent">Загрузить логотип для бота</span>
+                        <span className="inline-flex items-center justify-center rounded-md text-sm font-medium border border-input bg-background h-9 px-4 hover:bg-accent">{t("admin.settings.upload_bot_logo")}</span>
                         <input
                           type="file"
                           accept="image/*"
@@ -1012,16 +1031,16 @@ export function SettingsPage() {
                       </Label>
                     </div>
                   )}
-                  <p className="text-xs text-muted-foreground">Фото или GIF в приветственном сообщении Telegram-бота. Используется только это изображение; логотип сайта в боте не подставляется</p>
+                  <p className="text-xs text-muted-foreground">{t("admin.settings.bot_logo_hint")}</p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Favicon</Label>
+                  <Label>{t("admin.settings.favicon")}</Label>
                   {settings.favicon ? (
                     <div className="flex items-center gap-3">
                       <img src={settings.favicon} alt="Favicon" className="h-8 w-8 object-contain rounded border" />
                       <div className="flex gap-2">
                         <Label className="cursor-pointer">
-                          <span className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground h-9 px-4">Загрузить другой</span>
+                          <span className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground h-9 px-4">{t("admin.settings.upload_another")}</span>
                           <input
                             type="file"
                             accept="image/*"
@@ -1036,14 +1055,14 @@ export function SettingsPage() {
                           />
                         </Label>
                         <Button type="button" variant="outline" size="sm" onClick={() => setSettings((s) => (s ? { ...s, favicon: null } : s))}>
-                          Удалить
+                          {t("admin.settings.delete")}
                         </Button>
                       </div>
                     </div>
                   ) : (
                     <div>
                       <Label className="cursor-pointer">
-                        <span className="inline-flex items-center justify-center rounded-md text-sm font-medium border border-input bg-background h-9 px-4 hover:bg-accent">Загрузить favicon</span>
+                        <span className="inline-flex items-center justify-center rounded-md text-sm font-medium border border-input bg-background h-9 px-4 hover:bg-accent">{t("admin.settings.upload_favicon")}</span>
                         <input
                           type="file"
                           accept="image/*"
@@ -1057,23 +1076,23 @@ export function SettingsPage() {
                           }}
                         />
                       </Label>
-                      <p className="text-xs text-muted-foreground mt-1">Рекомендуется 32×32 или 64×64 (PNG/SVG)</p>
+                      <p className="text-xs text-muted-foreground mt-1">{t("admin.settings.favicon_hint")}</p>
                     </div>
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label>URL приложения (ссылка на сайт)</Label>
+                  <Label>{t("admin.settings.app_url")}</Label>
                   <Input
                     value={settings.publicAppUrl ?? ""}
                     onChange={(e) => setSettings((s) => (s ? { ...s, publicAppUrl: e.target.value || null } : s))}
                     placeholder="https://example.com"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Без слэша в конце. От него генерируются ссылка подтверждения в письме, редиректы после оплаты и callback Platega.
+                    {t("admin.settings.app_url_hint")}
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Языки</Label>
+                  <Label>{t("admin.settings.languages")}</Label>
                   <div className="flex flex-wrap gap-2">
                     {(() => {
                       const preset = ["ru", "en"];
@@ -1106,7 +1125,7 @@ export function SettingsPage() {
                     })()}
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Label className="text-xs text-muted-foreground">Основной язык:</Label>
+                    <Label className="text-xs text-muted-foreground">{t("admin.settings.default_language")}</Label>
                     <select
                       className="rounded-md border border-input bg-background px-2 py-1 text-sm"
                       value={(settings.defaultLanguage && ALLOWED_LANGS.includes(settings.defaultLanguage) ? settings.defaultLanguage : ALLOWED_LANGS[0]) ?? ""}
@@ -1119,7 +1138,7 @@ export function SettingsPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Валюты</Label>
+                  <Label>{t("admin.settings.currencies")}</Label>
                   <div className="flex flex-wrap gap-2">
                     {(() => {
                       const preset = ["usd", "rub"];
@@ -1152,7 +1171,7 @@ export function SettingsPage() {
                     })()}
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Label className="text-xs text-muted-foreground">Основная валюта:</Label>
+                    <Label className="text-xs text-muted-foreground">{t("admin.settings.default_currency")}</Label>
                     <select
                       className="rounded-md border border-input bg-background px-2 py-1 text-sm"
                       value={(settings.defaultCurrency && ALLOWED_CURRENCIES.includes(settings.defaultCurrency) ? settings.defaultCurrency : ALLOWED_CURRENCIES[0]) ?? ""}
@@ -1167,9 +1186,9 @@ export function SettingsPage() {
                 <div className="space-y-2 rounded-lg border p-4 bg-muted/20">
                   <div className="flex items-center gap-2 mb-2">
                     <KeyRound className="h-4 w-4 text-primary shrink-0" />
-                    <Label className="text-base font-medium">Безопасность</Label>
+                    <Label className="text-base font-medium">{t("admin.settings.security")}</Label>
                   </div>
-                  <p className="text-xs text-muted-foreground mb-3">Двухфакторная аутентификация — вход по коду из приложения (Google Authenticator, Authy и т.п.) после ввода пароля.</p>
+                  <p className="text-xs text-muted-foreground mb-3">{t("admin.settings.2fa_hint")}</p>
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-muted/40 border">
                     <div className="flex items-center gap-4 min-w-0">
                       <div className="flex h-10 w-10 items-center justify-center shrink-0 rounded-xl bg-primary/10 text-primary">
@@ -1177,24 +1196,24 @@ export function SettingsPage() {
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs text-muted-foreground mb-0.5">2FA</p>
-                        <p className="font-medium text-sm truncate">Многоуровневая защита входа</p>
+                        <p className="font-medium text-sm truncate">{t("admin.settings.2fa_multi_level")}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {state.admin?.totpEnabled ? (
                         <>
-                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-green-500/20 text-green-700 dark:text-green-400">Включена</span>
-                          <Button type="button" variant="outline" size="sm" className="border-red-500/50 text-red-600 hover:bg-red-500/15 dark:text-red-400 dark:hover:bg-red-500/20" onClick={openTwoFaDisable}>Отключить</Button>
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-green-500/20 text-green-700 dark:text-green-400">{t("admin.settings.2fa_enabled")}</span>
+                          <Button type="button" variant="outline" size="sm" className="border-red-500/50 text-red-600 hover:bg-red-500/15 dark:text-red-400 dark:hover:bg-red-500/20" onClick={openTwoFaDisable}>{t("admin.settings.2fa_disable")}</Button>
                         </>
                       ) : (
-                        <Button type="button" variant="outline" size="sm" onClick={openTwoFaEnable}>Включить</Button>
+                        <Button type="button" variant="outline" size="sm" onClick={openTwoFaEnable}>{t("admin.settings.2fa_enable")}</Button>
                       )}
                     </div>
                   </div>
                 </div>
                 {message && <p className="text-sm text-muted-foreground">{message}</p>}
                 <Button type="submit" disabled={saving}>
-                  {saving ? "Сохранение…" : "Сохранить"}
+                  {saving ? t("admin.settings.saving") : t("admin.settings.save")}
                 </Button>
               </CardContent>
             </Card>
@@ -1203,40 +1222,40 @@ export function SettingsPage() {
           <TabsContent value="bot">
             <Card>
               <CardHeader>
-                <CardTitle>Настройки бота</CardTitle>
+                <CardTitle>{t("admin.settings.bot_title")}</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Порядок, видимость и подписи кнопок главного меню Telegram-бота. Кнопка «В меню» показывается на экранах тарифов, профиля и пополнения.
+                  {t("admin.settings.bot_subtitle")}
                 </p>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-2">
-                  <Label>Кнопка «В меню»</Label>
+                  <Label>{t("admin.settings.bot_back_button")}</Label>
                   <Input
                     value={settings.botBackLabel ?? "◀️ В меню"}
                     onChange={(e) => setSettings((s) => (s ? { ...s, botBackLabel: e.target.value || "◀️ В меню" } : s))}
                     placeholder="◀️ В меню"
                   />
-                  <p className="text-xs text-muted-foreground">Текст кнопки возврата в главное меню</p>
+                  <p className="text-xs text-muted-foreground">{t("admin.settings.bot_back_hint")}</p>
                 </div>
                 <div className="space-y-3 rounded-lg border p-4 bg-muted/20">
                   <div className="flex items-center gap-2">
                     <MessageCircle className="h-4 w-4 text-primary" />
-                    <Label className="text-base font-medium">Поддержка</Label>
+                    <Label className="text-base font-medium">{t("admin.settings.bot_support")}</Label>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Ссылки для кнопки «Поддержка» в боте. Внутри — 4 подпункта: Тех поддержка, Соглашения, Оферта, Инструкции. Если ссылка не задана — соответствующий пункт не показывается. Кнопка «Поддержка» в главном меню отображается только если заполнен хотя бы один пункт.
+                    {t("admin.settings.bot_support_hint")}
                   </p>
                   <div className="grid gap-3 sm:grid-cols-1">
                     <div className="space-y-1">
-                      <Label className="text-xs">Тех поддержка (бот или контакт)</Label>
+                      <Label className="text-xs">{t("admin.settings.bot_tech_support")}</Label>
                       <Input
                         value={settings.supportLink ?? ""}
                         onChange={(e) => setSettings((s) => (s ? { ...s, supportLink: e.target.value || undefined } : s))}
-                        placeholder="https://t.me/support_bot или tg://user?id=..."
+                        placeholder={t("admin.settings.bot_support_placeholder")}
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Соглашения (Telegraph и т.д.)</Label>
+                      <Label className="text-xs">{t("admin.settings.bot_agreements")}</Label>
                       <Input
                         value={settings.agreementLink ?? ""}
                         onChange={(e) => setSettings((s) => (s ? { ...s, agreementLink: e.target.value || undefined } : s))}
@@ -1244,7 +1263,7 @@ export function SettingsPage() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Оферта</Label>
+                      <Label className="text-xs">{t("admin.settings.bot_offer")}</Label>
                       <Input
                         value={settings.offerLink ?? ""}
                         onChange={(e) => setSettings((s) => (s ? { ...s, offerLink: e.target.value || undefined } : s))}
@@ -1252,7 +1271,7 @@ export function SettingsPage() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Инструкции</Label>
+                      <Label className="text-xs">{t("admin.settings.bot_instructions")}</Label>
                       <Input
                         value={settings.instructionsLink ?? ""}
                         onChange={(e) => setSettings((s) => (s ? { ...s, instructionsLink: e.target.value || undefined } : s))}
@@ -1262,20 +1281,20 @@ export function SettingsPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Эмодзи (текст и кнопки)</Label>
+                  <Label>{t("admin.settings.bot_emojis")}</Label>
                   <p className="text-xs text-muted-foreground mb-2">
-                    Меняйте Unicode и TG ID (премиум) для каждого ключа — они подставятся в кнопки меню и в текст сообщений (если в «Тексты меню» используются плейсхолдеры вроде {'{{BALANCE}}'}). Аналог EMOJI_* / EMOJI_*_TG_ID из remnawave env.
+                    {t("admin.settings.bot_emojis_hint")}
                   </p>
                   <p className="text-xs text-amber-600 dark:text-amber-400 mb-2 rounded-md bg-amber-50 dark:bg-amber-950/40 p-2 border border-amber-200 dark:border-amber-800">
-                    Премиум-эмодзи (TG ID) отображаются только если владелец бота имеет Telegram Premium (аккаунт, создавший бота в @BotFather). Иначе в кнопках и тексте будет виден только Unicode.
+                    {t("admin.settings.bot_emojis_premium_warn")}
                   </p>
                   <div className="rounded-lg border overflow-hidden">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-muted/50 border-b">
-                          <th className="text-left py-2 px-3 font-medium">Ключ</th>
+                          <th className="text-left py-2 px-3 font-medium">{t("admin.settings.bot_col_key")}</th>
                           <th className="text-left py-2 px-3 font-medium w-24">Unicode</th>
-                          <th className="text-left py-2 px-3 font-medium">TG ID (премиум)</th>
+                          <th className="text-left py-2 px-3 font-medium">{t("admin.settings.bot_col_tg_id")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1335,13 +1354,13 @@ export function SettingsPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Кнопки главного меню</Label>
+                  <Label>{t("admin.settings.bot_menu_buttons")}</Label>
                   <p className="text-xs text-muted-foreground mb-3">
-                    Отметьте видимость, измените текст, выберите эмодзи по ключу (из блока выше), задайте порядок. Стиль: primary / success / danger или пусто.
+                    {t("admin.settings.bot_menu_hint")}
                   </p>
                   <div className="flex flex-wrap items-center gap-4 mb-4">
                     <div className="flex items-center gap-2">
-                      <Label htmlFor="bot-buttons-per-row" className="text-sm whitespace-nowrap">Кнопок в ряд:</Label>
+                      <Label htmlFor="bot-buttons-per-row" className="text-sm whitespace-nowrap">{t("admin.settings.bot_buttons_per_row")}</Label>
                       <select
                         id="bot-buttons-per-row"
                         className="flex h-9 w-24 rounded-md border border-input bg-background px-2 py-1 text-sm"
@@ -1352,11 +1371,11 @@ export function SettingsPage() {
                           )
                         }
                       >
-                        <option value={1}>1 (по одной)</option>
-                        <option value={2}>2 (по две)</option>
+                        <option value={1}>{t("admin.settings.bot_buttons_per_row_1")}</option>
+                        <option value={2}>{t("admin.settings.bot_buttons_per_row_2")}</option>
                       </select>
                     </div>
-                    <span className="text-xs text-muted-foreground">По умолчанию: по одной кнопке в ряд, как сейчас.</span>
+                    <span className="text-xs text-muted-foreground">{t("admin.settings.bot_buttons_per_row_default")}</span>
                   </div>
                   <div className="space-y-3">
                     {[...(settings.botButtons ?? DEFAULT_BOT_BUTTONS)]
@@ -1412,7 +1431,7 @@ export function SettingsPage() {
                                 };
                               })
                             }
-                            placeholder="Текст кнопки"
+                            placeholder={t("admin.settings.bot_button_placeholder")}
                           />
                           <select
                             className="flex h-9 w-28 rounded-md border border-input bg-background px-2 py-1 text-sm"
@@ -1429,7 +1448,7 @@ export function SettingsPage() {
                               })
                             }
                           >
-                            <option value="">— без эмодзи —</option>
+                            <option value="">{t("admin.settings.bot_no_emoji")}</option>
                             {BOT_EMOJI_KEYS.map((k) => (
                               <option key={k} value={k}>{k}</option>
                             ))}
@@ -1470,30 +1489,30 @@ export function SettingsPage() {
                                 })
                               }
                             />
-                            <Label htmlFor={`onePerRow-${btn.id}`} className="text-xs cursor-pointer whitespace-nowrap">В один ряд</Label>
+                            <Label htmlFor={`onePerRow-${btn.id}`} className="text-xs cursor-pointer whitespace-nowrap">{t("admin.settings.bot_one_per_row")}</Label>
                           </div>
                           <span className="text-xs text-muted-foreground capitalize">{btn.id}</span>
                         </div>
                       ))}
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">
-                    «В один ряд» — кнопка всегда в отдельной строке. Остальные кнопки выстраиваются по настройке «Кнопок в ряд» выше.
+                    {t("admin.settings.bot_one_per_row_hint")}
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Стили внутренних кнопок бота</Label>
+                  <Label>{t("admin.settings.bot_inner_styles")}</Label>
                   <p className="text-xs text-muted-foreground mb-2">
-                    Цвет кнопок внутри разделов: тарифы, пополнение, «Назад», профиль, триал, язык, валюта. Значения: primary / success / danger или пусто.
+                    {t("admin.settings.bot_inner_styles_hint")}
                   </p>
                   <div className="grid gap-3 sm:grid-cols-2">
                     {[
-                      { key: "tariffPay", label: "Кнопки тарифов (оплата)" },
-                      { key: "topup", label: "Кнопки сумм пополнения" },
-                      { key: "back", label: "Кнопка «Назад» / «В меню»" },
-                      { key: "profile", label: "Кнопки в профиле (язык, валюта)" },
-                      { key: "trialConfirm", label: "Кнопка «Активировать триал»" },
-                      { key: "lang", label: "Выбор языка" },
-                      { key: "currency", label: "Выбор валюты" },
+                      { key: "tariffPay", label: t("admin.settings.bot_tariff_pay") },
+                      { key: "topup", label: t("admin.settings.bot_topup") },
+                      { key: "back", label: t("admin.settings.bot_back") },
+                      { key: "profile", label: t("admin.settings.bot_profile") },
+                      { key: "trialConfirm", label: t("admin.settings.bot_trial_confirm") },
+                      { key: "lang", label: t("admin.settings.bot_lang_select") },
+                      { key: "currency", label: t("admin.settings.bot_currency_select") },
                     ].map(({ key, label }) => (
                       <div key={key} className="flex items-center gap-2">
                         <span className="text-sm w-48 shrink-0">{label}</span>
@@ -1520,25 +1539,25 @@ export function SettingsPage() {
                 <Collapsible>
                   <CollapsibleTrigger asChild>
                     <Button type="button" variant="outline" className="w-full justify-between">
-                      Тексты приветствия и главного меню
+                      {t("admin.settings.bot_welcome_texts")}
                       <ChevronDown className="h-4 w-4" />
                     </Button>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <div className="pt-3 space-y-3 border-t mt-3">
                       <p className="text-xs text-muted-foreground">
-                        Подписи и фразы главного меню бота. Чтобы подставлять эмодзи из блока «Эмодзи (текст и кнопки)», используйте плейсхолдеры: <code className="rounded bg-muted px-1">{'{{BALANCE}}'}</code>, <code className="rounded bg-muted px-1">{'{{STATUS}}'}</code>, <code className="rounded bg-muted px-1">{'{{TRIAL}}'}</code>, <code className="rounded bg-muted px-1">{'{{LINK}}'}</code>, <code className="rounded bg-muted px-1">{'{{DATE}}'}</code>, <code className="rounded bg-muted px-1">{'{{TRAFFIC}}'}</code> и др. (ключи как в списке эмодзи выше, например <code className="rounded bg-muted px-1">{'{{CUSTOM_1}}'}</code>). Unicode подставится автоматически; TG ID используется для премиум-эмодзи в тексте и кнопках.
+                        {t("admin.settings.bot_welcome_hint")}
                       </p>
                       <div className="space-y-2 rounded-lg border p-3 bg-background/60">
                         <div className="flex items-center justify-between gap-2">
-                          <Label className="text-sm">Видимость строк приветствия</Label>
+                          <Label className="text-sm">{t("admin.settings.bot_line_visibility")}</Label>
                           <Button
                             type="button"
                             variant="secondary"
                             size="sm"
                             onClick={() => setSettings((s) => (s ? { ...s, botMenuLineVisibility: { ...DEFAULT_BOT_MENU_LINE_VISIBILITY } } : s))}
                           >
-                            Сбросить видимость
+                            {t("admin.settings.bot_reset_visibility")}
                           </Button>
                         </div>
                         <div className="grid gap-2 sm:grid-cols-2">
@@ -1571,7 +1590,7 @@ export function SettingsPage() {
                         size="sm"
                         onClick={() => setSettings((s) => (s ? { ...s, botMenuTexts: { ...DEFAULT_BOT_MENU_TEXTS } } : s))}
                       >
-                        Сбросить тексты к стандарту
+                        {t("admin.settings.bot_reset_texts")}
                       </Button>
                       <div className="grid gap-3 sm:grid-cols-2">
                         {Object.keys(DEFAULT_BOT_MENU_TEXTS).map((key) => (
@@ -1603,13 +1622,13 @@ export function SettingsPage() {
                 <div className="space-y-3 rounded-lg border p-4 bg-muted/20">
                   <div className="flex items-center gap-2">
                     <Package className="h-4 w-4 text-primary" />
-                    <Label className="text-base font-medium">Экран тарифов</Label>
+                    <Label className="text-base font-medium">{t("admin.settings.bot_tariffs_screen")}</Label>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Текст, который видит пользователь в разделе «Тарифы». Используйте плейсхолдеры: <code className="rounded bg-muted px-1">{'{{CATEGORY}}'}</code> — название категории, <code className="rounded bg-muted px-1">{'{{TARIFFS}}'}</code> — список тарифов. Для эмодзи — ключи из блока «Эмодзи», например <code className="rounded bg-muted px-1">{'{{CUSTOM_1}}'}</code>.
+                    {t("admin.settings.bot_tariffs_hint")}
                   </p>
                   <div className="space-y-1">
-                    <Label className="text-xs">Текст сообщения</Label>
+                    <Label className="text-xs">{t("admin.settings.bot_tariffs_label")}</Label>
                     <Textarea
                       rows={6}
                       value={settings.botTariffsText ?? DEFAULT_BOT_TARIFFS_TEXT}
@@ -1618,14 +1637,14 @@ export function SettingsPage() {
                     />
                   </div>
                   <div className="flex items-center justify-between gap-2">
-                    <Label className="text-sm">Что показывать в строке тарифа</Label>
+                    <Label className="text-sm">{t("admin.settings.bot_tariff_fields")}</Label>
                     <Button
                       type="button"
                       variant="secondary"
                       size="sm"
                       onClick={() => setSettings((s) => (s ? { ...s, botTariffsFields: { ...DEFAULT_BOT_TARIFF_FIELDS } } : s))}
                     >
-                      Сбросить поля
+                      {t("admin.settings.bot_reset_fields")}
                     </Button>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
@@ -1655,13 +1674,13 @@ export function SettingsPage() {
                 <div className="space-y-3 rounded-lg border p-4 bg-muted/20">
                   <div className="flex items-center gap-2">
                     <CreditCard className="h-4 w-4 text-primary" />
-                    <Label className="text-base font-medium">Окно оплаты</Label>
+                    <Label className="text-base font-medium">{t("admin.settings.bot_payment_window")}</Label>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Текст окна «Оплата». Плейсхолдеры: <code className="rounded bg-muted px-1">{'{{NAME}}'}</code> — название тарифа/опции, <code className="rounded bg-muted px-1">{'{{PRICE}}'}</code> — цена с валютой, <code className="rounded bg-muted px-1">{'{{AMOUNT}}'}</code> — число, <code className="rounded bg-muted px-1">{'{{CURRENCY}}'}</code> — валюта, <code className="rounded bg-muted px-1">{'{{ACTION}}'}</code> — строка действия. Для эмодзи — ключи из блока «Эмодзи», например <code className="rounded bg-muted px-1">{'{{CUSTOM_1}}'}</code>.
+                    {t("admin.settings.bot_payment_hint")}
                   </p>
                   <div className="space-y-1">
-                    <Label className="text-xs">Текст сообщения</Label>
+                    <Label className="text-xs">{t("admin.settings.bot_payment_label")}</Label>
                     <Textarea
                       rows={5}
                       value={settings.botPaymentText ?? DEFAULT_BOT_PAYMENT_TEXT}
@@ -1673,10 +1692,10 @@ export function SettingsPage() {
                 <div className="space-y-3 rounded-lg border p-4 bg-muted/20">
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-primary" />
-                    <Label className="text-base font-medium">Принудительная подписка на канал</Label>
+                    <Label className="text-base font-medium">{t("admin.settings.bot_force_subscribe")}</Label>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Если включено — пользователь не сможет пользоваться ботом, пока не подпишется на указанный канал/группу. Бот должен быть администратором канала/группы.
+                    {t("admin.settings.bot_force_hint")}
                   </p>
                   <div className="flex items-center gap-3">
                     <Switch
@@ -1685,39 +1704,35 @@ export function SettingsPage() {
                         setSettings((s) => (s ? { ...s, forceSubscribeEnabled: checked === true } : s))
                       }
                     />
-                    <Label className="text-sm">Включить проверку подписки</Label>
+                    <Label className="text-sm">{t("admin.settings.bot_check_subscribe")}</Label>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">ID или @username канала/группы</Label>
+                    <Label className="text-xs">{t("admin.settings.bot_channel_id")}</Label>
                     <Input
                       value={settings.forceSubscribeChannelId ?? ""}
                       onChange={(e) => setSettings((s) => (s ? { ...s, forceSubscribeChannelId: e.target.value || null } : s))}
-                      placeholder="@channelname или -1001234567890"
+                      placeholder={t("admin.settings.bot_channel_placeholder")}
                     />
-                    <p className="text-xs text-muted-foreground">Укажите @username (например @my_channel) или числовой ID канала/группы.</p>
+                    <p className="text-xs text-muted-foreground">{t("admin.settings.bot_channel_hint")}</p>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Сообщение для неподписанных</Label>
+                    <Label className="text-xs">{t("admin.settings.bot_unsubscribed_message")}</Label>
                     <Input
                       value={settings.forceSubscribeMessage ?? ""}
                       onChange={(e) => setSettings((s) => (s ? { ...s, forceSubscribeMessage: e.target.value || null } : s))}
-                      placeholder="Для использования бота подпишитесь на наш канал"
+                      placeholder={t("admin.settings.bot_unsub_placeholder")}
                     />
-                    <p className="text-xs text-muted-foreground">Текст, который увидит пользователь. Если пусто — будет использован текст по умолчанию.</p>
+                    <p className="text-xs text-muted-foreground">{t("admin.settings.bot_unsub_hint")}</p>
                   </div>
                 </div>
 
                 <div className="space-y-3 rounded-lg border p-4 bg-muted/20">
                   <div className="flex items-center gap-2">
                     <Shield className="h-4 w-4 text-destructive" />
-                    <Label className="text-base font-medium">Community Blacklist</Label>
+                    <Label className="text-base font-medium">{t("admin.settings.bot_blacklist")}</Label>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Если включено — бот автоматически блокирует пользователей из{" "}
-                    <a href="https://github.com/BEDOLAGA-DEV/VPN-BLACKLIST" target="_blank" rel="noopener noreferrer" className="underline text-primary">
-                      общего блеклиста
-                    </a>
-                    . Список обновляется комьюнити и кэшируется на 30 минут.
+                    {t("admin.settings.bot_blacklist_hint")}
                   </p>
                   <div className="flex items-center gap-3">
                     <Switch
@@ -1726,13 +1741,13 @@ export function SettingsPage() {
                         setSettings((s) => (s ? { ...s, blacklistEnabled: checked === true } : s))
                       }
                     />
-                    <Label className="text-sm">Включить блеклист</Label>
+                    <Label className="text-sm">{t("admin.settings.bot_enable_blacklist")}</Label>
                   </div>
                 </div>
 
                 {message && <p className="text-sm text-muted-foreground">{message}</p>}
                 <Button type="submit" disabled={saving}>
-                  {saving ? "Сохранение…" : "Сохранить"}
+                  {saving ? t("admin.settings.saving") : t("admin.settings.save")}
                 </Button>
               </CardContent>
             </Card>
@@ -1741,12 +1756,12 @@ export function SettingsPage() {
           <TabsContent value="trial">
             <Card>
               <CardHeader>
-                <CardTitle>Триал</CardTitle>
-                <p className="text-sm text-muted-foreground">Параметры пробного периода для новых пользователей</p>
+                <CardTitle>{t("admin.settings.trial_title")}</CardTitle>
+                <p className="text-sm text-muted-foreground">{t("admin.settings.trial_subtitle")}</p>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Дней триала</Label>
+                  <Label>{t("admin.settings.trial_days")}</Label>
                   <Input
                     type="number"
                     min={0}
@@ -1757,20 +1772,20 @@ export function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Сквад для триала (Remna)</Label>
+                  <Label>{t("admin.settings.trial_squad")}</Label>
                   <select
                     className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
                     value={settings.trialSquadUuid ?? ""}
                     onChange={(e) => setSettings((s) => s ? { ...s, trialSquadUuid: e.target.value || null } : s)}
                   >
-                    <option value="">— не выбран</option>
+                    <option value="">{t("admin.settings.trial_squad_none")}</option>
                     {squads.map((s) => (
                       <option key={s.uuid} value={s.uuid}>{s.name || s.uuid}</option>
                     ))}
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Лимит устройств триала (HWID)</Label>
+                  <Label>{t("admin.settings.trial_device_limit")}</Label>
                   <Input
                     type="number"
                     min={0}
@@ -1778,11 +1793,11 @@ export function SettingsPage() {
                     onChange={(e) =>
                       setSettings((s) => (s ? { ...s, trialDeviceLimit: e.target.value === "" ? null : parseInt(e.target.value, 10) || 0 } : s))
                     }
-                    placeholder="— без лимита"
+                    placeholder={t("admin.settings.trial_no_limit")}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Лимит трафика триала (ГБ)</Label>
+                  <Label>{t("admin.settings.trial_traffic_limit")}</Label>
                   <Input
                     type="number"
                     min={0}
@@ -1798,13 +1813,13 @@ export function SettingsPage() {
                       if (Number.isNaN(n)) return;
                       setSettings((s) => (s ? { ...s, trialTrafficLimitBytes: Math.round(n * 1024 ** 3) } : s));
                     }}
-                    placeholder="— без лимита"
+                    placeholder={t("admin.settings.trial_no_limit")}
                   />
-                  <p className="text-xs text-muted-foreground">1 ГБ = 1024³ байт (ГиБ). Как в тарифах — так и в Remna передаётся лимит в байтах.</p>
+                  <p className="text-xs text-muted-foreground">{t("admin.settings.trial_traffic_hint")}</p>
                 </div>
                 {message && <p className="text-sm text-muted-foreground">{message}</p>}
                 <Button type="submit" disabled={saving}>
-                  {saving ? "Сохранение…" : "Сохранить"}
+                  {saving ? t("admin.settings.saving") : t("admin.settings.save")}
                 </Button>
               </CardContent>
             </Card>
@@ -1813,9 +1828,9 @@ export function SettingsPage() {
           <TabsContent value="subpage">
             <Card>
               <CardHeader>
-                <CardTitle>Страница подписки (приложения по платформам)</CardTitle>
+                <CardTitle>{t("admin.settings.subpage_title")}</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Визуальный редактор: включите или отключите приложения для iOS, Android, macOS, Windows, Linux и измените порядок перетаскиванием. За основу берётся базовый конфиг (subpage-00000000-0000-0000-0000-000000000000.json).
+                  {t("admin.settings.subpage_editor_hint")}
                 </p>
               </CardHeader>
               <CardContent>
@@ -1829,11 +1844,11 @@ export function SettingsPage() {
                       className="rounded border"
                     />
                     <Label htmlFor="useRemnaSubscriptionPage" className="cursor-pointer">
-                      Использовать страницу подписки Remna
+                      {t("admin.settings.use_remna_subpage")}
                     </Label>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Если включено — кнопка «Подключиться к VPN» в боте ведёт на страницу подписки из Remna, а не на кабинет.
+                    {t("admin.settings.subpage_remna_hint")}
                   </p>
                   <div className="flex items-center gap-2 pt-1">
                     <Button
@@ -1844,15 +1859,15 @@ export function SettingsPage() {
                         setMessage("");
                         try {
                           await api.updateSettings(token, { useRemnaSubscriptionPage: settings.useRemnaSubscriptionPage ?? false });
-                          setMessage("Сохранено");
+                          setMessage(t("admin.settings.saved"));
                         } catch {
-                          setMessage("Ошибка сохранения");
+                          setMessage(t("admin.settings.save_error"));
                         } finally {
                           setSaving(false);
                         }
                       }}
                     >
-                      {saving ? "Сохранение…" : "Сохранить"}
+                      {saving ? t("admin.settings.saving") : t("admin.settings.save")}
                     </Button>
                     {message && <span className="text-sm text-muted-foreground">{message}</span>}
                   </div>
@@ -1872,9 +1887,9 @@ export function SettingsPage() {
                     setMessage("");
                     try {
                       await api.updateSettings(token, { subscriptionPageConfig: configJson });
-                      setMessage("Сохранено");
+                      setMessage(t("admin.settings.saved"));
                     } catch {
-                      setMessage("Ошибка сохранения");
+                      setMessage(t("admin.settings.save_error"));
                     } finally {
                       setSaving(false);
                     }
@@ -1888,14 +1903,14 @@ export function SettingsPage() {
           <TabsContent value="referral">
             <Card>
               <CardHeader>
-                <CardTitle>Рефералы</CardTitle>
+                <CardTitle>{t("admin.settings.referral_title")}</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Проценты от пополнений по уровням: 1 — приглашённые вами; 2 — приглашённые вашими рефералами; 3 — приглашённые рефералами 2 уровня.
+                  {t("admin.settings.referral_subtitle")}
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label>1 уровень (%) — от пополнений приглашённых вами</Label>
+                  <Label>{t("admin.settings.referral_level_1")}</Label>
                   <Input
                     type="number"
                     min={0}
@@ -1907,7 +1922,7 @@ export function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>2 уровень (%) — от пополнений рефералов 1 уровня</Label>
+                  <Label>{t("admin.settings.referral_level_2")}</Label>
                   <Input
                     type="number"
                     min={0}
@@ -1919,7 +1934,7 @@ export function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>3 уровень (%) — от пополнений рефералов 2 уровня</Label>
+                  <Label>{t("admin.settings.referral_level_3")}</Label>
                   <Input
                     type="number"
                     min={0}
@@ -1932,7 +1947,7 @@ export function SettingsPage() {
                 </div>
                 {message && <p className="text-sm text-muted-foreground">{message}</p>}
                 <Button type="submit" disabled={saving}>
-                  {saving ? "Сохранение…" : "Сохранить"}
+                  {saving ? t("admin.settings.saving") : t("admin.settings.save")}
                 </Button>
               </CardContent>
             </Card>
@@ -1943,14 +1958,14 @@ export function SettingsPage() {
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <CreditCard className="h-5 w-5 text-primary" />
-                  <CardTitle>Общие настройки платежей</CardTitle>
+                  <CardTitle>{t("admin.settings.payments_general")}</CardTitle>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between gap-4 p-4 rounded-xl border bg-card/50">
                   <div className="space-y-1">
-                    <Label className="text-base font-semibold">Автопродление подписки</Label>
-                    <p className="text-sm text-muted-foreground">Включать автопродление (списание с баланса) для новых клиентов по умолчанию. Пользователи смогут отключить это в личном кабинете.</p>
+                    <Label className="text-base font-semibold">{t("admin.settings.auto_renew")}</Label>
+                    <p className="text-sm text-muted-foreground">{t("admin.settings.auto_renew_hint")}</p>
                   </div>
                   <Switch
                     checked={settings.defaultAutoRenewEnabled ?? false}
@@ -1960,11 +1975,11 @@ export function SettingsPage() {
 
                 <div className={`flex items-center justify-between gap-4 p-4 rounded-xl border bg-card/50${!settings.yookassaShopId || !settings.yookassaSecretKey || settings.yookassaSecretKey === "********" && !settings.yookassaShopId ? " opacity-50" : ""}`}>
                   <div className="space-y-1">
-                    <Label className="text-base font-semibold">Рекуррентные платежи ЮKassa</Label>
+                    <Label className="text-base font-semibold">{t("admin.settings.yookassa_recurring")}</Label>
                     <p className="text-sm text-muted-foreground">
                       {!settings.yookassaShopId || !settings.yookassaSecretKey
-                        ? "Для включения сначала настройте ЮKassa (ID магазина и секретный ключ) во вкладке «Платежи»."
-                        : "При оплате через ЮKassa способ оплаты сохраняется. При автопродлении сначала списывается с баланса, затем — с сохранённой карты."
+                        ? t("admin.settings.yookassa_recurring_disabled")
+                        : t("admin.settings.yookassa_recurring_hint")
                       }
                     </p>
                   </div>
@@ -1977,10 +1992,10 @@ export function SettingsPage() {
 
                 {/* Настройки автопродления */}
                 <div className="space-y-4 p-4 rounded-xl border bg-card/50">
-                  <Label className="text-base font-semibold">Настройки автопродления</Label>
+                  <Label className="text-base font-semibold">{t("admin.settings.auto_renew_settings")}</Label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Продление за N дней до истечения</Label>
+                      <Label>{t("admin.settings.renew_days_before")}</Label>
                       <Input
                         type="number"
                         min={1}
@@ -1988,10 +2003,10 @@ export function SettingsPage() {
                         value={settings.autoRenewDaysBeforeExpiry ?? 1}
                         onChange={(e) => setSettings(s => s ? { ...s, autoRenewDaysBeforeExpiry: parseInt(e.target.value) || 1 } : s)}
                       />
-                      <p className="text-xs text-muted-foreground">За сколько дней до истечения подписки пытаться списать средства</p>
+                      <p className="text-xs text-muted-foreground">{t("admin.settings.renew_days_hint")}</p>
                     </div>
                     <div className="space-y-2">
-                      <Label>Уведомление за N дней</Label>
+                      <Label>{t("admin.settings.notify_days_before")}</Label>
                       <Input
                         type="number"
                         min={1}
@@ -1999,10 +2014,10 @@ export function SettingsPage() {
                         value={settings.autoRenewNotifyDaysBefore ?? 3}
                         onChange={(e) => setSettings(s => s ? { ...s, autoRenewNotifyDaysBefore: parseInt(e.target.value) || 3 } : s)}
                       />
-                      <p className="text-xs text-muted-foreground">За сколько дней предупредить клиента о предстоящем списании (если баланс мал)</p>
+                      <p className="text-xs text-muted-foreground">{t("admin.settings.notify_days_hint")}</p>
                     </div>
                     <div className="space-y-2">
-                      <Label>Грейс-период (дней)</Label>
+                      <Label>{t("admin.settings.grace_period")}</Label>
                       <Input
                         type="number"
                         min={0}
@@ -2010,10 +2025,10 @@ export function SettingsPage() {
                         value={settings.autoRenewGracePeriodDays ?? 2}
                         onChange={(e) => setSettings(s => s ? { ...s, autoRenewGracePeriodDays: parseInt(e.target.value) || 2 } : s)}
                       />
-                      <p className="text-xs text-muted-foreground">Сколько дней после истечения подписки продолжать попытки списания</p>
+                      <p className="text-xs text-muted-foreground">{t("admin.settings.grace_period_hint")}</p>
                     </div>
                     <div className="space-y-2">
-                      <Label>Макс. попыток списания</Label>
+                      <Label>{t("admin.settings.max_retries")}</Label>
                       <Input
                         type="number"
                         min={1}
@@ -2021,13 +2036,13 @@ export function SettingsPage() {
                         value={settings.autoRenewMaxRetries ?? 3}
                         onChange={(e) => setSettings(s => s ? { ...s, autoRenewMaxRetries: parseInt(e.target.value) || 3 } : s)}
                       />
-                      <p className="text-xs text-muted-foreground">Сколько раз пытаться списать при недостатке средств, прежде чем отключить автопродление</p>
+                      <p className="text-xs text-muted-foreground">{t("admin.settings.max_retries_hint")}</p>
                     </div>
                   </div>
                 </div>
                 {message && <p className="text-sm text-muted-foreground">{message}</p>}
                 <Button onClick={handleSubmit} disabled={saving}>
-                  {saving ? "Сохранение…" : "Сохранить"}
+                  {saving ? t("admin.settings.saving") : t("admin.settings.save")}
                 </Button>
               </CardContent>
             </Card>
@@ -2038,37 +2053,37 @@ export function SettingsPage() {
                 <CardHeader>
                   <div className="flex items-center gap-2">
                     <BarChart3 className="h-5 w-5 text-primary" />
-                    <CardTitle>Статистика автопродления</CardTitle>
+                    <CardTitle>{t("admin.settings.auto_renew_stats")}</CardTitle>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                     <div className="rounded-lg border bg-card p-4 text-center">
                       <p className="text-2xl font-bold text-green-500">{autoRenewStats.enabled}</p>
-                      <p className="text-xs text-muted-foreground mt-1">Автопродление вкл.</p>
+                      <p className="text-xs text-muted-foreground mt-1">{t("admin.settings.auto_renew_on")}</p>
                     </div>
                     <div className="rounded-lg border bg-card p-4 text-center">
                       <p className="text-2xl font-bold text-muted-foreground">{autoRenewStats.disabled}</p>
-                      <p className="text-xs text-muted-foreground mt-1">Автопродление выкл.</p>
+                      <p className="text-xs text-muted-foreground mt-1">{t("admin.settings.auto_renew_off")}</p>
                     </div>
                     <div className="rounded-lg border bg-card p-4 text-center">
                       <p className="text-2xl font-bold text-yellow-500">{autoRenewStats.retriesInProgress}</p>
                       <p className="text-xs text-muted-foreground mt-1">
                         <RotateCw className="inline h-3 w-3 mr-1" />
-                        Повторные попытки
+                        {t("admin.settings.retry_attempts")}
                       </p>
                     </div>
                     <div className="rounded-lg border bg-card p-4 text-center">
                       <p className="text-2xl font-bold">{autoRenewStats.renewalsLast7Days}</p>
-                      <p className="text-xs text-muted-foreground mt-1">Продлений за 7 дней</p>
+                      <p className="text-xs text-muted-foreground mt-1">{t("admin.settings.renewals_7d")}</p>
                     </div>
                     <div className="rounded-lg border bg-card p-4 text-center">
                       <p className="text-2xl font-bold">{autoRenewStats.renewalsLast30Days}</p>
-                      <p className="text-xs text-muted-foreground mt-1">Продлений за 30 дней</p>
+                      <p className="text-xs text-muted-foreground mt-1">{t("admin.settings.renewals_30d")}</p>
                     </div>
                     <div className="rounded-lg border bg-card p-4 text-center">
                       <p className="text-2xl font-bold text-primary">{autoRenewStats.amountLast30Days.toLocaleString("ru-RU")} {settings?.defaultCurrency === "rub" ? "₽" : "$"}</p>
-                      <p className="text-xs text-muted-foreground mt-1">Сумма за 30 дней</p>
+                      <p className="text-xs text-muted-foreground mt-1">{t("admin.settings.amount_30d")}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -2087,12 +2102,12 @@ export function SettingsPage() {
                         <div className="flex items-center gap-2">
                           <CreditCard className="h-5 w-5 text-primary" />
                           <CardTitle>Platega</CardTitle>
-                          <span className="text-xs font-normal text-muted-foreground">— нажмите, чтобы развернуть настройки</span>
+                          <span className="text-xs font-normal text-muted-foreground">{t("admin.settings.platega_expand")}</span>
                         </div>
                         <ChevronDown className="chevron h-5 w-5 shrink-0 text-muted-foreground" />
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">
-                        Callback URL настраивается ниже (с доменом из настроек)
+                        {t("admin.settings.platega_callback_note")}
                       </p>
                     </CardHeader>
                   </button>
@@ -2100,11 +2115,11 @@ export function SettingsPage() {
                 <CollapsibleContent>
                   <CardContent className="space-y-4 border-t pt-4">
                     <div className="space-y-2">
-                      <Label>Callback URL для Platega</Label>
+                      <Label>{t("admin.settings.platega_callback")}</Label>
                       <div className="flex gap-2">
                         <Input
                           readOnly
-                          value={(settings.publicAppUrl ?? "").replace(/\/$/, "") ? `${(settings.publicAppUrl ?? "").replace(/\/$/, "")}/api/webhooks/platega` : "Укажите «URL приложения» во вкладке «Общие»"}
+                          value={(settings.publicAppUrl ?? "").replace(/\/$/, "") ? `${(settings.publicAppUrl ?? "").replace(/\/$/, "")}/api/webhooks/platega` : t("admin.settings.specify_url_hint")}
                           className="font-mono text-sm bg-muted/50"
                         />
                         <Button
@@ -2121,16 +2136,16 @@ export function SettingsPage() {
                             }
                           }}
                           disabled={!(settings.publicAppUrl ?? "").trim()}
-                          title="Копировать"
+                          title={t("admin.settings.copy")}
                         >
                           {plategaCallbackCopied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
                         </Button>
                       </div>
-                      <p className="text-xs text-muted-foreground">Используется «URL приложения» из вкладки «Общие». Укажите его там и вставьте этот callback в ЛК Platega.</p>
+                      <p className="text-xs text-muted-foreground">{t("admin.settings.platega_callback_hint")}</p>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Merchant ID (X-MerchantId)</Label>
+                        <Label>{t("admin.settings.platega_merchant")}</Label>
                         <Input
                           value={settings.plategaMerchantId ?? ""}
                           onChange={(e) => setSettings((s) => (s ? { ...s, plategaMerchantId: e.target.value || null } : s))}
@@ -2138,18 +2153,18 @@ export function SettingsPage() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Секрет (X-Secret)</Label>
+                        <Label>{t("admin.settings.platega_secret")}</Label>
                         <Input
                           type="password"
                           value={settings.plategaSecret ?? ""}
                           onChange={(e) => setSettings((s) => (s ? { ...s, plategaSecret: e.target.value || null } : s))}
-                          placeholder="API ключ из ЛК Platega"
+                          placeholder={t("admin.settings.platega_key_placeholder")}
                         />
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label>Методы оплаты</Label>
-                      <p className="text-xs text-muted-foreground">Включите нужные и задайте подпись на кнопке для клиентов</p>
+                      <Label>{t("admin.settings.payment_methods")}</Label>
+                      <p className="text-xs text-muted-foreground">{t("admin.settings.payment_methods_hint")}</p>
                       <div className="rounded-md border divide-y">
                         {(settings.plategaMethods ?? DEFAULT_PLATEGA_METHODS).map((m) => (
                           <div key={m.id} className="flex items-center gap-4 p-3">
@@ -2187,7 +2202,7 @@ export function SettingsPage() {
                                     : s
                                 )
                               }
-                              placeholder="Подпись на кнопке"
+                              placeholder={t("admin.settings.platega_btn_placeholder")}
                             />
                           </div>
                         ))}
@@ -2195,7 +2210,7 @@ export function SettingsPage() {
                     </div>
                     {message && <p className="text-sm text-muted-foreground">{message}</p>}
                     <Button type="submit" disabled={saving}>
-                      {saving ? "Сохранение…" : "Сохранить"}
+                      {saving ? t("admin.settings.saving") : t("admin.settings.save")}
                     </Button>
                   </CardContent>
                 </CollapsibleContent>
@@ -2212,12 +2227,12 @@ export function SettingsPage() {
                         <div className="flex items-center gap-2">
                           <Wallet className="h-5 w-5 text-primary" />
                           <CardTitle>ЮMoney</CardTitle>
-                          <span className="text-xs font-normal text-muted-foreground">— оплата картой</span>
+                          <span className="text-xs font-normal text-muted-foreground">{t("admin.settings.yoomoney_card")}</span>
                         </div>
                         <ChevronDown className="chevron h-5 w-5 shrink-0 text-muted-foreground" />
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">
-                        Регистрация: <a href="https://yoomoney.ru/myservices/new" target="_blank" rel="noreferrer" className="text-primary underline">yoomoney.ru/myservices/new</a>. URL вебхука копируется кнопкой ниже.
+                        {t("admin.settings.yoomoney_register")} <a href="https://yoomoney.ru/myservices/new" target="_blank" rel="noreferrer" className="text-primary underline">yoomoney.ru/myservices/new</a>
                       </p>
                     </CardHeader>
                   </button>
@@ -2225,11 +2240,11 @@ export function SettingsPage() {
                 <CollapsibleContent>
                   <CardContent className="space-y-4 border-t pt-4">
                     <div className="space-y-2">
-                      <Label>URL вебхука для ЮMoney</Label>
+                      <Label>{t("admin.settings.yoomoney_webhook")}</Label>
                       <div className="flex gap-2">
                         <Input
                           readOnly
-                          value={(settings.publicAppUrl ?? "").replace(/\/$/, "") ? `${(settings.publicAppUrl ?? "").replace(/\/$/, "")}/api/webhooks/yoomoney` : "Укажите «URL приложения» во вкладке «Общие»"}
+                          value={(settings.publicAppUrl ?? "").replace(/\/$/, "") ? `${(settings.publicAppUrl ?? "").replace(/\/$/, "")}/api/webhooks/yoomoney` : t("admin.settings.specify_url_hint")}
                           className="font-mono text-sm bg-muted/50"
                         />
                         <Button
@@ -2246,40 +2261,40 @@ export function SettingsPage() {
                             }
                           }}
                           disabled={!(settings.publicAppUrl ?? "").trim()}
-                          title="Копировать"
+                          title={t("admin.settings.copy")}
                         >
                           {yoomoneyWebhookCopied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
                         </Button>
                       </div>
-                      <p className="text-xs text-muted-foreground">Укажите этот URL в <a href="https://yoomoney.ru/transfer/myservices/http-notification" target="_blank" rel="noreferrer" className="text-primary underline">настройках HTTP-уведомлений</a> кошелька ЮMoney.</p>
+                      <p className="text-xs text-muted-foreground">{t("admin.settings.yoomoney_webhook_hint")}</p>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Пополнение баланса только через оплату картой (форма ЮMoney). Укажите кошелёк для приёма и секрет вебхука.
+                      {t("admin.settings.yoomoney_desc")}
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2 sm:col-span-2">
-                        <Label>Номер кошелька для приёма</Label>
+                        <Label>{t("admin.settings.yoomoney_wallet")}</Label>
                         <Input
                           value={settings.yoomoneyReceiverWallet ?? ""}
                           onChange={(e) => setSettings((s) => (s ? { ...s, yoomoneyReceiverWallet: e.target.value || null } : s))}
                           placeholder="41001123456789"
                         />
-                        <p className="text-xs text-muted-foreground">Средства зачисляются на этот кошелёк при пополнении через ЮMoney.</p>
+                        <p className="text-xs text-muted-foreground">{t("admin.settings.yoomoney_wallet_hint")}</p>
                       </div>
                       <div className="space-y-2 sm:col-span-2">
-                        <Label>Секрет для вебхука (HTTP-уведомления)</Label>
+                        <Label>{t("admin.settings.yoomoney_secret")}</Label>
                         <Input
                           type="password"
                           value={settings.yoomoneyNotificationSecret ?? ""}
                           onChange={(e) => setSettings((s) => (s ? { ...s, yoomoneyNotificationSecret: e.target.value || null } : s))}
-                          placeholder="Из настроек кошелька ЮMoney → Уведомления"
+                          placeholder={t("admin.settings.yoomoney_secret_placeholder")}
                         />
-                        <p className="text-xs text-muted-foreground">Задаётся в <a href="https://yoomoney.ru/transfer/myservices/http-notification" target="_blank" rel="noreferrer" className="text-primary underline">настройках HTTP-уведомлений</a> кошелька.</p>
+                        <p className="text-xs text-muted-foreground">{t("admin.settings.yoomoney_secret_hint")}</p>
                       </div>
                     </div>
                     <div className="pt-2 border-t">
                       <Button type="submit" disabled={saving} className="min-w-[140px]">
-                        {saving ? "Сохранение…" : "Сохранить"}
+                        {saving ? t("admin.settings.saving") : t("admin.settings.save")}
                       </Button>
                     </div>
                   </CardContent>
@@ -2297,12 +2312,12 @@ export function SettingsPage() {
                         <div className="flex items-center gap-2">
                           <Wallet className="h-5 w-5 text-primary" />
                           <CardTitle>ЮKassa</CardTitle>
-                          <span className="text-xs font-normal text-muted-foreground">— API приём платежей</span>
+                          <span className="text-xs font-normal text-muted-foreground">{t("admin.settings.yookassa_api")}</span>
                         </div>
                         <ChevronDown className="chevron h-5 w-5 shrink-0 text-muted-foreground" />
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">
-                        Регистрация: <a href="https://yookassa.ru/joinups" target="_blank" rel="noreferrer" className="text-primary underline">yookassa.ru</a>. URL вебхука копируется кнопкой ниже.
+                        {t("admin.settings.yookassa_register")} <a href="https://yookassa.ru/joinups" target="_blank" rel="noreferrer" className="text-primary underline">yookassa.ru</a>
                       </p>
                     </CardHeader>
                   </button>
@@ -2310,11 +2325,11 @@ export function SettingsPage() {
                 <CollapsibleContent>
                   <CardContent className="space-y-4 border-t pt-4">
                     <div className="space-y-2">
-                      <Label>URL вебхука для ЮKassa</Label>
+                      <Label>{t("admin.settings.yookassa_webhook")}</Label>
                       <div className="flex gap-2">
                         <Input
                           readOnly
-                          value={(settings.publicAppUrl ?? "").replace(/\/$/, "") ? `${(settings.publicAppUrl ?? "").replace(/\/$/, "")}/api/webhooks/yookassa` : "Укажите «URL приложения» во вкладке «Общие»"}
+                          value={(settings.publicAppUrl ?? "").replace(/\/$/, "") ? `${(settings.publicAppUrl ?? "").replace(/\/$/, "")}/api/webhooks/yookassa` : t("admin.settings.specify_url_hint")}
                           className="font-mono text-sm bg-muted/50"
                         />
                         <Button
@@ -2331,19 +2346,19 @@ export function SettingsPage() {
                             }
                           }}
                           disabled={!(settings.publicAppUrl ?? "").trim()}
-                          title="Копировать"
+                          title={t("admin.settings.copy")}
                         >
                           {yookassaWebhookCopied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
                         </Button>
                       </div>
-                      <p className="text-xs text-muted-foreground">В ЛК ЮKassa включите уведомления и укажите этот URL (событие payment.succeeded).</p>
+                      <p className="text-xs text-muted-foreground">{t("admin.settings.yookassa_webhook_hint")}</p>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Приём платежей картой и СБП через API ЮKassa. Укажите ID магазина и секретный ключ из <a href="https://yookassa.ru/my/merchant/integration/api-keys" target="_blank" rel="noreferrer" className="text-primary underline">настроек API</a>.
+                      {t("admin.settings.yookassa_desc")}
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>ID магазина (shopId)</Label>
+                        <Label>{t("admin.settings.yookassa_shop_id")}</Label>
                         <Input
                           value={settings.yookassaShopId ?? ""}
                           onChange={(e) => setSettings((s) => (s ? { ...s, yookassaShopId: e.target.value || null } : s))}
@@ -2351,19 +2366,19 @@ export function SettingsPage() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Секретный ключ</Label>
+                        <Label>{t("admin.settings.yookassa_secret")}</Label>
                         <Input
                           type="password"
                           value={settings.yookassaSecretKey ?? ""}
                           onChange={(e) => setSettings((s) => (s ? { ...s, yookassaSecretKey: e.target.value || null } : s))}
                           placeholder="live_..."
                         />
-                        <p className="text-xs text-muted-foreground">Не показывайте ключ третьим лицам.</p>
+                        <p className="text-xs text-muted-foreground">{t("admin.settings.yookassa_key_hint")}</p>
                       </div>
                     </div>
                     <div className="pt-2 border-t">
                       <Button type="submit" disabled={saving} className="min-w-[140px]">
-                        {saving ? "Сохранение…" : "Сохранить"}
+                        {saving ? t("admin.settings.saving") : t("admin.settings.save")}
                       </Button>
                     </div>
                   </CardContent>
@@ -2381,12 +2396,12 @@ export function SettingsPage() {
                         <div className="flex items-center gap-2">
                           <Wallet className="h-5 w-5 text-primary" />
                           <CardTitle>Crypto Pay (Crypto Bot)</CardTitle>
-                          <span className="text-xs font-normal text-muted-foreground">— криптоплатежи в Telegram</span>
+                          <span className="text-xs font-normal text-muted-foreground">{t("admin.settings.cryptopay_telegram")}</span>
                         </div>
                         <ChevronDown className="chevron h-5 w-5 shrink-0 text-muted-foreground" />
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">
-                        Создайте приложение в <a href="https://t.me/CryptoBot" target="_blank" rel="noreferrer" className="text-primary underline">@CryptoBot</a> → Crypto Pay → Create App и укажите URL вебхука ниже.
+                        {t("admin.settings.cryptopay_register")}
                       </p>
                     </CardHeader>
                   </button>
@@ -2394,11 +2409,11 @@ export function SettingsPage() {
                 <CollapsibleContent>
                   <CardContent className="space-y-4 border-t pt-4">
                     <div className="space-y-2">
-                      <Label>URL вебхука для Crypto Pay</Label>
+                      <Label>{t("admin.settings.cryptopay_webhook")}</Label>
                       <div className="flex gap-2">
                         <Input
                           readOnly
-                          value={(settings.publicAppUrl ?? "").replace(/\/$/, "") ? `${(settings.publicAppUrl ?? "").replace(/\/$/, "")}/api/webhooks/cryptopay` : "Укажите «URL приложения» во вкладке «Общие»"}
+                          value={(settings.publicAppUrl ?? "").replace(/\/$/, "") ? `${(settings.publicAppUrl ?? "").replace(/\/$/, "")}/api/webhooks/cryptopay` : t("admin.settings.specify_url_hint")}
                           className="font-mono text-sm bg-muted/50"
                         />
                         <Button
@@ -2415,26 +2430,26 @@ export function SettingsPage() {
                             }
                           }}
                           disabled={!(settings.publicAppUrl ?? "").trim()}
-                          title="Копировать"
+                          title={t("admin.settings.copy")}
                         >
                           {cryptopayWebhookCopied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
                         </Button>
                       </div>
-                      <p className="text-xs text-muted-foreground">В @CryptoBot → Crypto Pay → My Apps → ваш апп → Webhooks укажите этот URL.</p>
+                      <p className="text-xs text-muted-foreground">{t("admin.settings.cryptopay_webhook_hint")}</p>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Приём платежей в криптовалюте (USDT, TON и др.) через <a href="https://help.send.tg/en/articles/10279948-crypto-pay-api" target="_blank" rel="noreferrer" className="text-primary underline">Crypto Pay API</a>. Сумма в USD, RUB, EUR и др. — пользователь платит в крипте по курсу.
+                      {t("admin.settings.cryptopay_desc")}
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>API Token</Label>
+                        <Label>{t("admin.settings.cryptopay_token")}</Label>
                         <Input
                           type="password"
                           value={settings.cryptopayApiToken ?? ""}
                           onChange={(e) => setSettings((s) => (s ? { ...s, cryptopayApiToken: e.target.value || null } : s))}
                           placeholder="123456789:AAzQc..."
                         />
-                        <p className="text-xs text-muted-foreground">Из @CryptoBot → Crypto Pay → My Apps → ваш апп → API Token.</p>
+                        <p className="text-xs text-muted-foreground">{t("admin.settings.cryptopay_token_hint")}</p>
                       </div>
                       <div className="space-y-2 flex flex-col justify-end">
                         <div className="flex items-center gap-2">
@@ -2445,14 +2460,14 @@ export function SettingsPage() {
                             onChange={(e) => setSettings((s) => (s ? { ...s, cryptopayTestnet: e.target.checked } : s))}
                             className="rounded border"
                           />
-                          <Label htmlFor="cryptopayTestnet">Тестовая сеть (testnet)</Label>
+                          <Label htmlFor="cryptopayTestnet">{t("admin.settings.cryptopay_testnet")}</Label>
                         </div>
-                        <p className="text-xs text-muted-foreground">Для тестов используйте @CryptoTestnetBot и включите этот флаг.</p>
+                        <p className="text-xs text-muted-foreground">{t("admin.settings.cryptopay_testnet_hint")}</p>
                       </div>
                     </div>
                     <div className="pt-2 border-t">
                       <Button type="submit" disabled={saving} className="min-w-[140px]">
-                        {saving ? "Сохранение…" : "Сохранить"}
+                        {saving ? t("admin.settings.saving") : t("admin.settings.save")}
                       </Button>
                     </div>
                   </CardContent>
@@ -2470,12 +2485,12 @@ export function SettingsPage() {
                         <div className="flex items-center gap-2">
                           <Wallet className="h-5 w-5 text-primary" />
                           <CardTitle>Heleket</CardTitle>
-                          <span className="text-xs font-normal text-muted-foreground">— криптоплатежи (USDT и др.)</span>
+                          <span className="text-xs font-normal text-muted-foreground">{t("admin.settings.heleket_crypto")}</span>
                         </div>
                         <ChevronDown className="chevron h-5 w-5 shrink-0 text-muted-foreground" />
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">
-                        В <a href="https://doc.heleket.com/uk/methods/payments/creating-invoice" target="_blank" rel="noreferrer" className="text-primary underline">личном кабинете Heleket</a> получите Merchant ID и API Key, укажите URL вебхука ниже.
+                        {t("admin.settings.heleket_register")}
                       </p>
                     </CardHeader>
                   </button>
@@ -2483,11 +2498,11 @@ export function SettingsPage() {
                 <CollapsibleContent>
                   <CardContent className="space-y-4 border-t pt-4">
                     <div className="space-y-2">
-                      <Label>URL вебхука для Heleket</Label>
+                      <Label>{t("admin.settings.heleket_webhook")}</Label>
                       <div className="flex gap-2">
                         <Input
                           readOnly
-                          value={(settings.publicAppUrl ?? "").replace(/\/$/, "") ? `${(settings.publicAppUrl ?? "").replace(/\/$/, "")}/api/webhooks/heleket` : "Укажите «URL приложения» во вкладке «Общие»"}
+                          value={(settings.publicAppUrl ?? "").replace(/\/$/, "") ? `${(settings.publicAppUrl ?? "").replace(/\/$/, "")}/api/webhooks/heleket` : t("admin.settings.specify_url_hint")}
                           className="font-mono text-sm bg-muted/50"
                         />
                         <Button
@@ -2504,40 +2519,40 @@ export function SettingsPage() {
                             }
                           }}
                           disabled={!(settings.publicAppUrl ?? "").trim()}
-                          title="Копировать"
+                          title={t("admin.settings.copy")}
                         >
                           {heleketWebhookCopied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
                         </Button>
                       </div>
-                      <p className="text-xs text-muted-foreground">В личном кабинете Heleket укажите этот URL в настройках callback для платежей.</p>
+                      <p className="text-xs text-muted-foreground">{t("admin.settings.heleket_webhook_hint")}</p>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Приём платежей в криптовалюте через <a href="https://doc.heleket.com/uk/methods/payments/creating-invoice" target="_blank" rel="noreferrer" className="text-primary underline">Heleket API</a>. Сумма в USD, RUB и др. — пользователь платит в USDT по курсу.
+                      {t("admin.settings.heleket_desc")}
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Merchant ID (UUID)</Label>
+                        <Label>{t("admin.settings.heleket_merchant")}</Label>
                         <Input
                           value={settings.heleketMerchantId ?? ""}
                           onChange={(e) => setSettings((s) => (s ? { ...s, heleketMerchantId: e.target.value || null } : s))}
                           placeholder="8b03432e-385b-4670-8d06-064591096795"
                         />
-                        <p className="text-xs text-muted-foreground">UUID мерчанта из личного кабинета Heleket.</p>
+                        <p className="text-xs text-muted-foreground">{t("admin.settings.heleket_merchant_hint")}</p>
                       </div>
                       <div className="space-y-2">
-                        <Label>API Key</Label>
+                        <Label>{t("admin.settings.heleket_api_key")}</Label>
                         <Input
                           type="password"
                           value={settings.heleketApiKey ?? ""}
                           onChange={(e) => setSettings((s) => (s ? { ...s, heleketApiKey: e.target.value || null } : s))}
-                          placeholder="Секретный ключ API"
+                          placeholder={t("admin.settings.heleket_key_placeholder")}
                         />
-                        <p className="text-xs text-muted-foreground">Секретный ключ для подписи запросов и вебхуков.</p>
+                        <p className="text-xs text-muted-foreground">{t("admin.settings.heleket_key_hint")}</p>
                       </div>
                     </div>
                     <div className="pt-2 border-t">
                       <Button type="submit" disabled={saving} className="min-w-[140px]">
-                        {saving ? "Сохранение…" : "Сохранить"}
+                        {saving ? t("admin.settings.saving") : t("admin.settings.save")}
                       </Button>
                     </div>
                   </CardContent>
@@ -2551,27 +2566,27 @@ export function SettingsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Sparkles className="h-5 w-5" />
-                  AI Чат (Groq)
+                  {t("admin.settings.ai_title")}
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Настройки умного AI-ассистента для встроенного чата поддержки на сайте и в мини-аппе. 
-                  Интеграция работает через API <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" className="text-primary underline">Groq</a>, предоставляющего доступ к открытым моделям (Llama 3, Mixtral) с высочайшей скоростью.
+                  {t("admin.settings.ai_subtitle")}{" "}
+                  {t("admin.settings.ai_integration_hint")}
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Groq API Key</Label>
+                    <Label>{t("admin.settings.ai_groq_key")}</Label>
                     <Input
                       type="password"
                       value={settings.groqApiKey ?? ""}
                       onChange={(e) => setSettings((s) => (s ? { ...s, groqApiKey: e.target.value || null } : s))}
                       placeholder="gsk_..."
                     />
-                    <p className="text-xs text-muted-foreground">Ключ из консоли Groq. Если не указан, чат будет работать в заглушечном (тестовом) режиме.</p>
+                    <p className="text-xs text-muted-foreground">{t("admin.settings.ai_key_hint")}</p>
                   </div>
                   <div className="space-y-2">
-                    <Label>Модель (Model)</Label>
+                    <Label>{t("admin.settings.ai_model")}</Label>
                     <select
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       value={settings.groqModel ?? "llama3-8b-8192"}
@@ -2592,13 +2607,13 @@ export function SettingsPage() {
                       <option value="mixtral-8x7b-32768">mixtral-8x7b-32768</option>
                       <option value="gemma2-9b-it">gemma2-9b-it</option>
                     </select>
-                    <p className="text-xs text-muted-foreground">Выберите модель. Рекомендуется Llama 3.3 70B или DeepSeek R1 70B.</p>
+                    <p className="text-xs text-muted-foreground">{t("admin.settings.ai_model_hint")}</p>
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Резервные модели (Fallback)</Label>
+                  <Label>{t("admin.settings.ai_fallback")}</Label>
                   <p className="text-xs text-muted-foreground mb-2">
-                    В бесплатном аккаунте Groq жёсткие лимиты (Rate Limits). Если основная модель не ответит из-за превышения лимитов, мы автоматически переключимся на следующую по списку.
+                    {t("admin.settings.ai_fallback_hint")}
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <select
@@ -2606,7 +2621,7 @@ export function SettingsPage() {
                       value={settings.groqFallback1 ?? ""}
                       onChange={(e) => setSettings((s) => (s ? { ...s, groqFallback1: e.target.value || null } : s))}
                     >
-                      <option value="">-- Без резерва 1 --</option>
+                      <option value="">{t("admin.settings.ai_no_fallback")} 1</option>
                       <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile</option>
                       <option value="deepseek-r1-distill-llama-70b">deepseek-r1-distill-llama-70b</option>
                       <option value="deepseek-r1-distill-qwen-32b">deepseek-r1-distill-qwen-32b</option>
@@ -2623,7 +2638,7 @@ export function SettingsPage() {
                       value={settings.groqFallback2 ?? ""}
                       onChange={(e) => setSettings((s) => (s ? { ...s, groqFallback2: e.target.value || null } : s))}
                     >
-                      <option value="">-- Без резерва 2 --</option>
+                      <option value="">{t("admin.settings.ai_no_fallback")} 2</option>
                       <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile</option>
                       <option value="deepseek-r1-distill-llama-70b">deepseek-r1-distill-llama-70b</option>
                       <option value="deepseek-r1-distill-qwen-32b">deepseek-r1-distill-qwen-32b</option>
@@ -2640,7 +2655,7 @@ export function SettingsPage() {
                       value={settings.groqFallback3 ?? ""}
                       onChange={(e) => setSettings((s) => (s ? { ...s, groqFallback3: e.target.value || null } : s))}
                     >
-                      <option value="">-- Без резерва 3 --</option>
+                      <option value="">{t("admin.settings.ai_no_fallback")} 3</option>
                       <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile</option>
                       <option value="deepseek-r1-distill-llama-70b">deepseek-r1-distill-llama-70b</option>
                       <option value="deepseek-r1-distill-qwen-32b">deepseek-r1-distill-qwen-32b</option>
@@ -2655,7 +2670,7 @@ export function SettingsPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Системный промпт (System Prompt)</Label>
+                  <Label>{t("admin.settings.ai_system_prompt")}</Label>
                   <textarea
                     className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     value={settings.aiSystemPrompt ?? ""}
@@ -2663,12 +2678,12 @@ export function SettingsPage() {
                     placeholder="Ты — лучший менеджер техподдержки VPN-сервиса..."
                   />
                   <p className="text-xs text-muted-foreground">
-                    Эта инструкция задаёт роль, тон и поведение бота. Опишите здесь, как именно он должен отвечать клиентам.
+                    {t("admin.settings.ai_prompt_hint")}
                   </p>
                 </div>
                 <div className="pt-2 border-t">
                   <Button type="submit" disabled={saving} className="min-w-[140px]">
-                    {saving ? "Сохранение…" : "Сохранить"}
+                    {saving ? t("admin.settings.saving") : t("admin.settings.save")}
                   </Button>
                 </div>
               </CardContent>
@@ -2680,10 +2695,10 @@ export function SettingsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Mail className="h-5 w-5" />
-                  SMTP (письма подтверждения регистрации)
+                  {t("admin.settings.smtp_title")}
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Настройки почтового сервера для отправки ссылки подтверждения при регистрации по email.
+                  {t("admin.settings.smtp_subtitle")}
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -2696,15 +2711,15 @@ export function SettingsPage() {
                     className="rounded border"
                   />
                   <Label htmlFor="skipEmailVerification" className="cursor-pointer">
-                    Регистрация без подтверждения почты
+                    {t("admin.settings.skip_email")}
                   </Label>
                   <span className="text-xs text-muted-foreground ml-2">
-                    (если включено — пользователь регистрируется сразу, письмо не отправляется)
+                    ({t("admin.settings.smtp_no_confirm_hint")})
                   </span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Хост SMTP</Label>
+                    <Label>{t("admin.settings.smtp_host")}</Label>
                     <Input
                       value={settings.smtpHost ?? ""}
                       onChange={(e) => setSettings((s) => (s ? { ...s, smtpHost: e.target.value || null } : s))}
@@ -2712,7 +2727,7 @@ export function SettingsPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Порт</Label>
+                    <Label>{t("admin.settings.smtp_port")}</Label>
                     <Input
                       type="number"
                       min={1}
@@ -2734,7 +2749,7 @@ export function SettingsPage() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Пользователь SMTP</Label>
+                    <Label>{t("admin.settings.smtp_user")}</Label>
                     <Input
                       value={settings.smtpUser ?? ""}
                       onChange={(e) => setSettings((s) => (s ? { ...s, smtpUser: e.target.value || null } : s))}
@@ -2742,7 +2757,7 @@ export function SettingsPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Пароль (оставьте пустым, чтобы не менять)</Label>
+                    <Label>{t("admin.settings.smtp_password")}</Label>
                     <Input
                       type="password"
                       value={settings.smtpPassword ?? ""}
@@ -2753,7 +2768,7 @@ export function SettingsPage() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>От кого (email)</Label>
+                    <Label>{t("admin.settings.smtp_from_email")}</Label>
                     <Input
                       type="email"
                       value={settings.smtpFromEmail ?? ""}
@@ -2762,11 +2777,11 @@ export function SettingsPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Имя отправителя</Label>
+                    <Label>{t("admin.settings.smtp_from_name")}</Label>
                     <Input
                       value={settings.smtpFromName ?? ""}
                       onChange={(e) => setSettings((s) => (s ? { ...s, smtpFromName: e.target.value || null } : s))}
-                      placeholder="Название сервиса"
+                      placeholder={t("admin.settings.smtp_service_name_placeholder")}
                     />
                   </div>
                 </div>
@@ -2776,15 +2791,15 @@ export function SettingsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <MessageCircle className="h-5 w-5" />
-                  Telegram
+                  {t("admin.settings.telegram_title")}
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Бот для входа и регистрации через Telegram. Укажите username бота (без @) — кнопка «Войти через Telegram» появится на страницах входа и регистрации.
+                  {t("admin.settings.telegram_bot_hint")}
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Токен бота (BotFather)</Label>
+                  <Label>{t("admin.settings.telegram_bot_token")}</Label>
                   <Input
                     type="password"
                     value={settings.telegramBotToken ?? ""}
@@ -2793,7 +2808,7 @@ export function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Username бота (без @)</Label>
+                  <Label>{t("admin.settings.telegram_bot_username")}</Label>
                   <Input
                     value={settings.telegramBotUsername ?? ""}
                     onChange={(e) => setSettings((s) => (s ? { ...s, telegramBotUsername: e.target.value || null } : s))}
@@ -2801,9 +2816,9 @@ export function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Админы бота (Telegram ID)</Label>
+                  <Label>{t("admin.settings.telegram_admins")}</Label>
                   <p className="text-xs text-muted-foreground">
-                    Пользователи с этими Telegram ID увидят в боте кнопку «Панель админа» (ссылка на веб-панель). Узнать свой ID: @userinfobot или в настройках бота.
+                    {t("admin.settings.telegram_admins_hint")}
                   </p>
                   <div className="flex flex-wrap gap-2 items-center">
                     {(settings.botAdminTelegramIds ?? []).map((id) => (
@@ -2813,7 +2828,7 @@ export function SettingsPage() {
                           type="button"
                           onClick={() => setSettings((s) => (s ? { ...s, botAdminTelegramIds: (s.botAdminTelegramIds ?? []).filter((x) => x !== id) } : s))}
                           className="text-muted-foreground hover:text-destructive"
-                          title="Удалить"
+                          title={t("admin.settings.telegram_delete")}
                         >
                           ×
                         </button>
@@ -2850,14 +2865,14 @@ export function SettingsPage() {
                           }
                         }}
                       >
-                        Добавить ID
+                        {t("admin.settings.add_id")}
                       </Button>
                     </div>
                   </div>
                 </div>
                 {message && <p className="text-sm text-muted-foreground">{message}</p>}
                 <Button type="submit" disabled={saving}>
-                  {saving ? "Сохранение…" : "Сохранить"}
+                  {saving ? t("admin.settings.saving") : t("admin.settings.save")}
                 </Button>
               </CardContent>
             </Card>
@@ -2869,9 +2884,9 @@ export function SettingsPage() {
             <CardHeader>
               <div className="flex items-center justify-between rounded-xl border p-4 bg-background/50 mb-6">
                 <div className="space-y-0.5">
-                  <Label className="text-base">Выбор темы пользователями</Label>
+                  <Label className="text-base">{t("admin.settings.theme_user_choice")}</Label>
                   <p className="text-sm text-muted-foreground">
-                    Если включено, клиенты в кабинете смогут сами выбирать цвет интерфейса. Если выключено — у всех будет цвет, выбранный ниже, а кнопка смены цвета скроется.
+                    {t("admin.settings.theme_user_choice_hint")}
                   </p>
                 </div>
                 <Switch
@@ -2881,16 +2896,15 @@ export function SettingsPage() {
               </div>
               <CardTitle className="flex items-center gap-2">
                 <Palette className="h-5 w-5" />
-                Глобальная тема
+                {t("admin.settings.theme_title")}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Выберите цветовую тему, которая будет применена ко всему сайту: админке, кабинету клиента и мини-апп.
-                Переключатель тёмная/светлая всегда доступен в шапке.
+                {t("admin.settings.theme_global_hint")}
               </p>
             </CardHeader>
             <CardContent className="space-y-6">
               <div>
-                <Label className="text-sm font-medium mb-3 block">Цветовой акцент</Label>
+                <Label className="text-sm font-medium mb-3 block">{t("admin.settings.theme_accent")}</Label>
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
                   {(Object.entries(ACCENT_PALETTES) as [string, { label: string; swatch: string }][]).map(([key, palette]) => {
                     const selected = (settings.themeAccent ?? "default") === key;
@@ -2927,13 +2941,13 @@ export function SettingsPage() {
                     setSaving(true);
                     setMessage("");
                     api.updateSettings(token, { themeAccent: settings.themeAccent ?? "default", allowUserThemeChange: (settings as any).allowUserThemeChange ?? true })
-                      .then(() => setMessage("Тема сохранена"))
-                      .catch(() => setMessage("Ошибка сохранения"))
+                      .then(() => setMessage(t("admin.settings.theme_saved")))
+                      .catch(() => setMessage(t("admin.settings.save_error")))
                       .finally(() => setSaving(false));
                   }}
                   disabled={saving}
                 >
-                  {saving ? "Сохранение…" : "Сохранить тему"}
+                  {saving ? t("admin.settings.saving") : t("admin.settings.save_theme")}
                 </Button>
               </div>
             </CardContent>
@@ -2945,10 +2959,10 @@ export function SettingsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Package className="h-5 w-5" />
-                Продажа опций
+                {t("admin.settings.options_title")}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Доп. трафик, доп. устройства и доп. серверы (сквады) — клиенты могут докупать их после оформления подписки. Опции применяются к пользователю в Remna после оплаты.
+                {t("admin.settings.options_subtitle")}
               </p>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -2958,13 +2972,13 @@ export function SettingsPage() {
                   checked={settings.sellOptionsEnabled ?? false}
                   onCheckedChange={(c: boolean) => setSettings((s) => (s ? { ...s, sellOptionsEnabled: !!c } : s))}
                 />
-                <Label htmlFor="sell-options-enabled" className="cursor-pointer">Включить продажу опций</Label>
+                <Label htmlFor="sell-options-enabled" className="cursor-pointer">{t("admin.settings.options_enable")}</Label>
               </div>
 
               <Collapsible defaultOpen>
                 <CollapsibleTrigger className="flex items-center gap-2 font-medium">
                   <ChevronDown className="h-4 w-4" />
-                  Доп. трафик (ГБ)
+                  {t("admin.settings.options_traffic")}
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-3 space-y-3">
                   <div className="flex items-center gap-2 mb-3">
@@ -2973,23 +2987,23 @@ export function SettingsPage() {
                       checked={settings.sellOptionsTrafficEnabled ?? false}
                       onCheckedChange={(c: boolean) => setSettings((s) => (s ? { ...s, sellOptionsTrafficEnabled: !!c } : s))}
                     />
-                    <Label htmlFor="sell-traffic-enabled" className="cursor-pointer">Включить</Label>
+                    <Label htmlFor="sell-traffic-enabled" className="cursor-pointer">{t("admin.settings.options_enable_short")}</Label>
                   </div>
                   <div className="rounded-md border overflow-x-auto overflow-hidden">
                     <table className="w-full text-sm min-w-[400px] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap">
                       <thead>
                         <tr className="border-b bg-muted/50">
-                          <th className="text-left p-2 font-medium">Название</th>
-                          <th className="text-left p-2 font-medium w-24">ГБ</th>
-                          <th className="text-left p-2 font-medium w-28">Цена</th>
-                          <th className="text-left p-2 font-medium w-24">Валюта</th>
+                          <th className="text-left p-2 font-medium">{t("admin.settings.options_col_name")}</th>
+                          <th className="text-left p-2 font-medium w-24">{t("admin.settings.options_col_gb")}</th>
+                          <th className="text-left p-2 font-medium w-28">{t("admin.settings.options_col_price")}</th>
+                          <th className="text-left p-2 font-medium w-24">{t("admin.settings.options_col_currency")}</th>
                           <th className="w-10" />
                         </tr>
                       </thead>
                       <tbody>
                         {(settings.sellOptionsTrafficProducts ?? []).map((p, i) => (
                           <tr key={p.id} className="border-b last:border-0">
-                            <td className="p-2"><Input className="h-9 w-full max-w-[180px]" placeholder="Название" value={p.name} onChange={(e) => setSettings((s) => { if (!s?.sellOptionsTrafficProducts) return s; const arr = [...s.sellOptionsTrafficProducts]; arr[i] = { ...arr[i], name: e.target.value }; return { ...s, sellOptionsTrafficProducts: arr }; })} /></td>
+                            <td className="p-2"><Input className="h-9 w-full max-w-[180px]" placeholder={t("admin.settings.options_name_placeholder")} value={p.name} onChange={(e) => setSettings((s) => { if (!s?.sellOptionsTrafficProducts) return s; const arr = [...s.sellOptionsTrafficProducts]; arr[i] = { ...arr[i], name: e.target.value }; return { ...s, sellOptionsTrafficProducts: arr }; })} /></td>
                             <td className="p-2"><Input type="number" min={0.1} step={0.5} className="h-9 w-full" value={p.trafficGb || ""} onChange={(e) => setSettings((s) => { if (!s?.sellOptionsTrafficProducts) return s; const arr = [...s.sellOptionsTrafficProducts]; arr[i] = { ...arr[i], trafficGb: parseFloat(e.target.value) || 0 }; return { ...s, sellOptionsTrafficProducts: arr }; })} /></td>
                             <td className="p-2"><Input type="number" min={0} step={1} className="h-9 w-full" value={p.price || ""} onChange={(e) => setSettings((s) => { if (!s?.sellOptionsTrafficProducts) return s; const arr = [...s.sellOptionsTrafficProducts]; arr[i] = { ...arr[i], price: parseFloat(e.target.value) || 0 }; return { ...s, sellOptionsTrafficProducts: arr }; })} /></td>
                             <td className="p-2">
@@ -3005,7 +3019,7 @@ export function SettingsPage() {
                   </div>
                   <div className="mt-3">
                     <Button type="button" variant="outline" size="sm" onClick={() => setSettings((s) => (s ? { ...s, sellOptionsTrafficProducts: [...(s.sellOptionsTrafficProducts ?? []), { id: `traffic_${Date.now()}`, name: "", trafficGb: 5, price: 0, currency: "rub" }] } : s))}>
-                      <Plus className="h-4 w-4 mr-1" /> Добавить
+                      <Plus className="h-4 w-4 mr-1" /> {t("admin.settings.options_add")}
                     </Button>
                   </div>
                 </CollapsibleContent>
@@ -3014,7 +3028,7 @@ export function SettingsPage() {
               <Collapsible defaultOpen>
                 <CollapsibleTrigger className="flex items-center gap-2 font-medium">
                   <ChevronDown className="h-4 w-4" />
-                  Доп. устройства
+                  {t("admin.settings.options_devices")}
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-3 space-y-3">
                   <div className="flex items-center gap-2 mb-3">
@@ -3023,23 +3037,23 @@ export function SettingsPage() {
                       checked={settings.sellOptionsDevicesEnabled ?? false}
                       onCheckedChange={(c: boolean) => setSettings((s) => (s ? { ...s, sellOptionsDevicesEnabled: !!c } : s))}
                     />
-                    <Label htmlFor="sell-devices-enabled" className="cursor-pointer">Включить</Label>
+                    <Label htmlFor="sell-devices-enabled" className="cursor-pointer">{t("admin.settings.options_enable_short")}</Label>
                   </div>
                   <div className="rounded-md border overflow-x-auto overflow-hidden">
                     <table className="w-full text-sm min-w-[400px] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap">
                       <thead>
                         <tr className="border-b bg-muted/50">
-                          <th className="text-left p-2 font-medium">Название</th>
-                          <th className="text-left p-2 font-medium w-20">Шт.</th>
-                          <th className="text-left p-2 font-medium w-28">Цена</th>
-                          <th className="text-left p-2 font-medium w-24">Валюта</th>
+                          <th className="text-left p-2 font-medium">{t("admin.settings.options_col_name")}</th>
+                          <th className="text-left p-2 font-medium w-20">{t("admin.settings.options_col_qty")}</th>
+                          <th className="text-left p-2 font-medium w-28">{t("admin.settings.options_col_price")}</th>
+                          <th className="text-left p-2 font-medium w-24">{t("admin.settings.options_col_currency")}</th>
                           <th className="w-10" />
                         </tr>
                       </thead>
                       <tbody>
                         {(settings.sellOptionsDevicesProducts ?? []).map((p, i) => (
                           <tr key={p.id} className="border-b last:border-0">
-                            <td className="p-2"><Input className="h-9 w-full max-w-[180px]" placeholder="Название" value={p.name} onChange={(e) => setSettings((s) => { if (!s?.sellOptionsDevicesProducts) return s; const arr = [...s.sellOptionsDevicesProducts]; arr[i] = { ...arr[i], name: e.target.value }; return { ...s, sellOptionsDevicesProducts: arr }; })} /></td>
+                            <td className="p-2"><Input className="h-9 w-full max-w-[180px]" placeholder={t("admin.settings.options_name_placeholder")} value={p.name} onChange={(e) => setSettings((s) => { if (!s?.sellOptionsDevicesProducts) return s; const arr = [...s.sellOptionsDevicesProducts]; arr[i] = { ...arr[i], name: e.target.value }; return { ...s, sellOptionsDevicesProducts: arr }; })} /></td>
                             <td className="p-2"><Input type="number" min={1} className="h-9 w-full" value={p.deviceCount || ""} onChange={(e) => setSettings((s) => { if (!s?.sellOptionsDevicesProducts) return s; const arr = [...s.sellOptionsDevicesProducts]; arr[i] = { ...arr[i], deviceCount: parseInt(e.target.value, 10) || 0 }; return { ...s, sellOptionsDevicesProducts: arr }; })} /></td>
                             <td className="p-2"><Input type="number" min={0} step={1} className="h-9 w-full" value={p.price || ""} onChange={(e) => setSettings((s) => { if (!s?.sellOptionsDevicesProducts) return s; const arr = [...s.sellOptionsDevicesProducts]; arr[i] = { ...arr[i], price: parseFloat(e.target.value) || 0 }; return { ...s, sellOptionsDevicesProducts: arr }; })} /></td>
                             <td className="p-2">
@@ -3055,7 +3069,7 @@ export function SettingsPage() {
                   </div>
                   <div className="mt-3">
                     <Button type="button" variant="outline" size="sm" onClick={() => setSettings((s) => (s ? { ...s, sellOptionsDevicesProducts: [...(s.sellOptionsDevicesProducts ?? []), { id: `devices_${Date.now()}`, name: "", deviceCount: 1, price: 0, currency: "rub" }] } : s))}>
-                      <Plus className="h-4 w-4 mr-1" /> Добавить
+                      <Plus className="h-4 w-4 mr-1" /> {t("admin.settings.options_add")}
                     </Button>
                   </div>
                 </CollapsibleContent>
@@ -3064,7 +3078,7 @@ export function SettingsPage() {
               <Collapsible defaultOpen>
                 <CollapsibleTrigger className="flex items-center gap-2 font-medium">
                   <ChevronDown className="h-4 w-4" />
-                  Доп. серверы (сквады)
+                  {t("admin.settings.options_servers")}
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-3 space-y-3">
                   <div className="flex items-center gap-2 mb-3">
@@ -3073,28 +3087,28 @@ export function SettingsPage() {
                       checked={settings.sellOptionsServersEnabled ?? false}
                       onCheckedChange={(c: boolean) => setSettings((s) => (s ? { ...s, sellOptionsServersEnabled: !!c } : s))}
                     />
-                    <Label htmlFor="sell-servers-enabled" className="cursor-pointer">Включить</Label>
+                    <Label htmlFor="sell-servers-enabled" className="cursor-pointer">{t("admin.settings.options_enable_short")}</Label>
                   </div>
-                  <p className="text-xs text-muted-foreground">Сквады из Remna (вкладка Синхронизация). Выберите сквад и укажите цену.</p>
+                  <p className="text-xs text-muted-foreground">{t("admin.settings.options_squads_hint")}</p>
                   <div className="rounded-md border overflow-x-auto overflow-hidden">
                     <table className="w-full text-sm min-w-[520px] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap">
                       <thead>
                         <tr className="border-b bg-muted/50">
-                          <th className="text-left p-2 font-medium">Название</th>
-                          <th className="text-left p-2 font-medium">Сквад</th>
-                          <th className="text-left p-2 font-medium w-20">ГБ</th>
-                          <th className="text-left p-2 font-medium w-28">Цена</th>
-                          <th className="text-left p-2 font-medium w-24">Валюта</th>
+                          <th className="text-left p-2 font-medium">{t("admin.settings.options_col_name")}</th>
+                          <th className="text-left p-2 font-medium">{t("admin.settings.options_col_squad")}</th>
+                          <th className="text-left p-2 font-medium w-20">{t("admin.settings.options_col_gb")}</th>
+                          <th className="text-left p-2 font-medium w-28">{t("admin.settings.options_col_price")}</th>
+                          <th className="text-left p-2 font-medium w-24">{t("admin.settings.options_col_currency")}</th>
                           <th className="w-10" />
                         </tr>
                       </thead>
                       <tbody>
                         {(settings.sellOptionsServersProducts ?? []).map((p, i) => (
                           <tr key={p.id} className="border-b last:border-0">
-                            <td className="p-2"><Input className="h-9 w-full max-w-[160px]" placeholder="Название" value={p.name} onChange={(e) => setSettings((s) => { if (!s?.sellOptionsServersProducts) return s; const arr = [...s.sellOptionsServersProducts]; arr[i] = { ...arr[i], name: e.target.value }; return { ...s, sellOptionsServersProducts: arr }; })} /></td>
+                            <td className="p-2"><Input className="h-9 w-full max-w-[160px]" placeholder={t("admin.settings.options_name_placeholder")} value={p.name} onChange={(e) => setSettings((s) => { if (!s?.sellOptionsServersProducts) return s; const arr = [...s.sellOptionsServersProducts]; arr[i] = { ...arr[i], name: e.target.value }; return { ...s, sellOptionsServersProducts: arr }; })} /></td>
                             <td className="p-2">
                               <select className="h-9 rounded-md border px-2 w-full min-w-[180px] bg-background" value={p.squadUuid} onChange={(e) => setSettings((s) => { if (!s?.sellOptionsServersProducts) return s; const arr = [...s.sellOptionsServersProducts]; arr[i] = { ...arr[i], squadUuid: e.target.value }; return { ...s, sellOptionsServersProducts: arr }; })}>
-                                <option value="">— Сквад —</option>
+                                <option value="">{t("admin.settings.options_squad_none")}</option>
                                 {squads.map((sq) => <option key={sq.uuid} value={sq.uuid}>{sq.name || sq.uuid}</option>)}
                               </select>
                             </td>
@@ -3113,7 +3127,7 @@ export function SettingsPage() {
                   </div>
                   <div className="mt-3">
                     <Button type="button" variant="outline" size="sm" onClick={() => setSettings((s) => (s ? { ...s, sellOptionsServersProducts: [...(s.sellOptionsServersProducts ?? []), { id: `server_${Date.now()}`, name: "", squadUuid: squads[0]?.uuid ?? "", trafficGb: 0, price: 0, currency: "rub" }] } : s))}>
-                      <Plus className="h-4 w-4 mr-1" /> Добавить
+                      <Plus className="h-4 w-4 mr-1" /> {t("admin.settings.options_add")}
                     </Button>
                   </div>
                 </CollapsibleContent>
@@ -3121,7 +3135,7 @@ export function SettingsPage() {
 
               <div className="pt-4 border-t">
                 {message && <p className="text-sm text-muted-foreground mb-2">{message}</p>}
-                <Button type="button" onClick={saveOptionsOnly} disabled={saving}>{saving ? "Сохранение…" : "Сохранить настройки опций"}</Button>
+                <Button type="button" onClick={saveOptionsOnly} disabled={saving}>{saving ? t("admin.settings.saving") : t("admin.settings.options_save")}</Button>
               </div>
             </CardContent>
           </Card>
@@ -3132,10 +3146,10 @@ export function SettingsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Layers className="h-5 w-5" />
-                Гибкий тариф («Собери сам»)
+                {t("admin.settings.custom_build_title")}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Клиент выбирает количество дней (1–360), устройств и опционально трафик. Цена считается по формуле. Выдаётся доступ к выбранному скваду.
+                {t("admin.settings.custom_build_subtitle")}
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -3145,11 +3159,11 @@ export function SettingsPage() {
                   checked={!!settings.customBuildEnabled}
                   onCheckedChange={(c: boolean) => setSettings((s) => (s ? { ...s, customBuildEnabled: !!c } : s))}
                 />
-                <Label htmlFor="custom-build-enabled" className="cursor-pointer font-medium">Включить гибкий тариф в кабинете</Label>
+                <Label htmlFor="custom-build-enabled" className="cursor-pointer font-medium">{t("admin.settings.custom_build_enable")}</Label>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Цена за 1 день</Label>
+                  <Label>{t("admin.settings.custom_build_price_day")}</Label>
                   <Input
                     type="number"
                     min={0}
@@ -3159,7 +3173,7 @@ export function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Цена за устройство</Label>
+                  <Label>{t("admin.settings.custom_build_price_device")}</Label>
                   <Input
                     type="number"
                     min={0}
@@ -3170,7 +3184,7 @@ export function SettingsPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Трафик</Label>
+                <Label>{t("admin.settings.custom_build_traffic")}</Label>
                 <div className="flex gap-4 items-center">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -3180,7 +3194,7 @@ export function SettingsPage() {
                       onChange={() => setSettings((s) => (s ? { ...s, customBuildTrafficMode: "unlimited" as const } : s))}
                       className="rounded-full"
                     />
-                    Безлимит
+                    {t("admin.settings.custom_build_unlimited")}
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -3190,7 +3204,7 @@ export function SettingsPage() {
                       onChange={() => setSettings((s) => (s ? { ...s, customBuildTrafficMode: "per_gb" as const } : s))}
                       className="rounded-full"
                     />
-                    За ГБ
+                    {t("admin.settings.custom_build_per_gb")}
                   </label>
                   {(settings.customBuildTrafficMode ?? "unlimited") === "per_gb" && (
                     <div className="flex items-center gap-2">
@@ -3208,13 +3222,13 @@ export function SettingsPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Сквад (доступ для клиента)</Label>
+                <Label>{t("admin.settings.custom_build_squad")}</Label>
                 <select
                   className="flex h-10 w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={settings.customBuildSquadUuid ?? ""}
                   onChange={(e) => setSettings((s) => (s ? { ...s, customBuildSquadUuid: e.target.value || null } : s))}
                 >
-                  <option value="">— выберите сквад —</option>
+                  <option value="">{t("admin.settings.custom_build_squad_none")}</option>
                   {squads.map((s) => (
                     <option key={s.uuid} value={s.uuid}>{s.name || s.uuid}</option>
                   ))}
@@ -3222,7 +3236,7 @@ export function SettingsPage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Валюта</Label>
+                  <Label>{t("admin.settings.custom_build_currency")}</Label>
                   <select
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={settings.customBuildCurrency ?? "rub"}
@@ -3234,7 +3248,7 @@ export function SettingsPage() {
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Макс. дней (1–360)</Label>
+                  <Label>{t("admin.settings.custom_build_max_days")}</Label>
                   <Input
                     type="number"
                     min={1}
@@ -3244,7 +3258,7 @@ export function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Макс. устройств (1–20)</Label>
+                  <Label>{t("admin.settings.custom_build_max_devices")}</Label>
                   <Input
                     type="number"
                     min={1}
@@ -3255,7 +3269,7 @@ export function SettingsPage() {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                Гибкий тариф появится в меню кабинета клиента только если он включён и выбран сквад.
+                {t("admin.settings.custom_build_hint")}
               </p>
               <div className="pt-2 flex items-center gap-2">
                 <Button
@@ -3266,7 +3280,7 @@ export function SettingsPage() {
                     handleSubmit(e as unknown as React.FormEvent);
                   }}
                 >
-                  {saving ? "Сохранение…" : "Сохранить"}
+                  {saving ? t("admin.settings.saving") : t("admin.settings.save")}
                 </Button>
                 {message && <span className="text-sm text-muted-foreground">{message}</span>}
               </div>
@@ -3279,10 +3293,10 @@ export function SettingsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <KeyRound className="h-5 w-5" />
-                OAuth — Вход через Google и Apple
+                {t("admin.settings.oauth_title")}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Настройте авторизацию клиентов через Google и Apple. Кнопки появятся на страницах входа и регистрации.
+                {t("admin.settings.oauth_subtitle")}
               </p>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -3290,7 +3304,7 @@ export function SettingsPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-medium">Google Sign In</h3>
-                    <p className="text-xs text-muted-foreground">Нужен Google Cloud Console проект с OAuth 2.0 Client ID</p>
+                    <p className="text-xs text-muted-foreground">{t("admin.settings.oauth_google_hint")}</p>
                   </div>
                   <Switch
                     checked={settings?.googleLoginEnabled ?? false}
@@ -3308,7 +3322,7 @@ export function SettingsPage() {
                       />
                     </div>
                     <div>
-                      <Label>Client Secret (необязательно)</Label>
+                      <Label>{t("admin.settings.oauth_google_secret")}</Label>
                       <Input
                         type="password"
                         placeholder="GOCSPX-..."
@@ -3316,11 +3330,11 @@ export function SettingsPage() {
                         onChange={(e) => setSettings((s) => (s ? { ...s, googleClientSecret: e.target.value || null } : s))}
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        В Google Cloud Console → Credentials → ваш OAuth 2.0 Client ID → в блоке «Client secret» нажмите «Show» или создайте секрет заново. Для кнопки «Войти через Google» на сайте секрет не обязателен.
+                        {t("admin.settings.oauth_google_secret_hint")}
                       </p>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      В Authorized JavaScript origins добавьте домен приложения (например https://ваш-сайт.ru). Redirect URI для id_token не нужен.
+                      {t("admin.settings.oauth_google_origins_hint")}
                     </p>
                   </div>
                 )}
@@ -3330,7 +3344,7 @@ export function SettingsPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-medium">Apple Sign In</h3>
-                    <p className="text-xs text-muted-foreground">Нужен Apple Developer аккаунт и Services ID</p>
+                    <p className="text-xs text-muted-foreground">{t("admin.settings.oauth_apple_hint")}</p>
                   </div>
                   <Switch
                     checked={settings?.appleLoginEnabled ?? false}
@@ -3373,7 +3387,7 @@ export function SettingsPage() {
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      В Apple Developer: создайте Services ID (указать домен и return URL). Зарегистрируйте ключ Sign In with Apple и скачайте .p8 файл. Return URL: <code>{`${window.location.origin}/cabinet/login`}</code>
+                      {t("admin.settings.oauth_apple_desc")} Return URL: <code>{`${window.location.origin}/cabinet/login`}</code>
                     </p>
                   </div>
                 )}
@@ -3388,7 +3402,7 @@ export function SettingsPage() {
                     handleSubmit(e as unknown as React.FormEvent);
                   }}
                 >
-                  {saving ? "Сохранение…" : "Сохранить"}
+                  {saving ? t("admin.settings.saving") : t("admin.settings.save")}
                 </Button>
                 {message && <span className="text-sm text-muted-foreground">{message}</span>}
               </div>
@@ -3401,10 +3415,10 @@ export function SettingsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Globe className="h-5 w-5" />
-                Лендинг на главной
+                {t("admin.settings.landing_title")}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Если включено, по адресу <code>/</code> показывается лендинг (информация, тарифы, контакты). Регистрация ведёт в кабинет. Иначе главная перенаправляет в кабинет/логин.
+                {t("admin.settings.landing_subtitle")}
               </p>
               <div className="pt-2">
                 <Button
@@ -3418,24 +3432,24 @@ export function SettingsPage() {
                     try {
                       const updated = await api.resetLandingText(token);
                       setSettings((prev) => (prev ? { ...prev, ...updated } : prev));
-                      setMessage("Тексты лендинга сброшены на исходные.");
+                      setMessage(t("admin.settings.landing_texts_reset"));
                     } catch {
-                      setMessage("Ошибка сброса текстов лендинга");
+                      setMessage(t("admin.settings.landing_reset_error"));
                     } finally {
                       setSaving(false);
                     }
                   }}
                 >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                  Вернуть исходные тексты лендинга
+                  {t("admin.settings.landing_reset_texts")}
                 </Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between rounded-lg border p-4">
                 <div>
-                  <p className="font-medium">Включить лендинг</p>
-                  <p className="text-sm text-muted-foreground">Показывать лендинг на https://panel.stealthnet.app/</p>
+                  <p className="font-medium">{t("admin.settings.landing_enable")}</p>
+                  <p className="text-sm text-muted-foreground">{t("admin.settings.landing_show_hint")}</p>
                 </div>
                 <Switch
                   checked={settings.landingEnabled ?? false}
@@ -3443,7 +3457,7 @@ export function SettingsPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Заголовок (hero)</Label>
+                <Label>{t("admin.settings.landing_hero_title")}</Label>
                 <Input
                   placeholder="Например: STEALTHNET — быстрый VPN"
                   value={settings.landingHeroTitle ?? ""}
@@ -3451,17 +3465,17 @@ export function SettingsPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Подзаголовок (hero) — основной текст под заголовком</Label>
+                <Label>{t("admin.settings.landing_hero_subtitle")}</Label>
                 <Textarea
                   rows={3}
                   placeholder="Telegram, YouTube, видеозвонки и доступ к любым сервисам в одной подписке. Без ограничений и скрытых платежей."
                   value={settings.landingHeroSubtitle ?? ""}
                   onChange={(e) => setSettings((s) => (s ? { ...s, landingHeroSubtitle: e.target.value || null } : s))}
                 />
-                <p className="text-xs text-muted-foreground">Если пусто — на лендинге показывается текст из плейсхолдера выше.</p>
+                <p className="text-xs text-muted-foreground">{t("admin.settings.landing_hero_empty_hint")}</p>
               </div>
               <div className="grid gap-2">
-                <Label>Текст кнопки призыва (например: Регистрация / В кабинет)</Label>
+                <Label>{t("admin.settings.landing_hero_cta")}</Label>
                 <Input
                   placeholder="Регистрация"
                   value={settings.landingHeroCtaText ?? ""}
@@ -3469,7 +3483,7 @@ export function SettingsPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Подпись над заголовком (hero)</Label>
+                <Label>{t("admin.settings.landing_hero_badge")}</Label>
                 <Input
                   placeholder="Анонимность и доступ"
                   value={settings.landingHeroBadge ?? ""}
@@ -3477,23 +3491,23 @@ export function SettingsPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Подпись под кнопками (hero)</Label>
+                <Label>{t("admin.settings.landing_hero_hint_label")}</Label>
                 <Input
                   placeholder="Регистрация за минуту · Оплата картой, СБП или криптой"
                   value={settings.landingHeroHint ?? ""}
                   onChange={(e) => setSettings((s) => (s ? { ...s, landingHeroHint: e.target.value || null } : s))}
                 />
               </div>
-              <p className="text-sm font-medium text-muted-foreground">Полоска фич (5 плашек)</p>
+              <p className="text-sm font-medium text-muted-foreground">{t("admin.settings.landing_features_strip")}</p>
               {([1, 2, 3, 4, 5] as const).map((n) => (
                 <div key={n} className="rounded-lg border p-4 space-y-2">
-                  <Label>Фича {n} — заголовок</Label>
+                  <Label>{t("admin.settings.landing_feature_title", { n })}</Label>
                   <Input
                     placeholder={n === 1 ? "Защита" : ""}
                     value={(settings as unknown as Record<string, string | null | undefined>)[`landingFeature${n}Label`] ?? ""}
                     onChange={(e) => setSettings((s) => (s ? { ...s, [`landingFeature${n}Label`]: e.target.value || null } : s))}
                   />
-                  <Label>Фича {n} — подпись</Label>
+                  <Label>{t("admin.settings.landing_feature_desc", { n })}</Label>
                   <Input
                     placeholder={n === 1 ? "AES-256 шифрование" : ""}
                     value={(settings as unknown as Record<string, string | null | undefined>)[`landingFeature${n}Sub`] ?? ""}
@@ -3502,7 +3516,7 @@ export function SettingsPage() {
                 </div>
               ))}
               <div className="grid gap-2">
-                <Label>Блок «Почему мы» — заголовок</Label>
+                <Label>{t("admin.settings.landing_why_title")}</Label>
                 <Input
                   placeholder="Почему мы"
                   value={settings.landingBenefitsTitle ?? ""}
@@ -3510,23 +3524,23 @@ export function SettingsPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Блок «Почему мы» — подзаголовок</Label>
+                <Label>{t("admin.settings.landing_why_subtitle")}</Label>
                 <Input
                   placeholder="Всё необходимое для приватного и стабильного доступа в одном сервисе."
                   value={settings.landingBenefitsSubtitle ?? ""}
                   onChange={(e) => setSettings((s) => (s ? { ...s, landingBenefitsSubtitle: e.target.value || null } : s))}
                 />
               </div>
-              <p className="text-sm font-medium text-muted-foreground">Карточки (6 штук)</p>
+              <p className="text-sm font-medium text-muted-foreground">{t("admin.settings.landing_cards_title")}</p>
               {([1, 2, 3, 4, 5, 6] as const).map((n) => (
                 <div key={n} className="rounded-lg border p-4 space-y-2">
-                  <Label>Карточка {n} — заголовок</Label>
+                  <Label>{t("admin.settings.landing_card_title", { n })}</Label>
                   <Input
                     placeholder={n === 1 ? "Всегда онлайн" : ""}
                     value={(settings as unknown as Record<string, string | null | undefined>)[`landingBenefit${n}Title`] ?? ""}
                     onChange={(e) => setSettings((s) => (s ? { ...s, [`landingBenefit${n}Title`]: e.target.value || null } : s))}
                   />
-                  <Label>Карточка {n} — описание</Label>
+                  <Label>{t("admin.settings.landing_card_desc", { n })}</Label>
                   <Textarea
                     rows={2}
                     placeholder={n === 1 ? "Работает даже когда кажется, что интернета нет..." : ""}
@@ -3536,7 +3550,7 @@ export function SettingsPage() {
                 </div>
               ))}
               <div className="grid gap-2">
-                <Label>Блок «Тарифы» — заголовок</Label>
+                <Label>{t("admin.settings.landing_tariffs_title_label")}</Label>
                 <Input
                   placeholder="Выберите тариф"
                   value={settings.landingTariffsTitle ?? ""}
@@ -3544,7 +3558,7 @@ export function SettingsPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Блок «Тарифы» — подзаголовок</Label>
+                <Label>{t("admin.settings.landing_tariffs_subtitle_label")}</Label>
                 <Input
                   placeholder="Прозрачные условия без скрытых платежей."
                   value={settings.landingTariffsSubtitle ?? ""}
@@ -3552,7 +3566,7 @@ export function SettingsPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Блок «Устройства» — заголовок</Label>
+                <Label>{t("admin.settings.landing_devices_title_label")}</Label>
                 <Input
                   placeholder="На всех ваших устройствах"
                   value={settings.landingDevicesTitle ?? ""}
@@ -3560,7 +3574,7 @@ export function SettingsPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Блок «Устройства» — подзаголовок</Label>
+                <Label>{t("admin.settings.landing_devices_subtitle_label")}</Label>
                 <Input
                   placeholder="Один аккаунт. Одинаковый опыт на каждой платформе."
                   value={settings.landingDevicesSubtitle ?? ""}
@@ -3568,7 +3582,7 @@ export function SettingsPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Блок FAQ — заголовок</Label>
+                <Label>{t("admin.settings.landing_faq_title_label")}</Label>
                 <Input
                   placeholder="Частые вопросы"
                   value={settings.landingFaqTitle ?? ""}
@@ -3576,7 +3590,7 @@ export function SettingsPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Блок FAQ — вопросы (JSON: массив объектов с полями q и a)</Label>
+                <Label>{t("admin.settings.landing_faq_json")}</Label>
                 <Textarea
                   rows={10}
                   className="font-mono text-sm"
@@ -3585,39 +3599,39 @@ export function SettingsPage() {
                   onChange={(e) => setSettings((s) => (s ? { ...s, landingFaqJson: e.target.value || null } : s))}
                 />
               </div>
-              <p className="text-sm font-medium text-muted-foreground pt-2">Видимость блоков лендинга</p>
+              <p className="text-sm font-medium text-muted-foreground pt-2">{t("admin.settings.landing_sections_visibility")}</p>
               <div className="rounded-lg border p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div><p className="font-medium text-sm">Блок фич (карточки под hero)</p></div>
+                  <div><p className="font-medium text-sm">{t("admin.settings.landing_section_features")}</p></div>
                   <Switch checked={settings.landingShowFeatures !== false} onCheckedChange={(v) => setSettings((s) => (s ? { ...s, landingShowFeatures: v } : s))} />
                 </div>
                 <div className="flex items-center justify-between">
-                  <div><p className="font-medium text-sm">Блок «Почему мы» (преимущества)</p></div>
+                  <div><p className="font-medium text-sm">{t("admin.settings.landing_section_why")}</p></div>
                   <Switch checked={settings.landingShowBenefits !== false} onCheckedChange={(v) => setSettings((s) => (s ? { ...s, landingShowBenefits: v } : s))} />
                 </div>
                 <div className="flex items-center justify-between">
-                  <div><p className="font-medium text-sm">Блок тарифов</p></div>
+                  <div><p className="font-medium text-sm">{t("admin.settings.landing_section_tariffs")}</p></div>
                   <Switch checked={settings.landingShowTariffs !== false} onCheckedChange={(v) => setSettings((s) => (s ? { ...s, landingShowTariffs: v } : s))} />
                 </div>
                 <div className="flex items-center justify-between">
-                  <div><p className="font-medium text-sm">Блок устройств</p></div>
+                  <div><p className="font-medium text-sm">{t("admin.settings.landing_section_devices")}</p></div>
                   <Switch checked={settings.landingShowDevices !== false} onCheckedChange={(v) => setSettings((s) => (s ? { ...s, landingShowDevices: v } : s))} />
                 </div>
                 <div className="flex items-center justify-between">
-                  <div><p className="font-medium text-sm">Блок «Как это работает»</p></div>
+                  <div><p className="font-medium text-sm">{t("admin.settings.landing_section_howto")}</p></div>
                   <Switch checked={settings.landingShowHowItWorks !== false} onCheckedChange={(v) => setSettings((s) => (s ? { ...s, landingShowHowItWorks: v } : s))} />
                 </div>
                 <div className="flex items-center justify-between">
-                  <div><p className="font-medium text-sm">Блок FAQ</p></div>
+                  <div><p className="font-medium text-sm">{t("admin.settings.landing_section_faq")}</p></div>
                   <Switch checked={settings.landingShowFaq !== false} onCheckedChange={(v) => setSettings((s) => (s ? { ...s, landingShowFaq: v } : s))} />
                 </div>
                 <div className="flex items-center justify-between">
-                  <div><p className="font-medium text-sm">Финальный CTA (Ready to connect)</p></div>
+                  <div><p className="font-medium text-sm">{t("admin.settings.landing_section_cta")}</p></div>
                   <Switch checked={settings.landingShowCta !== false} onCheckedChange={(v) => setSettings((s) => (s ? { ...s, landingShowCta: v } : s))} />
                 </div>
               </div>
               <div className="grid gap-2">
-                <Label>Контакты (текст или HTML)</Label>
+                <Label>{t("admin.settings.landing_contacts")}</Label>
                 <Textarea
                   rows={3}
                   placeholder="Telegram: @support&#10;Email: support@example.com"
@@ -3626,25 +3640,25 @@ export function SettingsPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Ссылка на оферту</Label>
+                <Label>{t("admin.settings.landing_offer_link")}</Label>
                 <Input
                   placeholder="https://..."
                   value={settings.landingOfferLink ?? ""}
                   onChange={(e) => setSettings((s) => (s ? { ...s, landingOfferLink: e.target.value || null } : s))}
                 />
-                <p className="text-xs text-muted-foreground">Если пусто — используется общая настройка «Оферта» из раздела Поддержка.</p>
+                <p className="text-xs text-muted-foreground">{t("admin.settings.landing_offer_hint")}</p>
               </div>
               <div className="grid gap-2">
-                <Label>Ссылка на политику конфиденциальности</Label>
+                <Label>{t("admin.settings.landing_privacy_link")}</Label>
                 <Input
                   placeholder="https://..."
                   value={settings.landingPrivacyLink ?? ""}
                   onChange={(e) => setSettings((s) => (s ? { ...s, landingPrivacyLink: e.target.value || null } : s))}
                 />
-                <p className="text-xs text-muted-foreground">Если пусто — используется «Соглашение» из раздела Поддержка.</p>
+                <p className="text-xs text-muted-foreground">{t("admin.settings.landing_privacy_hint")}</p>
               </div>
               <div className="grid gap-2">
-                <Label>Текст в подвале (опционально)</Label>
+                <Label>{t("admin.settings.landing_footer_text")}</Label>
                 <Textarea
                   rows={2}
                   placeholder="© 2025 Сервис. Все права защищены."
@@ -3656,43 +3670,43 @@ export function SettingsPage() {
               <Collapsible>
                 <CollapsibleTrigger className="flex items-center gap-2 rounded-lg border p-4 hover:bg-muted/50 w-full text-left font-medium">
                   <ChevronDown className="h-4 w-4" />
-                  Доп. тексты лендинга (заголовки, кнопки, блоки)
+                  {t("admin.settings.landing_extra_texts")}
                 </CollapsibleTrigger>
                 <CollapsibleContent className="space-y-4 pt-4">
                   <div className="grid gap-2">
-                    <Label>Главный заголовок hero — строка 1</Label>
+                    <Label>{t("admin.settings.landing_headline_1")}</Label>
                     <Input placeholder="Тихий доступ," value={settings.landingHeroHeadline1 ?? ""} onChange={(e) => setSettings((s) => (s ? { ...s, landingHeroHeadline1: e.target.value || null } : s))} />
                   </div>
                   <div className="grid gap-2">
-                    <Label>Главный заголовок hero — строка 2</Label>
+                    <Label>{t("admin.settings.landing_headline_2")}</Label>
                     <Input placeholder="который выглядит дорого." value={settings.landingHeroHeadline2 ?? ""} onChange={(e) => setSettings((s) => (s ? { ...s, landingHeroHeadline2: e.target.value || null } : s))} />
                   </div>
                   <div className="grid gap-2">
-                    <Label>Подпись в шапке (над названием)</Label>
+                    <Label>{t("admin.settings.landing_header_badge")}</Label>
                     <Input placeholder="premium access" value={settings.landingHeaderBadge ?? ""} onChange={(e) => setSettings((s) => (s ? { ...s, landingHeaderBadge: e.target.value || null } : s))} />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <div><Label>Кнопка «Вход»</Label><Input placeholder="Вход" value={settings.landingButtonLogin ?? ""} onChange={(e) => setSettings((s) => (s ? { ...s, landingButtonLogin: e.target.value || null } : s))} /></div>
-                    <div><Label>Кнопка «Войти в кабинет»</Label><Input placeholder="Войти в кабинет" value={settings.landingButtonLoginCabinet ?? ""} onChange={(e) => setSettings((s) => (s ? { ...s, landingButtonLoginCabinet: e.target.value || null } : s))} /></div>
+                    <div><Label>{t("admin.settings.landing_btn_login")}</Label><Input placeholder="Вход" value={settings.landingButtonLogin ?? ""} onChange={(e) => setSettings((s) => (s ? { ...s, landingButtonLogin: e.target.value || null } : s))} /></div>
+                    <div><Label>{t("admin.settings.landing_btn_login_cabinet")}</Label><Input placeholder="Войти в кабинет" value={settings.landingButtonLoginCabinet ?? ""} onChange={(e) => setSettings((s) => (s ? { ...s, landingButtonLoginCabinet: e.target.value || null } : s))} /></div>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <div><Label>Пункт навигации «Преимущества»</Label><Input placeholder="Преимущества" value={settings.landingNavBenefits ?? ""} onChange={(e) => setSettings((s) => (s ? { ...s, landingNavBenefits: e.target.value || null } : s))} /></div>
-                    <div><Label>Пункт навигации «Тарифы»</Label><Input placeholder="Тарифы" value={settings.landingNavTariffs ?? ""} onChange={(e) => setSettings((s) => (s ? { ...s, landingNavTariffs: e.target.value || null } : s))} /></div>
-                    <div><Label>Пункт навигации «Устройства»</Label><Input placeholder="Устройства" value={settings.landingNavDevices ?? ""} onChange={(e) => setSettings((s) => (s ? { ...s, landingNavDevices: e.target.value || null } : s))} /></div>
-                    <div><Label>Пункт навигации «FAQ»</Label><Input placeholder="FAQ" value={settings.landingNavFaq ?? ""} onChange={(e) => setSettings((s) => (s ? { ...s, landingNavFaq: e.target.value || null } : s))} /></div>
+                    <div><Label>{t("admin.settings.landing_nav_benefits")}</Label><Input placeholder="Преимущества" value={settings.landingNavBenefits ?? ""} onChange={(e) => setSettings((s) => (s ? { ...s, landingNavBenefits: e.target.value || null } : s))} /></div>
+                    <div><Label>{t("admin.settings.landing_nav_tariffs")}</Label><Input placeholder="Тарифы" value={settings.landingNavTariffs ?? ""} onChange={(e) => setSettings((s) => (s ? { ...s, landingNavTariffs: e.target.value || null } : s))} /></div>
+                    <div><Label>{t("admin.settings.landing_nav_devices")}</Label><Input placeholder="Устройства" value={settings.landingNavDevices ?? ""} onChange={(e) => setSettings((s) => (s ? { ...s, landingNavDevices: e.target.value || null } : s))} /></div>
+                    <div><Label>{t("admin.settings.landing_nav_faq")}</Label><Input placeholder="FAQ" value={settings.landingNavFaq ?? ""} onChange={(e) => setSettings((s) => (s ? { ...s, landingNavFaq: e.target.value || null } : s))} /></div>
                   </div>
                   <div className="grid gap-2">
-                    <Label>Бейдж над блоком преимуществ</Label>
+                    <Label>{t("admin.settings.landing_benefits_badge")}</Label>
                     <Input placeholder="Почему мы" value={settings.landingBenefitsBadge ?? ""} onChange={(e) => setSettings((s) => (s ? { ...s, landingBenefitsBadge: e.target.value || null } : s))} />
                   </div>
                   <div className="grid gap-2">
-                    <Label>Текст плашки способов оплаты (если не заданы)</Label>
+                    <Label>{t("admin.settings.landing_payment_text")}</Label>
                     <Input placeholder="Карта, СБП, крипта и быстрый старт" value={settings.landingDefaultPaymentText ?? ""} onChange={(e) => setSettings((s) => (s ? { ...s, landingDefaultPaymentText: e.target.value || null } : s))} />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <div><Label>Кнопка «Выбрать тариф»</Label><Input placeholder="Выбрать тариф" value={settings.landingButtonChooseTariff ?? ""} onChange={(e) => setSettings((s) => (s ? { ...s, landingButtonChooseTariff: e.target.value || null } : s))} /></div>
-                    <div><Label>Кнопка «Смотреть тарифы» / «Начать»</Label><Input placeholder="Смотреть тарифы" value={settings.landingButtonWatchTariffs ?? ""} onChange={(e) => setSettings((s) => (s ? { ...s, landingButtonWatchTariffs: e.target.value || null } : s))} /></div>
-                    <div><Label>Кнопка «Начать» (без тарифов)</Label><Input placeholder="Начать" value={settings.landingButtonStart ?? ""} onChange={(e) => setSettings((s) => (s ? { ...s, landingButtonStart: e.target.value || null } : s))} /></div>
+                    <div><Label>{t("admin.settings.landing_btn_choose")}</Label><Input placeholder="Выбрать тариф" value={settings.landingButtonChooseTariff ?? ""} onChange={(e) => setSettings((s) => (s ? { ...s, landingButtonChooseTariff: e.target.value || null } : s))} /></div>
+                    <div><Label>{t("admin.settings.landing_btn_watch")}</Label><Input placeholder="Смотреть тарифы" value={settings.landingButtonWatchTariffs ?? ""} onChange={(e) => setSettings((s) => (s ? { ...s, landingButtonWatchTariffs: e.target.value || null } : s))} /></div>
+                    <div><Label>{t("admin.settings.landing_btn_start")}</Label><Input placeholder="Начать" value={settings.landingButtonStart ?? ""} onChange={(e) => setSettings((s) => (s ? { ...s, landingButtonStart: e.target.value || null } : s))} /></div>
                     <div><Label>Кнопка «Открыть кабинет»</Label><Input placeholder="Открыть кабинет и подключиться" value={settings.landingButtonOpenCabinet ?? ""} onChange={(e) => setSettings((s) => (s ? { ...s, landingButtonOpenCabinet: e.target.value || null } : s))} /></div>
                   </div>
                   <div className="grid gap-2">
@@ -3862,7 +3876,7 @@ export function SettingsPage() {
                     handleSubmit(e as unknown as React.FormEvent);
                   }}
                 >
-                  {saving ? "Сохранение…" : "Сохранить"}
+                  {saving ? t("admin.settings.saving") : t("admin.settings.save")}
                 </Button>
                 {message && <span className="text-sm text-muted-foreground">{message}</span>}
               </div>
@@ -3875,21 +3889,21 @@ export function SettingsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Terminal className="h-5 w-5" />
-                Настройки SSH
+                {t("admin.settings.ssh_title")}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Управление доступом по SSH к серверу. Изменения применяются немедленно.
+                {t("admin.settings.ssh_subtitle")}
               </p>
             </CardHeader>
             <CardContent className="space-y-6">
               {!sshConfig ? (
                 <p className="text-sm text-muted-foreground py-4">
-                  SSH-конфиг не найден. Убедитесь, что контейнер имеет доступ к <code>/etc/ssh/sshd_config</code> хоста.
+                  {t("admin.settings.ssh_not_found")}
                 </p>
               ) : (
                 <>
                   <div className="space-y-2">
-                    <Label>Порт SSH</Label>
+                    <Label>{t("admin.settings.ssh_port")}</Label>
                     <Input
                       type="number"
                       min={1}
@@ -3901,7 +3915,7 @@ export function SettingsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>PermitRootLogin</Label>
+                    <Label>{t("admin.settings.ssh_root_login")}</Label>
                     <select
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       value={sshConfig.permitRootLogin}
@@ -3915,7 +3929,7 @@ export function SettingsPage() {
 
                   <div className="flex items-center justify-between rounded-lg border p-4">
                     <div className="space-y-0.5">
-                      <Label className="text-base font-medium">Вход по паролю</Label>
+                      <Label className="text-base font-medium">{t("admin.settings.ssh_password_auth")}</Label>
                       <p className="text-sm text-muted-foreground">PasswordAuthentication — отключите, если используете только ключи</p>
                     </div>
                     <Switch
@@ -3926,7 +3940,7 @@ export function SettingsPage() {
 
                   <div className="flex items-center justify-between rounded-lg border p-4">
                     <div className="space-y-0.5">
-                      <Label className="text-base font-medium">Вход по ключу</Label>
+                      <Label className="text-base font-medium">{t("admin.settings.ssh_pubkey_auth")}</Label>
                       <p className="text-sm text-muted-foreground">PubkeyAuthentication — всегда должен быть включён, если заходите по ключу</p>
                     </div>
                     <Switch
@@ -3936,12 +3950,12 @@ export function SettingsPage() {
                   </div>
 
                   <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-300">
-                    <strong>Внимание:</strong> неправильные настройки могут заблокировать доступ к серверу.
+                    {t("admin.settings.ssh_warning")}
                     Перед изменением убедитесь, что у вас есть альтернативный способ доступа (например, консоль провайдера).
                   </div>
 
                   {sshMessage && (
-                    <p className={`text-sm ${sshMessage === "Сохранено" ? "text-emerald-500" : "text-destructive"}`}>
+                    <p className={`text-sm ${sshMessage === t("admin.settings.saved") ? "text-emerald-500" : "text-destructive"}`}>
                       {sshMessage}
                     </p>
                   )}
@@ -3954,15 +3968,15 @@ export function SettingsPage() {
                       try {
                         const updated = await api.updateSshConfig(token, sshConfig);
                         setSshConfig(updated);
-                        setSshMessage("Сохранено");
+                        setSshMessage(t("admin.settings.saved"));
                       } catch (e) {
-                        setSshMessage(e instanceof Error ? e.message : "Ошибка");
+                        setSshMessage(e instanceof Error ? e.message : t("admin.settings.error"));
                       } finally {
                         setSshSaving(false);
                       }
                     }}
                   >
-                    {sshSaving ? "Сохранение…" : "Применить"}
+                    {sshSaving ? t("admin.settings.saving") : t("admin.settings.ssh_apply")}
                   </Button>
                 </>
               )}
@@ -3975,17 +3989,16 @@ export function SettingsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Shield className="h-5 w-5" />
-                Прокси для внешних запросов
+                {t("admin.settings.proxy_title")}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Настройка прокси-сервера для исходящих запросов к Telegram API и платёжным системам.
-                Полезно, если на сервере заблокирован доступ к внешним сервисам.
+                {t("admin.settings.proxy_subtitle")}
               </p>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center justify-between rounded-lg border p-4">
                 <div className="space-y-0.5">
-                  <Label className="text-base font-medium">Прокси включён</Label>
+                  <Label className="text-base font-medium">{t("admin.settings.proxy_enabled")}</Label>
                   <p className="text-sm text-muted-foreground">Глобальный переключатель — отключает все прокси-маршруты</p>
                 </div>
                 <Switch
@@ -4008,11 +4021,11 @@ export function SettingsPage() {
               </div>
 
               <div className="space-y-4 rounded-lg border p-4">
-                <p className="text-sm font-medium">Маршрутизация через прокси</p>
+                <p className="text-sm font-medium">{t("admin.settings.proxy_routing")}</p>
 
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Telegram Bot API</Label>
+                    <Label>{t("admin.settings.proxy_telegram")}</Label>
                     <p className="text-xs text-muted-foreground">Бот, уведомления, отправка сообщений</p>
                   </div>
                   <Switch
@@ -4024,7 +4037,7 @@ export function SettingsPage() {
 
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Платёжные системы</Label>
+                    <Label>{t("admin.settings.proxy_payments")}</Label>
                     <p className="text-xs text-muted-foreground">Platega, YooKassa, YooMoney, CryptoPay, Heleket</p>
                   </div>
                   <Switch
@@ -4046,7 +4059,7 @@ export function SettingsPage() {
                 }}
                 disabled={saving}
               >
-                {saving ? "Сохранение…" : "Сохранить"}
+                {saving ? t("admin.settings.saving") : t("admin.settings.save")}
               </Button>
             </CardContent>
           </Card>
@@ -4057,18 +4070,18 @@ export function SettingsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
-                Мой Налог (самозанятые)
+                {t("admin.settings.nalog_title")}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Автоматическая отправка чеков в «Мой Налог» (lknpd.nalog.ru) при оплате через YooKassa.
-                Для самозанятых — регистрация дохода и выдача чека покупателю.
+                {t("admin.settings.nalog_subtitle")}
+                {t("admin.settings.nalog_selfemployed_hint")}
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between rounded-lg border p-4">
                 <div className="space-y-0.5">
-                  <Label className="text-base font-medium">Чеки включены</Label>
-                  <p className="text-sm text-muted-foreground">При оплате через YooKassa автоматически будет создаваться чек в «Мой Налог»</p>
+                  <Label className="text-base font-medium">{t("admin.settings.nalog_enabled")}</Label>
+                  <p className="text-sm text-muted-foreground">{t("admin.settings.nalog_enabled_hint")}</p>
                 </div>
                 <Switch
                   checked={settings.nalogEnabled ?? false}
@@ -4077,7 +4090,7 @@ export function SettingsPage() {
               </div>
 
               <div>
-                <Label htmlFor="nalog-inn">ИНН</Label>
+                <Label htmlFor="nalog-inn">{t("admin.settings.nalog_inn")}</Label>
                 <Input
                   id="nalog-inn"
                   placeholder="123456789012"
@@ -4086,11 +4099,11 @@ export function SettingsPage() {
                   onChange={(e) => setSettings({ ...settings, nalogInn: e.target.value || null })}
                   disabled={!settings.nalogEnabled}
                 />
-                <p className="text-xs text-muted-foreground mt-1">ИНН самозанятого (12 цифр)</p>
+                <p className="text-xs text-muted-foreground mt-1">{t("admin.settings.nalog_inn_hint")}</p>
               </div>
 
               <div>
-                <Label htmlFor="nalog-password">Пароль от «Мой Налог»</Label>
+                <Label htmlFor="nalog-password">{t("admin.settings.nalog_password")}</Label>
                 <Input
                   id="nalog-password"
                   type="password"
@@ -4099,11 +4112,11 @@ export function SettingsPage() {
                   onChange={(e) => setSettings({ ...settings, nalogPassword: e.target.value || null })}
                   disabled={!settings.nalogEnabled}
                 />
-                <p className="text-xs text-muted-foreground mt-1">Пароль от личного кабинета lknpd.nalog.ru</p>
+                <p className="text-xs text-muted-foreground mt-1">{t("admin.settings.nalog_password_hint")}</p>
               </div>
 
               <div>
-                <Label htmlFor="nalog-service-name">Название услуги в чеке</Label>
+                <Label htmlFor="nalog-service-name">{t("admin.settings.nalog_service_name")}</Label>
                 <Input
                   id="nalog-service-name"
                   placeholder="Оплата VPN-подписки"
@@ -4111,11 +4124,11 @@ export function SettingsPage() {
                   onChange={(e) => setSettings({ ...settings, nalogServiceName: e.target.value || null })}
                   disabled={!settings.nalogEnabled}
                 />
-                <p className="text-xs text-muted-foreground mt-1">Текст, который будет в чеке (если пусто — подставится название тарифа)</p>
+                <p className="text-xs text-muted-foreground mt-1">{t("admin.settings.nalog_service_name_hint")}</p>
               </div>
 
               <div>
-                <Label htmlFor="nalog-device-id">Device ID (необязательно)</Label>
+                <Label htmlFor="nalog-device-id">{t("admin.settings.nalog_device_id")}</Label>
                 <Input
                   id="nalog-device-id"
                   placeholder="stealthnet-bot-nalog"
@@ -4123,7 +4136,7 @@ export function SettingsPage() {
                   onChange={(e) => setSettings({ ...settings, nalogDeviceId: e.target.value || null })}
                   disabled={!settings.nalogEnabled}
                 />
-                <p className="text-xs text-muted-foreground mt-1">Уникальный идентификатор устройства для API. По умолчанию: stealthnet-bot-nalog</p>
+                <p className="text-xs text-muted-foreground mt-1">{t("admin.settings.nalog_device_id_hint")}</p>
               </div>
 
               <div className="flex flex-wrap gap-3 pt-2">
@@ -4135,13 +4148,13 @@ export function SettingsPage() {
                     setMessage("");
                     try {
                       const result = await api.testNalogConnection(token!);
-                      setMessage(result.ok ? `Подключение успешно (ИНН: ${result.inn})` : `Ошибка: ${result.error}`);
+                      setMessage(result.ok ? t("admin.settings.nalog_test_success", { inn: result.inn }) : t("admin.settings.nalog_test_error", { error: result.error }));
                     } catch {
-                      setMessage("Не удалось проверить подключение");
+                      setMessage(t("admin.settings.nalog_test_failed"));
                     }
                   }}
                 >
-                  Проверить подключение
+                  {t("admin.settings.nalog_test")}
                 </Button>
                 <Button
                   onClick={(e) => {
@@ -4149,19 +4162,93 @@ export function SettingsPage() {
                   }}
                   disabled={saving}
                 >
-                  {saving ? "Сохранение…" : "Сохранить"}
+                  {saving ? t("admin.settings.saving") : t("admin.settings.save")}
                 </Button>
               </div>
 
               <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4 text-sm text-blue-200 space-y-2">
-                <p><strong>Как это работает:</strong></p>
+                <p><strong>{t("admin.settings.nalog_how_title")}</strong></p>
                 <ul className="list-disc list-inside space-y-1 text-xs">
-                  <li>При успешной оплате через YooKassa автоматически создаётся чек в «Мой Налог»</li>
-                  <li>Чек содержит сумму платежа и название услуги</li>
-                  <li>Если создание чека не удалось — оплата всё равно проходит, ошибка логируется</li>
-                  <li>Токены авторизации сохраняются и обновляются автоматически</li>
+                  <li>{t("admin.settings.nalog_how_1")}</li>
+                  <li>{t("admin.settings.nalog_how_2")}</li>
+                  <li>{t("admin.settings.nalog_how_3")}</li>
+                  <li>{t("admin.settings.nalog_how_4")}</li>
                 </ul>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="geo-map">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5" />
+                {t("admin.settings.map_title")}
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {t("admin.settings.map_subtitle")}
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div className="space-y-0.5">
+                  <Label className="text-base font-medium">{t("admin.settings.map_enabled")}</Label>
+                  <p className="text-sm text-muted-foreground">{t("admin.settings.map_enabled_hint")}</p>
+                </div>
+                <Switch
+                  checked={settings.geoMapEnabled ?? false}
+                  onCheckedChange={(v) => setSettings({ ...settings, geoMapEnabled: v })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>{t("admin.settings.map_cache_ttl")}</Label>
+                <Input
+                  type="number"
+                  min={10}
+                  max={3600}
+                  placeholder="60"
+                  value={settings.geoCacheTtl ?? 60}
+                  onChange={(e) => setSettings({ ...settings, geoCacheTtl: parseInt(e.target.value) || 60 })}
+                  disabled={!settings.geoMapEnabled}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t("admin.settings.map_cache_ttl_hint")}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>{t("admin.settings.map_maxmind_path")}</Label>
+                <Input
+                  placeholder="./data/GeoLite2-City.mmdb"
+                  value={settings.maxmindDbPath ?? ""}
+                  onChange={(e) => setSettings({ ...settings, maxmindDbPath: e.target.value || null })}
+                  disabled={!settings.geoMapEnabled}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t("admin.settings.map_maxmind_hint")}
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4 text-sm text-blue-200 space-y-2">
+                <p><strong>{t("admin.settings.map_maxmind_title")}</strong></p>
+                <ul className="list-disc list-inside space-y-1 text-xs">
+                  <li>{t("admin.settings.map_maxmind_1")}</li>
+                  <li>{t("admin.settings.map_maxmind_2")}</li>
+                  <li>{t("admin.settings.map_maxmind_3")}</li>
+                  <li>{t("admin.settings.map_maxmind_4")}</li>
+                </ul>
+              </div>
+
+              <Button
+                onClick={(e) => {
+                  handleSubmit(e as unknown as React.FormEvent);
+                }}
+                disabled={saving}
+              >
+                {saving ? t("admin.settings.saving") : t("admin.settings.save")}
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -4171,10 +4258,10 @@ export function SettingsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <RefreshCw className="h-5 w-5" />
-                Синхронизация с Remna
+                {t("admin.settings.sync_title")}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Загрузить пользователей из Remna в панель, отправить данные в Remna или привязать клиентов без Remna (создать им учётки в Remna).
+                {t("admin.settings.sync_subtitle")}
               </p>
             </CardHeader>
             <CardContent className="flex flex-wrap items-center gap-3">
@@ -4184,7 +4271,7 @@ export function SettingsPage() {
                 disabled={syncLoading !== null}
               >
                 <Download className="h-4 w-4 mr-2" />
-                {syncLoading === "from" ? "Синхронизация…" : "Из Remna → панель"}
+                {syncLoading === "from" ? t("admin.settings.sync_in_progress") : t("admin.settings.sync_from_remna")}
               </Button>
               <Button
                 variant="outline"
@@ -4192,7 +4279,7 @@ export function SettingsPage() {
                 disabled={syncLoading !== null}
               >
                 <Upload className="h-4 w-4 mr-2" />
-                {syncLoading === "to" ? "Синхронизация…" : "Панель → в Remna"}
+                {syncLoading === "to" ? t("admin.settings.sync_in_progress") : t("admin.settings.sync_to_remna")}
               </Button>
               <Button
                 variant="outline"
@@ -4200,7 +4287,7 @@ export function SettingsPage() {
                 disabled={syncLoading !== null}
               >
                 <Link2 className="h-4 w-4 mr-2" />
-                {syncLoading === "missing" ? "Выполняется…" : "Привязать клиентов без Remna"}
+                {syncLoading === "missing" ? t("admin.settings.sync_running") : t("admin.settings.sync_create_missing")}
               </Button>
               {syncMessage && (
                 <span className="text-sm text-muted-foreground">{syncMessage}</span>
@@ -4215,12 +4302,12 @@ export function SettingsPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <KeyRound className="h-5 w-5" />
-              Включить 2FA
+              {t("admin.settings.2fa_enable_title")}
             </DialogTitle>
             <DialogDescription>
               {twoFaStep === 1
-                ? "Отсканируйте QR-код в приложении-аутентификаторе или введите ключ вручную."
-                : "Введите 6-значный код из приложения для подтверждения."}
+                ? t("admin.settings.2fa_scan_hint")
+                : t("admin.settings.2fa_enter_code")}
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
@@ -4233,8 +4320,8 @@ export function SettingsPage() {
                 <div className="flex justify-center rounded-xl bg-white p-4 dark:bg-white/95">
                   <QRCodeSVG value={twoFaSetupData.otpauthUrl} size={200} level="M" />
                 </div>
-                <p className="text-xs text-muted-foreground break-all font-mono bg-muted/50 rounded-lg p-2">Ключ: {twoFaSetupData.secret}</p>
-                <Button onClick={() => setTwoFaStep(2)}>Далее — ввести код</Button>
+                <p className="text-xs text-muted-foreground break-all font-mono bg-muted/50 rounded-lg p-2">{twoFaSetupData.secret}</p>
+                <Button onClick={() => setTwoFaStep(2)}>{t("admin.settings.2fa_next")}</Button>
               </>
             ) : twoFaStep === 2 ? (
               <>
@@ -4247,7 +4334,7 @@ export function SettingsPage() {
                 />
                 <Button onClick={confirmTwoFaEnable} disabled={twoFaLoading || twoFaCode.length !== 6}>
                   {twoFaLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  Подтвердить
+                  {t("admin.settings.2fa_confirm")}
                 </Button>
               </>
             ) : null}
@@ -4259,9 +4346,9 @@ export function SettingsPage() {
       <Dialog open={twoFaDisableOpen} onOpenChange={(open) => !open && setTwoFaDisableOpen(false)}>
         <DialogContent className="max-w-sm" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
-            <DialogTitle>Отключить 2FA</DialogTitle>
+            <DialogTitle>{t("admin.settings.2fa_disable_title")}</DialogTitle>
             <DialogDescription>
-              Введите 6-значный код из приложения-аутентификатора для отключения.
+              {t("admin.settings.2fa_disable_hint")}
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
@@ -4274,7 +4361,7 @@ export function SettingsPage() {
             />
             <Button onClick={confirmTwoFaDisable} disabled={twoFaLoading || twoFaCode.length !== 6}>
               {twoFaLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Отключить 2FA
+              {t("admin.settings.2fa_disable_btn")}
             </Button>
             {twoFaError && <p className="text-sm text-destructive">{twoFaError}</p>}
           </div>

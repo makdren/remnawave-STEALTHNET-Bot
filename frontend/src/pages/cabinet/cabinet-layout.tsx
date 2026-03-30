@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useClientAuth } from "@/contexts/client-auth";
 import { CabinetConfigProvider, useCabinetConfig } from "@/contexts/cabinet-config";
 import { createContext, useContext } from "react";
 import { useIsMiniapp } from "@/hooks/use-is-miniapp";
+import { useLanguageSync } from "@/i18n/use-language-sync";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { GlassSelect } from "@/components/ui/glass-select";
@@ -61,6 +63,7 @@ export function useCabinetMiniapp() {
 /** Экран ввода кода 2FA после успешной проверки пароля или Telegram */
 function Client2FAStepScreen() {
   const { state, submit2FACode, clearPending2FA } = useClientAuth();
+  const { t } = useTranslation();
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +72,7 @@ function Client2FAStepScreen() {
     async (e: React.FormEvent) => {
       e.preventDefault();
       if (!state.pending2FAToken || code.trim().length !== 6) {
-        setError("Введите 6-значный код из приложения");
+        setError(t("cabinet.layout.2fa_error_enter_code"));
         return;
       }
       setError(null);
@@ -77,12 +80,12 @@ function Client2FAStepScreen() {
       try {
         await submit2FACode(code.trim());
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Неверный код");
+        setError(err instanceof Error ? err.message : t("cabinet.layout.2fa_error_invalid"));
       } finally {
         setLoading(false);
       }
     },
-    [state.pending2FAToken, code, submit2FACode]
+    [state.pending2FAToken, code, submit2FACode, t]
   );
 
   if (!state.pending2FAToken) return null;
@@ -103,8 +106,8 @@ function Client2FAStepScreen() {
             <KeyRound className="h-8 w-8" />
           </div>
           <div className="text-center mb-6">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Код из приложения</h1>
-            <p className="text-sm text-muted-foreground mt-2 max-w-[280px]">Введите 6-значный код двухфакторной аутентификации для входа.</p>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">{t("cabinet.layout.2fa_title")}</h1>
+            <p className="text-sm text-muted-foreground mt-2 max-w-[280px]">{t("cabinet.layout.2fa_description")}</p>
           </div>
           <form onSubmit={handleSubmit} className="w-full flex flex-col gap-6">
             <div className="relative w-full">
@@ -124,10 +127,10 @@ function Client2FAStepScreen() {
             <div className="flex flex-col gap-3">
               <Button type="submit" className="w-full h-12 rounded-2xl font-bold text-base shadow-lg shadow-primary/20" disabled={loading || code.trim().length !== 6}>
                 {loading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : null}
-                Подтвердить код
+                {t("cabinet.layout.2fa_confirm")}
               </Button>
               <Button type="button" variant="ghost" className="w-full h-10 rounded-xl text-muted-foreground" disabled={loading} onClick={clearPending2FA}>
-                Отмена
+                {t("cabinet.layout.2fa_cancel")}
               </Button>
             </div>
 
@@ -141,28 +144,36 @@ function Client2FAStepScreen() {
   );
 }
 
-const ALL_NAV_ITEMS = [
-  { to: "/cabinet/dashboard", label: "Главная", icon: LayoutDashboard },
-  { to: "/cabinet/tariffs", label: "Тарифы", icon: Package },
-  { to: "/cabinet/custom-build", label: "Гибкий тариф", icon: Layers },
-  { to: "/cabinet/extra-options", label: "Опции", icon: PlusCircle },
-  { to: "/cabinet/proxy", label: "Прокси", icon: Globe },
-  { to: "/cabinet/singbox", label: "Доступы", icon: KeyRound },
-  { to: "/cabinet/referral", label: "Рефералы", icon: Users },
-  { to: "/cabinet/tickets", label: "Тикеты", icon: MessageSquare },
-  { to: "/cabinet/profile", label: "Профиль", icon: User },
-];
+function useNavItems() {
+  const { t } = useTranslation();
+  return useMemo(() => [
+    { to: "/cabinet/dashboard", label: t("cabinet.nav.home"), icon: LayoutDashboard },
+    { to: "/cabinet/tariffs", label: t("cabinet.nav.tariffs"), icon: Package },
+    { to: "/cabinet/custom-build", label: t("cabinet.nav.custom_build"), icon: Layers },
+    { to: "/cabinet/extra-options", label: t("cabinet.nav.options"), icon: PlusCircle },
+    { to: "/cabinet/proxy", label: t("cabinet.nav.proxy"), icon: Globe },
+    { to: "/cabinet/singbox", label: t("cabinet.nav.access"), icon: KeyRound },
+    { to: "/cabinet/referral", label: t("cabinet.nav.referrals"), icon: Users },
+    { to: "/cabinet/tickets", label: t("cabinet.nav.tickets"), icon: MessageSquare },
+    { to: "/cabinet/profile", label: t("cabinet.nav.profile"), icon: User },
+  ], [t]);
+}
 
-const MODE_OPTIONS: { value: ThemeMode; icon: typeof Sun; label: string }[] = [
-  { value: "light", icon: Sun, label: "Светлая" },
-  { value: "dark", icon: Moon, label: "Тёмная" },
-  { value: "system", icon: Monitor, label: "Система" },
-];
+function useThemeModeOptions() {
+  const { t } = useTranslation();
+  return useMemo(() => [
+    { value: "light" as ThemeMode, icon: Sun, label: t("cabinet.layout.theme_light") },
+    { value: "dark" as ThemeMode, icon: Moon, label: t("cabinet.layout.theme_dark") },
+    { value: "system" as ThemeMode, icon: Monitor, label: t("cabinet.layout.theme_system") },
+  ], [t]);
+}
 
 function ThemePopover() {
   const [show, setShow] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const { t } = useTranslation();
   const { config: themeConfig, setMode, setAccent, resolvedMode, allowUserThemeChange } = useTheme();
+  const MODE_OPTIONS = useThemeModeOptions();
 
   useEffect(() => {
     if (!show) return;
@@ -207,7 +218,7 @@ function ThemePopover() {
         )}
       >
         <div className="mb-5">
-          <h4 className="mb-3 text-sm font-semibold tracking-tight text-foreground">Тема</h4>
+          <h4 className="mb-3 text-sm font-semibold tracking-tight text-foreground">{t("cabinet.layout.theme_heading")}</h4>
           <div className="flex rounded-xl bg-muted/60 p-1 border border-border/50">
             {MODE_OPTIONS.map((opt) => {
               const isActive = themeConfig.mode === opt.value;
@@ -232,7 +243,7 @@ function ThemePopover() {
 
         {allowUserThemeChange && (
           <div>
-            <h4 className="mb-3 text-sm font-semibold tracking-tight text-foreground">Цветовой акцент</h4>
+            <h4 className="mb-3 text-sm font-semibold tracking-tight text-foreground">{t("cabinet.layout.color_accent")}</h4>
             <div className="grid grid-cols-4 gap-2">
               {(Object.entries(ACCENT_PALETTES) as [ThemeAccent, typeof ACCENT_PALETTES["default"]][]).map(([key, palette]) => {
                 const isActive = themeConfig.accent === key;
@@ -274,6 +285,7 @@ function ThemePopover() {
 function SettingsPopover() {
   const [show, setShow] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const { t } = useTranslation();
   const { state, refreshProfile } = useClientAuth();
 
   const [activeLanguages, setActiveLanguages] = useState<string[]>([]);
@@ -340,14 +352,14 @@ function SettingsPopover() {
             <Settings className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <h4 className="text-base font-bold tracking-tight text-foreground truncate">Настройки</h4>
-            <p className="text-[10px] text-muted-foreground mt-[1px] uppercase tracking-wider font-semibold truncate">Язык и валюта</p>
+            <h4 className="text-base font-bold tracking-tight text-foreground truncate">{t("cabinet.layout.settings")}</h4>
+            <p className="text-[10px] text-muted-foreground mt-[1px] uppercase tracking-wider font-semibold truncate">{t("cabinet.layout.settings_subtitle")}</p>
           </div>
         </div>
 
         <div className="space-y-4 mb-5">
           <div className="space-y-1.5">
-            <label className="text-xs text-muted-foreground font-medium pl-1 flex items-center gap-1.5"><Globe className="w-3.5 h-3.5" /> Язык</label>
+            <label className="text-xs text-muted-foreground font-medium pl-1 flex items-center gap-1.5"><Globe className="w-3.5 h-3.5" /> {t("cabinet.layout.language")}</label>
             <GlassSelect
               value={preferredLang}
               onChange={(v) => setPreferredLang(v)}
@@ -355,7 +367,7 @@ function SettingsPopover() {
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs text-muted-foreground font-medium pl-1 flex items-center gap-1.5"><Users className="w-3.5 h-3.5" /> Валюта</label>
+            <label className="text-xs text-muted-foreground font-medium pl-1 flex items-center gap-1.5"><Users className="w-3.5 h-3.5" /> {t("cabinet.layout.currency")}</label>
             <GlassSelect
               value={preferredCurrency}
               onChange={(v) => setPreferredCurrency(v)}
@@ -366,15 +378,15 @@ function SettingsPopover() {
 
         <Button onClick={handleSave} disabled={saving} className="w-full h-10 rounded-xl shadow-md bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold transition-all hover:scale-[1.02] active:scale-95">
           {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}
-          Сохранить
+          {t("cabinet.layout.save")}
         </Button>
       </div>
     </div>
   );
 }
 
-function resolveNavItems(config: { sellOptionsEnabled?: boolean; showProxyEnabled?: boolean; showSingboxEnabled?: boolean; ticketsEnabled?: boolean; customBuildConfig?: { enabled: true } | null } | null) {
-  let items = ALL_NAV_ITEMS;
+function resolveNavItems(allNavItems: { to: string; label: string; icon: typeof LayoutDashboard }[], config: { sellOptionsEnabled?: boolean; showProxyEnabled?: boolean; showSingboxEnabled?: boolean; ticketsEnabled?: boolean; customBuildConfig?: { enabled: true } | null } | null) {
+  let items = allNavItems;
   // Убираем вкладку тикетов, так как теперь поддержка внутри виджета чата
   items = items.filter((i) => i.to !== "/cabinet/tickets");
 
@@ -391,9 +403,11 @@ const MAX_VISIBLE_DESKTOP = 5;
 
 function MobileCabinetShell() {
   const location = useLocation();
+  const { t } = useTranslation();
   const { state, logout, refreshProfile } = useClientAuth();
   const config = useCabinetConfig();
-  const navItems = useMemo(() => resolveNavItems(config), [config?.sellOptionsEnabled, config?.showProxyEnabled, config?.showSingboxEnabled, config?.ticketsEnabled, config?.customBuildConfig]);
+  const allNavItems = useNavItems();
+  const navItems = useMemo(() => resolveNavItems(allNavItems, config), [allNavItems, config?.sellOptionsEnabled, config?.showProxyEnabled, config?.showSingboxEnabled, config?.ticketsEnabled, config?.customBuildConfig]);
   const [logoError, setLogoError] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const visibleItems = navItems.slice(0, MAX_VISIBLE_NAV);
@@ -430,7 +444,7 @@ function MobileCabinetShell() {
             <SettingsPopover />
             {!isMiniapp && (
               <Button variant="ghost" size="icon" className="shrink-0 bg-background/20 hover:bg-background/40 text-muted-foreground hover:text-foreground" asChild>
-                <Link to="/cabinet/login" onClick={() => logout()} title="Выйти">
+                <Link to="/cabinet/login" onClick={() => logout()} title={t("cabinet.nav.logout")}>
                   <LogOut className="h-5 w-5" />
                 </Link>
               </Button>
@@ -469,10 +483,10 @@ function MobileCabinetShell() {
                 "flex flex-col items-center justify-center gap-0.5 py-1 px-1 h-14 flex-1 min-w-0 max-w-[5rem] rounded-xl transition-all duration-300",
                 "text-muted-foreground hover:bg-foreground/5 hover:text-foreground hover:scale-105"
               )}
-              aria-label="Ещё"
+              aria-label={t("cabinet.nav.more")}
             >
               <MoreHorizontal className="h-5 w-5 shrink-0" />
-              <span className="text-[10px] font-medium leading-none tracking-tight">Ещё</span>
+              <span className="text-[10px] font-medium leading-none tracking-tight">{t("cabinet.nav.more")}</span>
             </button>
           )}
         </div>
@@ -481,7 +495,7 @@ function MobileCabinetShell() {
       <Dialog open={moreMenuOpen} onOpenChange={setMoreMenuOpen}>
         <DialogContent className="max-w-sm mx-auto rounded-2xl" showCloseButton={true}>
           <DialogHeader>
-            <DialogTitle>Меню</DialogTitle>
+            <DialogTitle>{t("cabinet.nav.menu")}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-1 py-2">
             {navItems.map(({ to, label, icon: Icon }) => {
@@ -522,9 +536,11 @@ function useIsMobile(breakpoint = 768) {
 
 function CabinetShell() {
   const location = useLocation();
+  const { t } = useTranslation();
   const { state, logout, refreshProfile } = useClientAuth();
   const config = useCabinetConfig();
-  const navItems = useMemo(() => resolveNavItems(config), [config?.sellOptionsEnabled, config?.showProxyEnabled, config?.showSingboxEnabled, config?.ticketsEnabled, config?.customBuildConfig]);
+  const allNavItems = useNavItems();
+  const navItems = useMemo(() => resolveNavItems(allNavItems, config), [allNavItems, config?.sellOptionsEnabled, config?.showProxyEnabled, config?.showSingboxEnabled, config?.ticketsEnabled, config?.customBuildConfig]);
   const isMiniapp = useIsMiniapp();
   const isMobile = useIsMobile();
   const [logoError, setLogoError] = useState(false);
@@ -600,7 +616,7 @@ function CabinetShell() {
                   )}
                   onClick={() => setMoreOpen(!moreOpen)}
                 >
-                  Ещё
+                  {t("cabinet.nav.more")}
                   <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", moreOpen && "rotate-180")} />
                 </Button>
                 {moreOpen && (
@@ -651,7 +667,7 @@ function CabinetShell() {
                 </div>
                 <div className="grid grid-cols-[0fr] opacity-0 transition-all duration-300 group-hover:grid-cols-[1fr] group-hover:opacity-100">
                   <span className="overflow-hidden whitespace-nowrap text-sm font-medium">
-                    <span className="pr-4">Выйти</span>
+                    <span className="pr-4">{t("cabinet.nav.logout")}</span>
                   </span>
                 </div>
               </Link>
@@ -669,6 +685,7 @@ function CabinetShell() {
 export function CabinetLayout() {
   const location = useLocation();
   const { state } = useClientAuth();
+  useLanguageSync(state.client?.preferredLang, null);
   const isAuthPage = location.pathname === "/cabinet/login" || location.pathname === "/cabinet/register";
   const isLoggedIn = Boolean(state.token);
   const needs2FA = !isLoggedIn && Boolean(state.pending2FAToken);

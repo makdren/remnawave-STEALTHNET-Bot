@@ -379,7 +379,7 @@ cd /opt/proxy-node && docker compose up -d --build`
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}`} />
-                    <Tooltip formatter={(v: number | undefined) => [`${(v ?? 0).toFixed(1)} МБ`, "Трафик"]} />
+                    <Tooltip formatter={(v) => [`${(Number(v) || 0).toFixed(1)} МБ`, "Трафик"]} />
                     <Bar dataKey="trafficMb" name="Трафик (МБ)" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>

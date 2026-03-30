@@ -6,6 +6,7 @@ import { ensureSystemSettings } from "./scripts/seed-system-settings.js";
 import { startAutoBroadcastScheduler, stopAutoBroadcastScheduler } from "./modules/auto-broadcast/auto-broadcast-scheduler.js";
 import { startContestDailyReminderScheduler, stopContestDailyReminderScheduler } from "./modules/contest/contest-daily-reminder-scheduler.js";
 import { startAutoRenewScheduler } from "./modules/payment/auto-renew.cron.js";
+import { startAutoBackupScheduler, stopAutoBackupScheduler } from "./modules/backup/auto-backup.scheduler.js";
 
 async function main() {
   await prisma.$connect();
@@ -16,6 +17,7 @@ async function main() {
   await startAutoBroadcastScheduler();
   startContestDailyReminderScheduler(env.CONTEST_REMINDER_CRON ?? undefined);
   startAutoRenewScheduler();
+  await startAutoBackupScheduler();
 
   const server = app.listen(env.PORT, "0.0.0.0", () => {
     console.log(`API v3.2.7 listening on port ${env.PORT}`);
@@ -24,6 +26,7 @@ async function main() {
   const shutdown = async () => {
     stopAutoBroadcastScheduler();
     stopContestDailyReminderScheduler();
+    stopAutoBackupScheduler();
     server.close();
     await prisma.$disconnect();
     process.exit(0);

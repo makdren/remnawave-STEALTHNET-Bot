@@ -42,6 +42,7 @@ function formatDate(d: Date): string {
 }
 
 const PAGE_SIZE = 500;
+const MAX_PAGES = 100;
 
 async function fetchAllUsers(): Promise<{ users: RemnaUser[]; total: number }> {
   const firstPage = await remnaGetUsers({ size: PAGE_SIZE, start: 0 });
@@ -57,7 +58,7 @@ async function fetchAllUsers(): Promise<{ users: RemnaUser[]; total: number }> {
   if (total <= PAGE_SIZE) return { users, total };
 
   const pages = Math.ceil(total / PAGE_SIZE);
-  const remaining = Math.min(pages - 1, 19);
+  const remaining = Math.min(pages - 1, MAX_PAGES - 1);
   const promises = [];
   for (let i = 1; i <= remaining; i++) {
     promises.push(remnaGetUsers({ size: PAGE_SIZE, start: i * PAGE_SIZE }));
@@ -108,8 +109,8 @@ trafficAbuseRouter.get("/analytics", async (req: Request, res: Response) => {
   }
 
   const days = Math.min(Math.max(parseInt(req.query.days as string) || 7, 1), 90);
-  const threshold = parseFloat(req.query.threshold as string) || 0.8;
-  const minBytes = parseInt(req.query.minBytes as string) || 1_073_741_824;
+  const threshold = parseFloat(req.query.threshold as string) || 0.7;
+  const minBytes = parseInt(req.query.minBytes as string) || 100_000_000;
 
   try {
     const nodesResult = await remnaGetNodes();
@@ -151,7 +152,7 @@ trafficAbuseRouter.get("/analytics", async (req: Request, res: Response) => {
 
     const nodeUsageResults = await Promise.allSettled(
       activeNodes.map((node) =>
-        remnaGetNodeUsersUsage(node.uuid, startStr, endStr, 100).catch((e) => {
+        remnaGetNodeUsersUsage(node.uuid, startStr, endStr, 500).catch((e) => {
           console.error(`[traffic-abuse] Failed bandwidth-stats for node ${node.name} (${node.uuid}):`, e);
           return { data: undefined, error: String(e), status: 500 };
         })
@@ -191,6 +192,7 @@ trafficAbuseRouter.get("/analytics", async (req: Request, res: Response) => {
     }
 
     const abusers: AbuserEntry[] = [];
+    const allUsersAvgDaily = computeGlobalAvg(usernameToNodeUsage, days);
 
     for (const [username, nodeUsages] of usernameToNodeUsage) {
       const totalPeriod = nodeUsages.reduce((s, e) => s + e.bytes, 0);
@@ -199,25 +201,26 @@ trafficAbuseRouter.get("/analytics", async (req: Request, res: Response) => {
       const user = userMap.get(username);
       const usedTraffic = user?.userTraffic?.usedTrafficBytes ?? 0;
       const lifetimeTraffic = user?.userTraffic?.lifetimeUsedTrafficBytes ?? 0;
-      const limit = user?.trafficLimitBytes ?? 0;
+      const limit = Number(user?.trafficLimitBytes ?? 0);
 
       let usagePercent = 0;
       let abuseScore = 0;
 
       if (limit > 0) {
-        usagePercent = (usedTraffic / limit) * 100;
+        usagePercent = (totalPeriod / limit) * 100;
         abuseScore = usagePercent;
       } else {
         const avgDailyBytes = totalPeriod / days;
-        const allUsersAvgDaily = computeGlobalAvg(usernameToNodeUsage, days);
         if (allUsersAvgDaily > 0) {
           abuseScore = (avgDailyBytes / allUsersAvgDaily) * 100;
+        } else {
+          abuseScore = 100;
         }
         usagePercent = abuseScore;
       }
 
       if (limit > 0 && usagePercent < threshold * 100) continue;
-      if (limit === 0 && abuseScore < 200) continue;
+      if (limit === 0 && abuseScore < 150) continue;
 
       abusers.push({
         uuid: user?.uuid ?? "",
