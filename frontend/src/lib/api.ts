@@ -248,15 +248,45 @@ export const api = {
   },
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async getSalesReport(token: string, params?: { from?: string; to?: string; provider?: string; page?: number; limit?: number }): Promise<any> {
-    const search = new URLSearchParams();
-    if (params?.from) search.set("from", params.from);
-    if (params?.to) search.set("to", params.to);
-    if (params?.provider) search.set("provider", params.provider);
-    if (params?.page) search.set("page", String(params.page));
-    if (params?.limit) search.set("limit", String(params.limit));
-    const q = search.toString();
+  async getSalesReport(token: string, params?: { from?: string; to?: string; provider?: string; search?: string; status?: string; page?: number; limit?: number }): Promise<any> {
+    const qs = new URLSearchParams();
+    if (params?.from) qs.set("from", params.from);
+    if (params?.to) qs.set("to", params.to);
+    if (params?.provider) qs.set("provider", params.provider);
+    if (params?.search) qs.set("search", params.search);
+    if (params?.status) qs.set("status", params.status);
+    if (params?.page) qs.set("page", String(params.page));
+    if (params?.limit) qs.set("limit", String(params.limit));
+    const q = qs.toString();
     return request(`/admin/sales-report${q ? `?${q}` : ""}`, { token });
+  },
+
+  async deleteSalePayment(token: string, paymentId: string): Promise<{ ok: boolean }> {
+    return request(`/admin/sales-report/${paymentId}`, { token, method: "DELETE" });
+  },
+
+  async getVideoInstructions(token: string): Promise<{ enabled: boolean; items: { id: string; title: string; telegramFileId: string; sortOrder: number }[] }> {
+    return request("/admin/video-instructions", { token });
+  },
+
+  async toggleVideoInstructions(token: string, enabled: boolean): Promise<{ ok: boolean }> {
+    return request("/admin/video-instructions/toggle", { token, method: "PUT", body: JSON.stringify({ enabled }) });
+  },
+
+  async addVideoInstruction(token: string, title: string, telegramFileId: string): Promise<{ ok: boolean; items: any[] }> {
+    return request("/admin/video-instructions", { token, method: "POST", body: JSON.stringify({ title, telegramFileId }) });
+  },
+
+  async updateVideoInstruction(token: string, id: string, data: { title?: string; telegramFileId?: string }): Promise<{ ok: boolean; items: any[] }> {
+    return request(`/admin/video-instructions/${id}`, { token, method: "PUT", body: JSON.stringify(data) });
+  },
+
+  async deleteVideoInstruction(token: string, id: string): Promise<{ ok: boolean; items: any[] }> {
+    return request(`/admin/video-instructions/${id}`, { token, method: "DELETE" });
+  },
+
+  async reorderVideoInstructions(token: string, order: string[]): Promise<{ ok: boolean; items: any[] }> {
+    return request("/admin/video-instructions/reorder", { token, method: "PUT", body: JSON.stringify({ order }) });
   },
 
   async getRemnaSystemStats(token: string): Promise<RemnaSystemStats> {
@@ -490,6 +520,18 @@ export const api = {
 
   async clientRemnaSquadRemove(token: string, clientId: string, squadUuid: string): Promise<unknown> {
     return request(`/admin/clients/${clientId}/remna/squads/remove`, { method: "POST", body: JSON.stringify({ squadUuid }), token });
+  },
+
+  async getClientRemnaDevices(token: string, clientId: string): Promise<RemnaHwidDevicesResponse> {
+    return request(`/admin/clients/${clientId}/remna/devices`, { token });
+  },
+
+  async deleteClientRemnaDevice(token: string, clientId: string, hwid: string): Promise<unknown> {
+    return request(`/admin/clients/${clientId}/remna/devices/delete`, { method: "POST", body: JSON.stringify({ hwid }), token });
+  },
+
+  async getClientRemnaUsage(token: string, clientId: string, days = 30): Promise<RemnaUserUsageResponse> {
+    return request(`/admin/clients/${clientId}/remna/usage?days=${days}`, { token });
   },
 
   async getRemnaSubscriptionTemplates(token: string): Promise<unknown> {
@@ -793,6 +835,10 @@ export const api = {
   },
 
   /** Восстановить БД из бэкапа на сервере (path из списка) */
+  async sendBackupToTelegram(token: string): Promise<{ ok: boolean; message: string }> {
+    return request("/admin/backup/send-to-telegram", { method: "POST", token });
+  },
+
   async restoreBackupFromServer(token: string, path: string): Promise<{ message: string }> {
     return request("/admin/backup/restore", {
       method: "POST",
@@ -1270,6 +1316,39 @@ export const api = {
   async clientActivatePromoCode(token: string, code: string): Promise<{ message: string }> {
     return request("/client/promo-code/activate", { method: "POST", body: JSON.stringify({ code }), token });
   },
+
+  // ——— Geo Map ———
+  async getGeoMapData(token: string): Promise<GeoMapResponse> {
+    return request("/admin/geo-map/data", { token });
+  },
+  async refreshGeoMap(token: string): Promise<GeoMapResponse> {
+    return request("/admin/geo-map/refresh", { method: "POST", token });
+  },
+
+  async getLanguages(token: string): Promise<{ ok: boolean; languages: LanguageInfo[]; totalKeys: number }> {
+    return request("/admin/languages", { token });
+  },
+  async getLanguageKeys(token: string): Promise<{ ok: boolean; keys: Record<string, string> }> {
+    return request("/admin/languages/keys", { token });
+  },
+  async getLanguagePack(token: string, code: string): Promise<{ ok: boolean; code: string; data: Record<string, unknown> }> {
+    return request(`/admin/languages/${code}`, { token });
+  },
+  async saveLanguagePack(token: string, code: string, data: Record<string, unknown>): Promise<{ ok: boolean }> {
+    return request(`/admin/languages/${code}`, { method: "PUT", body: JSON.stringify(data), token });
+  },
+  async deleteLanguage(token: string, code: string): Promise<{ ok: boolean }> {
+    return request(`/admin/languages/${code}`, { method: "DELETE", token });
+  },
+  async importLanguagePack(token: string, code: string, data: Record<string, unknown>): Promise<{ ok: boolean }> {
+    return request(`/admin/languages/${code}/import`, { method: "POST", body: JSON.stringify(data), token });
+  },
+  async exportLanguagePack(token: string, code: string): Promise<string> {
+    const headers = new Headers({ "Content-Type": "application/json" });
+    headers.set("Authorization", `Bearer ${token}`);
+    const res = await fetch(`${API_BASE}/admin/languages/${code}/export`, { headers });
+    return res.text();
+  },
 };
 
 export interface ClientReferralStats {
@@ -1388,6 +1467,9 @@ export type UpdateSettingsPayload = {
   notificationTopicNewClients?: string | null;
   notificationTopicPayments?: string | null;
   notificationTopicTickets?: string | null;
+  notificationTopicBackups?: string | null;
+  autoBackupEnabled?: boolean;
+  autoBackupCron?: string | null;
   plategaMerchantId?: string | null;
   plategaSecret?: string | null;
   plategaMethods?: string | null;
@@ -1574,6 +1656,9 @@ export type UpdateSettingsPayload = {
   nalogPassword?: string | null;
   nalogDeviceId?: string | null;
   nalogServiceName?: string | null;
+  geoMapEnabled?: boolean;
+  geoCacheTtl?: number;
+  maxmindDbPath?: string | null;
 };
 
 export interface ClientRecord {
@@ -1609,12 +1694,69 @@ export type UpdateClientPayload = {
 
 export type UpdateClientRemnaPayload = {
   trafficLimitBytes?: number;
-  trafficLimitStrategy?: "NO_RESET" | "DAY" | "WEEK" | "MONTH";
+  trafficLimitStrategy?: "NO_RESET" | "DAY" | "WEEK" | "MONTH" | "MONTH_ROLLING";
   hwidDeviceLimit?: number | null;
   expireAt?: string;
   activeInternalSquads?: string[];
   status?: "ACTIVE" | "DISABLED";
 };
+
+export interface RemnaUserFull {
+  uuid: string;
+  id: number;
+  shortUuid: string;
+  username: string;
+  status: "ACTIVE" | "DISABLED" | "LIMITED" | "EXPIRED";
+  trafficLimitBytes: number;
+  trafficLimitStrategy: string;
+  expireAt: string | null;
+  telegramId: number | null;
+  email: string | null;
+  description: string | null;
+  tag: string | null;
+  hwidDeviceLimit: number | null;
+  trojanPassword: string;
+  vlessUuid: string;
+  ssPassword: string;
+  lastTriggeredThreshold: number;
+  subRevokedAt: string | null;
+  lastTrafficResetAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  subscriptionUrl: string;
+  activeInternalSquads: { uuid: string; name?: string }[];
+  userTraffic: {
+    usedTrafficBytes: number;
+    lifetimeUsedTrafficBytes: number;
+    onlineAt: string | null;
+    lastConnectedNodeUuid: string | null;
+    firstConnectedAt: string | null;
+  };
+}
+
+export interface RemnaHwidDevice {
+  id: string;
+  hwid: string;
+  userUuid: string;
+  platform: string | null;
+  userAgent: string | null;
+  createdAt: string;
+}
+
+export interface RemnaHwidDevicesResponse {
+  response: {
+    total: number;
+    devices: RemnaHwidDevice[];
+  };
+}
+
+export interface RemnaUserUsageResponse {
+  response: {
+    categories: string[];
+    series: { name: string; data: number[] }[];
+    sparklineData: number[];
+  };
+}
 
 export interface AdminSettings {
   allowUserThemeChange?: boolean;
@@ -1657,6 +1799,9 @@ export interface AdminSettings {
   notificationTopicNewClients?: string | null;
   notificationTopicPayments?: string | null;
   notificationTopicTickets?: string | null;
+  notificationTopicBackups?: string | null;
+  autoBackupEnabled?: boolean;
+  autoBackupCron?: string | null;
   plategaMerchantId?: string | null;
   plategaSecret?: string | null;
   plategaMethods?: { id: number; enabled: boolean; label: string }[];
@@ -1865,6 +2010,9 @@ export interface AdminSettings {
   nalogPassword?: string | null;
   nalogDeviceId?: string | null;
   nalogServiceName?: string | null;
+  geoMapEnabled?: boolean;
+  geoCacheTtl?: number;
+  maxmindDbPath?: string | null;
 }
 
 /** Конфиг страницы подписки (формат как sub.stealthnet.app) */
@@ -2013,22 +2161,42 @@ export interface RemnaNode {
   isConnecting: boolean;
   lastStatusChange?: string | null;
   lastStatusMessage?: string | null;
-  xrayVersion?: string | null;
-  nodeVersion?: string | null;
-  xrayUptime?: string;
+  xrayUptime?: number;
   isTrafficTrackingActive?: boolean;
-  /** Онлайн пользователей на ноде */
   usersOnline?: number | null;
-  /** Трафик использовано (байты) */
   trafficUsedBytes?: number | null;
-  /** Лимит трафика (байты) */
   trafficLimitBytes?: number | null;
-  /** Ядер CPU */
+  countryCode?: string;
+  /** Old API (<=2.6): top-level fields (deprecated) */
   cpuCount?: number | null;
-  /** Модель CPU */
   cpuModel?: string | null;
-  /** Всего RAM (строка, напр. "2.06 GB") */
   totalRam?: string | null;
+  /** New API (>=2.7): nested under system/versions */
+  system?: {
+    info?: {
+      cpus?: number;
+      cpuModel?: string;
+      memoryTotal?: number;
+      hostname?: string;
+      platform?: string;
+    } | null;
+    stats?: {
+      memoryFree?: number;
+      memoryUsed?: number;
+      uptime?: number;
+      loadAvg?: number[];
+      interface?: {
+        rxBytesPerSec?: number;
+        txBytesPerSec?: number;
+        rxTotal?: number;
+        txTotal?: number;
+      } | null;
+    } | null;
+  } | null;
+  versions?: {
+    xray?: string;
+    node?: string;
+  } | null;
 }
 
 export interface ProxySlotAdminItem {
@@ -2420,6 +2588,49 @@ export type CreatePromoCodePayload = {
 
 export type UpdatePromoCodePayload = Partial<CreatePromoCodePayload>;
 
+export interface GeoMapNode {
+  uuid: string;
+  name: string;
+  countryCode: string;
+  lat: number;
+  lng: number;
+  isConnected: boolean;
+  usersOnline: number;
+  rxBytesPerSec: number;
+  txBytesPerSec: number;
+  trafficUsedBytes: number;
+  trafficLimitBytes: number | null;
+}
+
+export interface GeoMapConnection {
+  userId: string;
+  username: string;
+  lat: number;
+  lng: number;
+  ip: string;
+  lastSeen: string;
+  nodeUuid: string;
+  trafficBytes: number;
+  device: {
+    platform: string;
+    osVersion: string;
+    deviceModel: string;
+  } | null;
+}
+
+export interface GeoMapResponse {
+  nodes: GeoMapNode[];
+  connections: GeoMapConnection[];
+  updatedAt: string;
+}
+
+export interface LanguageInfo {
+  code: string;
+  translatedKeys: number;
+  totalKeys: number;
+  completeness: number;
+}
+
 /** Одна опция для продажи в кабинете (трафик / устройства / сервер) */
 export type PublicSellOption =
   | { kind: "traffic"; id: string; name: string; trafficGb: number; price: number; currency: string }
@@ -2498,4 +2709,5 @@ export interface PublicConfig {
     readyToConnectTitle?: string | null;
     readyToConnectDesc?: string | null;
   } | null;
+  translations?: Record<string, Record<string, unknown>>;
 }

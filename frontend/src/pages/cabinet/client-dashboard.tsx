@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import {
   
@@ -104,6 +105,7 @@ function parseSubscription(sub: unknown): {
 }
 
 export function ClientDashboardPage() {
+  const { t } = useTranslation();
   const { state, refreshProfile } = useClientAuth();
   const config = useCabinetConfig();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -171,7 +173,7 @@ export function ClientDashboardPage() {
         setDeviceCount(devRes.total ?? null);
       })
       .catch((e) => {
-        if (!cancelled) setSubscriptionError(e instanceof Error ? e.message : "Ошибка загрузки");
+        if (!cancelled) setSubscriptionError(e instanceof Error ? e.message : t("cabinet.dashboard.error_loading"));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -206,7 +208,7 @@ export function ClientDashboardPage() {
       await refreshProfile();
       setRefreshKey((k) => k + 1);
     } catch (e) {
-      setTrialError(e instanceof Error ? e.message : "Ошибка активации тестового доступа");
+      setTrialError(e instanceof Error ? e.message : t("cabinet.dashboard.trial_error"));
     } finally {
       setTrialLoading(false);
     }
@@ -253,14 +255,14 @@ export function ClientDashboardPage() {
         <Package className="h-8 w-8 text-primary/70" />
       </div>
       <div>
-        <h3 className="text-lg font-semibold text-foreground">Нет активной подписки</h3>
+        <h3 className="text-lg font-semibold text-foreground">{t("cabinet.dashboard.no_subscription_title")}</h3>
         <p className="text-[14px] text-muted-foreground max-w-xs mt-2 mx-auto leading-relaxed">
-          У вас пока нет привязанной подписки. Перейдите во вкладку Тарифы, чтобы выбрать и оплатить доступ.
+          {t("cabinet.dashboard.no_subscription_desc")}
         </p>
       </div>
       <Button className="mt-2 shadow-lg h-11 px-6 rounded-xl hover:scale-105 transition-transform duration-300 [&_svg]:self-center [&_span]:leading-none" asChild>
         <Link to="/cabinet/tariffs" className="inline-flex items-center justify-center gap-2">
-          <span className="inline-flex items-center leading-none">Выбрать тариф</span>
+          <span className="inline-flex items-center leading-none">{t("cabinet.dashboard.choose_tariff")}</span>
         </Link>
       </Button>
     </div>
@@ -290,7 +292,7 @@ export function ClientDashboardPage() {
             <div className="p-1.5 bg-primary/20 rounded-lg">
               <Zap className="h-4 w-4 shrink-0 text-primary" />
             </div>
-            Статус Подписки
+            {t("cabinet.dashboard.subscription_status")}
           </h2>
           {loading ? (
             <div className="flex items-center justify-center py-8">
@@ -303,11 +305,11 @@ export function ClientDashboardPage() {
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold bg-green-500/20 text-green-700 dark:text-green-400 border border-green-500/20">
                   <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                  Активна
+                  {t("cabinet.dashboard.active")}
                 </span>
                 {daysLeft != null && (
                   <span className="text-sm font-semibold text-foreground bg-foreground/5 px-3 py-1.5 rounded-full border border-border/50">
-                    Осталось {daysLeft} {daysLeft === 1 ? "день" : daysLeft < 5 ? "дня" : "дней"}
+                    {t("cabinet.dashboard.days_left")} {daysLeft} {daysLeft === 1 ? t("cabinet.common.day_one") : daysLeft < 5 ? t("cabinet.common.day_few") : t("cabinet.common.day_many")}
                   </span>
                 )}
                 {subParsed.hwidDeviceLimit != null && subParsed.hwidDeviceLimit > 0 && deviceCount != null && (
@@ -324,9 +326,9 @@ export function ClientDashboardPage() {
                       <Package className="h-5 w-5" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Тариф</p>
-                      <p className="text-[14px] font-semibold truncate text-foreground" title={((tariffDisplayName ?? subParsed.productName?.trim() ?? "").trim()) || "Тест"}>
-                        {((tariffDisplayName ?? subParsed.productName?.trim() ?? "").trim()) || "Тест"}
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">{t("cabinet.dashboard.tariff_label")}</p>
+                      <p className="text-[14px] font-semibold truncate text-foreground" title={((tariffDisplayName ?? subParsed.productName?.trim() ?? "").trim()) || t("cabinet.dashboard.test_label")}>
+                        {((tariffDisplayName ?? subParsed.productName?.trim() ?? "").trim()) || t("cabinet.dashboard.test_label")}
                       </p>
                     </div>
                   </div>
@@ -337,7 +339,7 @@ export function ClientDashboardPage() {
                       <Calendar className="h-5 w-5" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Действует до</p>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">{t("cabinet.dashboard.valid_until")}</p>
                       <p className="text-[14px] font-semibold text-foreground">
                         {formatDate(subParsed.expireAt)}
                       </p>
@@ -350,12 +352,12 @@ export function ClientDashboardPage() {
                       <Wifi className="h-5 w-5" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Трафик</p>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">{t("cabinet.dashboard.traffic")}</p>
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-[14px] font-semibold text-foreground">
                           {subParsed.trafficLimitBytes != null && subParsed.trafficLimitBytes > 0
                             ? `${formatBytes(subParsed.trafficUsed ?? 0)} / ${formatBytes(subParsed.trafficLimitBytes)}`
-                            : "Безлимит"}
+                            : t("cabinet.dashboard.unlimited")}
                         </p>
                         {trafficPercent != null && <span className="text-[12px] font-bold text-muted-foreground">{trafficPercent}%</span>}
                       </div>
@@ -378,11 +380,11 @@ export function ClientDashboardPage() {
              <div className="p-1.5 bg-primary/20 rounded-lg">
               <Wifi className="h-4 w-4 shrink-0 text-primary" />
             </div>
-            Подключение
+            {t("cabinet.dashboard.connection")}
           </h2>
           {vpnUrl ? (
             <div className="space-y-4">
-              <p className="text-[14px] text-muted-foreground leading-relaxed">Нажмите кнопку ниже — откроется страница с приложениями и настройкой в 1 клик.</p>
+              <p className="text-[14px] text-muted-foreground leading-relaxed">{t("cabinet.dashboard.connection_desc")}</p>
               <div className="flex gap-2 min-w-0">
                 <code className="flex-1 min-w-0 truncate rounded-xl bg-background/50 border border-border/50 px-3 py-2.5 text-xs font-mono flex items-center text-foreground/80" title={vpnUrl}>
                   {vpnUrl}
@@ -393,7 +395,7 @@ export function ClientDashboardPage() {
                   className="shrink-0 h-auto w-11 rounded-xl bg-background/50 hover:bg-background/80 transition-transform hover:scale-105"
                   onClick={() => {
                     navigator.clipboard.writeText(vpnUrl);
-                    window.Telegram?.WebApp?.showPopup?.({ title: "Скопировано", message: "Ссылка в буфере обмена" });
+                    window.Telegram?.WebApp?.showPopup?.({ title: t("cabinet.dashboard.copied_title"), message: t("cabinet.dashboard.copied_message") });
                   }}
                 >
                   <Copy className="h-4 w-4" />
@@ -402,7 +404,7 @@ export function ClientDashboardPage() {
               <Button className="w-full gap-2 shadow-lg h-12 rounded-xl text-md hover:scale-[1.02] transition-transform duration-300 [&_svg]:self-center [&_span]:leading-none" asChild>
                 <Link to="/cabinet/subscribe" className="inline-flex w-full items-center justify-center gap-2">
                   <Wifi className="h-5 w-5 shrink-0" />
-                  <span className="inline-flex items-center leading-none">Подключиться к VPN</span>
+                  <span className="inline-flex items-center leading-none">{t("cabinet.dashboard.connect_vpn")}</span>
                 </Link>
               </Button>
             </div>
@@ -412,11 +414,11 @@ export function ClientDashboardPage() {
                  <Gift className="h-6 w-6" />
               </div>
               <p className="text-[14px] text-muted-foreground">
-                Получите бесплатный доступ на {formatRuDays(trialDays)}.
+                {t("cabinet.dashboard.free_trial_desc")} {formatRuDays(trialDays)}.
               </p>
               <Button className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white shadow-lg h-12 rounded-xl hover:scale-[1.02] transition-transform duration-300 [&_svg]:self-center [&_span]:leading-none" onClick={activateTrial} disabled={trialLoading}>
                 {trialLoading ? <Loader2 className="h-5 w-5 shrink-0 animate-spin" /> : <Gift className="h-5 w-5 shrink-0" />}
-                <span className="inline-flex items-center leading-none font-medium text-base">Бесплатный Тест</span>
+                <span className="inline-flex items-center leading-none font-medium text-base">{t("cabinet.dashboard.free_trial")}</span>
               </Button>
               {trialError && <p className="text-sm text-destructive break-words text-center">{trialError}</p>}
             </div>
@@ -424,11 +426,11 @@ export function ClientDashboardPage() {
             <div className="space-y-4">
               <div className="p-4 bg-primary/10 rounded-2xl border border-primary/20 text-[14px] text-primary flex gap-3 items-start">
                 <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
-                <p className="leading-relaxed">Ссылка появится после оплаты тарифа. Перейдите во вкладку «Тарифы» и оплатите.</p>
+                <p className="leading-relaxed">{t("cabinet.dashboard.link_after_payment")}</p>
               </div>
               <Button className="w-full shadow-md rounded-xl hover:scale-[1.02] transition-transform duration-300 h-12 [&_svg]:self-center [&_span]:leading-none" variant="default" asChild>
                 <Link to="/cabinet/tariffs" className="inline-flex w-full items-center justify-center gap-2">
-                  <span className="inline-flex items-center leading-none">Выбрать тариф</span>
+                  <span className="inline-flex items-center leading-none">{t("cabinet.dashboard.choose_tariff")}</span>
                 </Link>
               </Button>
             </div>
@@ -442,13 +444,13 @@ export function ClientDashboardPage() {
               <Wallet className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <h2 className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground/80">Мой баланс</h2>
+              <h2 className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground/80">{t("cabinet.dashboard.my_balance")}</h2>
               <p className="text-2xl font-bold tracking-tight text-foreground leading-none mt-1">{formatMoney(client.balance, client.preferredCurrency)}</p>
             </div>
           </div>
           <div className="flex items-center justify-between p-3 rounded-2xl bg-background/40 border border-border/50">
             <div className="flex flex-col">
-              <Label className="text-sm font-semibold">Автопродление</Label>
+              <Label className="text-sm font-semibold">{t("cabinet.dashboard.auto_renew")}</Label>
               <span className="text-[11px] text-muted-foreground mt-0.5 leading-tight">
                 {config?.yookassaRecurringEnabled
                   ? <>Сначала с баланса{client.yookassaPaymentMethodTitle ? <>, затем с карты <span className="font-medium">{client.yookassaPaymentMethodTitle}</span></> : ", затем с карты (если ранее оплачивали через ЮKassa)"}</>
@@ -465,7 +467,7 @@ export function ClientDashboardPage() {
           <Button className="w-full gap-2 shadow-md hover:scale-[1.02] transition-transform duration-300 rounded-xl h-12 [&_svg]:self-center [&_span]:leading-none" asChild>
             <Link to="/cabinet/profile#topup" className="inline-flex w-full items-center justify-center gap-2">
               <PlusCircle className="h-5 w-5 shrink-0" />
-              <span className="inline-flex items-center leading-none">Пополнить баланс</span>
+              <span className="inline-flex items-center leading-none">{t("cabinet.dashboard.top_up")}</span>
             </Link>
           </Button>
         </section>
@@ -489,24 +491,24 @@ export function ClientDashboardPage() {
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
           <div className="flex-1">
             <h1 className="text-3xl font-bold tracking-tight sm:text-4xl text-foreground">
-              Добро пожаловать{client.email ? `, ${client.email.split("@")[0]}` : client.telegramUsername ? `, @${client.telegramUsername}` : ""}
+              {t("cabinet.dashboard.welcome")}{client.email ? `, ${client.email.split("@")[0]}` : client.telegramUsername ? `, @${client.telegramUsername}` : ""}
             </h1>
             <p className="mt-3 text-[16px] text-muted-foreground max-w-xl leading-relaxed">
               {hasActiveSubscription
-                ? "Ваша подписка активна. Подключитесь к VPN и наслаждайтесь свободным интернетом."
-                : "Подключитесь к VPN — выберите удобный тариф и оплатите прямо на сайте."}
+                ? t("cabinet.dashboard.sub_active_desc")
+                : t("cabinet.dashboard.sub_inactive_desc")}
             </p>
             
             {(paymentMessage === "success" || paymentMessage === "success_topup" || paymentMessage === "success_tariff") && (
               <div className="mt-4 inline-flex items-center gap-2 bg-green-500/15 border border-green-500/30 px-4 py-2 rounded-xl text-green-700 dark:text-green-400 font-medium text-sm">
                 <Check className="h-4 w-4" />
-                {paymentMessage === "success_topup" ? "Баланс пополнен." : paymentMessage === "success_tariff" ? "Тариф активирован." : "Оплата прошла успешно."}
+                {t("cabinet.dashboard.payment_success")}
               </div>
             )}
             {paymentMessage === "failed" && (
               <div className="mt-4 inline-flex items-center gap-2 bg-destructive/15 border border-destructive/30 px-4 py-2 rounded-xl text-destructive font-medium text-sm">
                 <AlertCircle className="h-4 w-4" />
-                Оплата не прошла. Попробуйте снова.
+                {t("cabinet.dashboard.payment_failed")}
               </div>
             )}
             {trialError && <p className="mt-3 text-sm text-destructive font-medium">{trialError}</p>}
@@ -516,27 +518,27 @@ export function ClientDashboardPage() {
             {showTrial ? (
               <Button size="lg" className="w-full gap-2 shadow-xl bg-green-600 hover:bg-green-700 text-white rounded-xl h-14 hover:scale-105 transition-transform [&_svg]:self-center [&_span]:leading-none" onClick={activateTrial} disabled={trialLoading}>
                 {trialLoading ? <Loader2 className="h-5 w-5 shrink-0 animate-spin" /> : <Gift className="h-5 w-5 shrink-0" />}
-                <span className="inline-flex items-center text-base font-medium leading-none">Бесплатный Тест</span>
+                <span className="inline-flex items-center text-base font-medium leading-none">{t("cabinet.dashboard.free_trial")}</span>
               </Button>
             ) : vpnUrl ? (
               <Button size="lg" className="w-full gap-2 shadow-xl rounded-xl h-14 hover:scale-105 transition-transform bg-primary text-primary-foreground [&_svg]:self-center [&_span]:leading-none" asChild>
                 <Link to="/cabinet/subscribe" className="inline-flex items-center justify-center gap-2 leading-none">
                   <Wifi className="h-5 w-5 shrink-0" />
-                  <span className="inline-flex items-center text-base font-medium leading-none">Подключить VPN</span>
+                  <span className="inline-flex items-center text-base font-medium leading-none">{t("cabinet.dashboard.connect_vpn")}</span>
                 </Link>
               </Button>
             ) : (
               <Button size="lg" variant="default" className="w-full gap-2 shadow-xl rounded-xl h-14 hover:scale-105 transition-transform [&_svg]:self-center [&_span]:leading-none" asChild>
                 <Link to="/cabinet/tariffs" className="inline-flex items-center justify-center gap-2 leading-none">
                   <Package className="h-5 w-5 shrink-0" />
-                  <span className="inline-flex items-center text-base font-medium leading-none">Выбрать тариф</span>
+                  <span className="inline-flex items-center text-base font-medium leading-none">{t("cabinet.dashboard.choose_tariff")}</span>
                 </Link>
               </Button>
             )}
             <Button variant="secondary" size="lg" className="w-full gap-2 rounded-xl h-14 hover:scale-105 transition-transform bg-background/50 hover:bg-background/80 border border-border/50 [&_svg]:self-center [&_span]:leading-none" asChild>
               <Link to="/cabinet/profile#topup" className="inline-flex items-center justify-center gap-2 leading-none">
                 <PlusCircle className="h-5 w-5 shrink-0 text-foreground/70" />
-                <span className="inline-flex items-center text-base font-medium leading-none">Пополнить баланс</span>
+                <span className="inline-flex items-center text-base font-medium leading-none">{t("cabinet.dashboard.top_up")}</span>
               </Link>
             </Button>
           </div>
@@ -552,7 +554,7 @@ export function ClientDashboardPage() {
               <div className="p-2.5 bg-primary/20 rounded-xl">
                 <Package className="h-6 w-6 text-primary" />
               </div>
-              Моя Подписка
+              {t("cabinet.dashboard.my_subscription")}
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col justify-center">
@@ -565,11 +567,11 @@ export function ClientDashboardPage() {
                 <div className="flex items-center gap-2 flex-wrap mb-2">
                   <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-semibold bg-green-500/15 text-green-700 dark:text-green-400 border border-green-500/20">
                     <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                    Активна
+                    {t("cabinet.dashboard.active")}
                   </span>
                   {daysLeft != null && (
                     <span className="text-sm font-semibold text-foreground bg-foreground/5 px-3 py-1.5 rounded-full border border-border/50 shadow-sm">
-                      {daysLeft} {daysLeft === 1 ? "день" : daysLeft < 5 ? "дня" : "дней"}
+                      {daysLeft} {daysLeft === 1 ? t("cabinet.common.day_one") : daysLeft < 5 ? t("cabinet.common.day_few") : t("cabinet.common.day_many")}
                     </span>
                   )}
                   {subParsed.hwidDeviceLimit != null && subParsed.hwidDeviceLimit > 0 && deviceCount != null && (
@@ -584,9 +586,9 @@ export function ClientDashboardPage() {
                       <Package className="h-6 w-6" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Тариф</p>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">{t("cabinet.dashboard.tariff_label")}</p>
                       <p className="text-[15px] font-semibold truncate text-foreground">
-                        {((tariffDisplayName ?? subParsed.productName?.trim() ?? "").trim()) || "Тест"}
+                        {((tariffDisplayName ?? subParsed.productName?.trim() ?? "").trim()) || t("cabinet.dashboard.test_label")}
                       </p>
                     </div>
                   </div>
@@ -597,7 +599,7 @@ export function ClientDashboardPage() {
                       <Calendar className="h-6 w-6" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Действует до</p>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">{t("cabinet.dashboard.valid_until")}</p>
                       <p className="text-[15px] font-semibold text-foreground">
                         {formatDate(subParsed.expireAt)}
                       </p>
@@ -610,12 +612,12 @@ export function ClientDashboardPage() {
                       <Wifi className="h-6 w-6" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Трафик</p>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">{t("cabinet.dashboard.traffic")}</p>
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-[15px] font-semibold text-foreground">
                           {subParsed.trafficLimitBytes != null && subParsed.trafficLimitBytes > 0
                             ? `${formatBytes(subParsed.trafficUsed ?? 0)} / ${formatBytes(subParsed.trafficLimitBytes)}`
-                            : "Безлимит"}
+                            : t("cabinet.dashboard.unlimited")}
                         </p>
                         {trafficPercent != null && <span className="text-[13px] font-bold text-muted-foreground">{trafficPercent}%</span>}
                       </div>
@@ -639,7 +641,7 @@ export function ClientDashboardPage() {
               <div className="p-2.5 bg-primary/20 rounded-xl">
                 <Wallet className="h-6 w-6 text-primary" />
               </div>
-              Баланс
+              {t("cabinet.dashboard.balance")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6 flex-1 flex flex-col justify-center text-center">
@@ -652,7 +654,7 @@ export function ClientDashboardPage() {
             
             <div className="flex items-center justify-between p-4 rounded-2xl bg-background/40 border border-border/50 text-left">
               <div className="flex flex-col">
-                <Label className="text-[15px] font-semibold">Автопродление</Label>
+                <Label className="text-[15px] font-semibold">{t("cabinet.dashboard.auto_renew")}</Label>
                 <span className="text-sm text-muted-foreground mt-0.5">
                   {config?.yookassaRecurringEnabled
                     ? <>Сначала с баланса{client.yookassaPaymentMethodTitle ? <>, затем с карты <span className="font-medium">{client.yookassaPaymentMethodTitle}</span></> : ", затем с карты (если ранее оплачивали через ЮKassa)"}</>
@@ -670,7 +672,7 @@ export function ClientDashboardPage() {
             <Button variant="default" size="lg" className="w-full gap-2 shadow-lg h-14 rounded-xl text-[16px] hover:scale-105 transition-transform [&_svg]:self-center [&_span]:leading-none" asChild>
               <Link to="/cabinet/profile#topup" className="inline-flex items-center justify-center gap-2 leading-none">
                 <PlusCircle className="h-5 w-5 shrink-0" />
-                <span className="inline-flex items-center leading-none">Пополнить баланс</span>
+                <span className="inline-flex items-center leading-none">{t("cabinet.dashboard.top_up")}</span>
               </Link>
             </Button>
           </CardContent>
@@ -683,7 +685,7 @@ export function ClientDashboardPage() {
               <div className="p-2.5 bg-primary/20 rounded-xl">
                 {hasReferralLinks ? <Users className="h-6 w-6 text-primary" /> : <Wifi className="h-6 w-6 text-primary" />}
               </div>
-              {hasReferralLinks ? "Рефералы" : "Подключение"}
+              {hasReferralLinks ? t("cabinet.dashboard.referrals") : t("cabinet.dashboard.connection")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-5 pt-2 flex flex-col justify-center h-[calc(100%-5rem)]">

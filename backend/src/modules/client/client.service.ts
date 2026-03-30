@@ -6,6 +6,42 @@ import { env } from "../../config/index.js";
 
 const SALT_ROUNDS = 12;
 
+const _langPackCache = new Map<string, { data: Record<string, unknown>; ts: number }>();
+const LANG_PACK_TTL = 60_000;
+
+async function loadAllLanguagePacks(activeLangs: string[]): Promise<Record<string, Record<string, unknown>>> {
+  const result: Record<string, Record<string, unknown>> = {};
+  const langKeys = activeLangs.filter((l) => l !== "ru").map((l) => `lang_pack_${l}`);
+  if (!langKeys.length) return result;
+  const now = Date.now();
+  const toLoad: string[] = [];
+  for (const k of langKeys) {
+    const cached = _langPackCache.get(k);
+    if (cached && now - cached.ts < LANG_PACK_TTL) {
+      const code = k.replace("lang_pack_", "");
+      result[code] = cached.data;
+    } else {
+      toLoad.push(k);
+    }
+  }
+  if (toLoad.length) {
+    const rows = await prisma.systemSetting.findMany({ where: { key: { in: toLoad } } });
+    for (const row of rows) {
+      const code = row.key.replace("lang_pack_", "");
+      try {
+        const parsed = JSON.parse(row.value);
+        _langPackCache.set(row.key, { data: parsed, ts: now });
+        result[code] = parsed;
+      } catch { /* skip invalid JSON */ }
+    }
+  }
+  return result;
+}
+
+export function clearLangPackCache() {
+  _langPackCache.clear();
+}
+
 export type ClientTokenPayload = { clientId: string; type: "client_access" };
 export type Client2FAPendingPayload = { clientId: string; type: "client_2fa_pending" };
 
@@ -119,6 +155,8 @@ const SYSTEM_CONFIG_KEYS = [
   "landing_feature_1_label", "landing_feature_1_sub", "landing_feature_2_label", "landing_feature_2_sub",
   "landing_feature_3_label", "landing_feature_3_sub", "landing_feature_4_label", "landing_feature_4_sub",
   "landing_feature_5_label", "landing_feature_5_sub",
+  "video_instructions_enabled", "video_instructions",
+  "notification_topic_backups", "auto_backup_enabled", "auto_backup_cron",
   "landing_benefits_title", "landing_benefits_subtitle",
   "landing_benefit_1_title", "landing_benefit_1_desc", "landing_benefit_2_title", "landing_benefit_2_desc",
   "landing_benefit_3_title", "landing_benefit_3_desc", "landing_benefit_4_title", "landing_benefit_4_desc",
@@ -148,6 +186,8 @@ const SYSTEM_CONFIG_KEYS = [
   "proxy_enabled", "proxy_url", "proxy_telegram", "proxy_payments",
   // Мой Налог (самозанятые)
   "nalog_enabled", "nalog_inn", "nalog_password", "nalog_device_id", "nalog_service_name",
+  // Карта нод (Geo Map)
+  "geo_map_enabled", "geo_cache_ttl", "maxmind_db_path",
 ];
 
 /** Продукт «Доп. трафик»: объём в ГБ, цена, валюта */
@@ -455,6 +495,9 @@ export async function getSystemConfig() {
     notificationTopicNewClients: (map.notification_topic_new_clients ?? "").trim() || null,
     notificationTopicPayments: (map.notification_topic_payments ?? "").trim() || null,
     notificationTopicTickets: (map.notification_topic_tickets ?? "").trim() || null,
+    notificationTopicBackups: (map.notification_topic_backups ?? "").trim() || null,
+    autoBackupEnabled: map.auto_backup_enabled === "true" || map.auto_backup_enabled === "1",
+    autoBackupCron: (map.auto_backup_cron ?? "").trim() || null,
     plategaMerchantId: map.platega_merchant_id || null,
     plategaSecret: map.platega_secret || null,
     plategaMethods: parsePlategaMethods(map.platega_methods),
@@ -516,6 +559,10 @@ export async function getSystemConfig() {
     agreementLink: (map.agreement_link ?? "").trim() || null,
     offerLink: (map.offer_link ?? "").trim() || null,
     instructionsLink: (map.instructions_link ?? "").trim() || null,
+    videoInstructionsEnabled: map.video_instructions_enabled === "true" || map.video_instructions_enabled === "1",
+    videoInstructions: (() => {
+      try { return JSON.parse(map.video_instructions || "[]") as { id: string; title: string; telegramFileId: string; sortOrder: number }[]; } catch { return []; }
+    })(),
     ticketsEnabled: map.tickets_enabled === "true" || map.tickets_enabled === "1",
     themeAccent: (map.theme_accent ?? "").trim() || "default",
     allowUserThemeChange: map.allow_user_theme_change === "true" || map.allow_user_theme_change === "1" || map.allow_user_theme_change == null,
@@ -643,6 +690,9 @@ export async function getSystemConfig() {
     nalogPassword: (map.nalog_password ?? "").trim() || null,
     nalogDeviceId: (map.nalog_device_id ?? "").trim() || null,
     nalogServiceName: (map.nalog_service_name ?? "").trim() || null,
+    geoMapEnabled: map.geo_map_enabled === "true" || map.geo_map_enabled === "1",
+    geoCacheTtl: parseInt(map.geo_cache_ttl || "60", 10) || 60,
+    maxmindDbPath: (map.maxmind_db_path ?? "").trim() || null,
   };
 }
 
@@ -914,6 +964,8 @@ export async function getPublicConfig() {
     agreementLink: full.agreementLink ?? null,
     offerLink: full.offerLink ?? null,
     instructionsLink: full.instructionsLink ?? null,
+    videoInstructionsEnabled: full.videoInstructionsEnabled ?? false,
+    videoInstructions: full.videoInstructionsEnabled ? (full.videoInstructions ?? []) : [],
     ticketsEnabled: (full as { ticketsEnabled?: boolean }).ticketsEnabled ?? false,
     themeAccent: full.themeAccent ?? "default",
     allowUserThemeChange: (full as any).allowUserThemeChange ?? true,
@@ -1240,5 +1292,6 @@ export async function getPublicConfig() {
     proxyUrl: full.proxyUrl ?? null,
     proxyTelegram: full.proxyTelegram ?? false,
     proxyPayments: full.proxyPayments ?? false,
+    translations: await loadAllLanguagePacks(full.activeLanguages),
   };
 }

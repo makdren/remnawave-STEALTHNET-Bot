@@ -2,6 +2,7 @@
  * Inline-клавиатуры с цветными кнопками (Telegram Bot API: style — primary, success, danger).
  * Эмодзи в тексте кнопок (Unicode).
  */
+import { t as _t } from "./i18n.js";
 
 type ButtonStyle = "primary" | "success" | "danger";
 
@@ -184,30 +185,34 @@ const DEFAULT_BACK_LABEL = "◀️ В меню";
 
 /** Меню «Поддержка»: 4 кнопки-ссылки (только с заданным URL) + «В меню». */
 export function supportSubMenu(
-  links: { support?: string | null; agreement?: string | null; offer?: string | null; instructions?: string | null },
+  links: { support?: string | null; agreement?: string | null; offer?: string | null; instructions?: string | null; hasVideoInstructions?: boolean },
   backLabel?: string | null,
   backStyle?: string,
-  emojiIds?: InnerEmojiIds
+  emojiIds?: InnerEmojiIds,
+  lang = "ru"
 ): InlineMarkup {
-  const back = (backLabel && backLabel.trim()) || DEFAULT_BACK_LABEL;
+  const back = (backLabel && backLabel.trim()) || _t("back_to_menu", lang);
   const backSty = resolveStyle(toStyle(backStyle), "danger");
   const rows: (InlineButton | UrlButton)[][] = [];
   const items: [string, string | null | undefined][] = [
-    ["👤 Тех поддержка", links.support],
-    ["📜 Соглашения", links.agreement],
-    ["📄 Оферта", links.offer],
-    ["📋 Инструкции", links.instructions],
+    [_t("support.btn_tech", lang), links.support],
+    [_t("support.btn_agreement", lang), links.agreement],
+    [_t("support.btn_offer", lang), links.offer],
+    [_t("support.btn_instructions", lang), links.instructions],
   ];
   for (const [label, url] of items) {
     const u = (url ?? "").trim();
     if (u) rows.push([{ text: label, url: u }]);
   }
+  if (links.hasVideoInstructions) {
+    rows.push([btn(_t("support.btn_video_instructions", lang), "menu:video_instructions", undefined, undefined)]);
+  }
   rows.push([btn(back, "menu:main", backSty, emojiIds?.back)]);
   return { inline_keyboard: rows };
 }
 
-export function backToMenu(backLabel?: string | null, backStyle?: string, emojiIds?: InnerEmojiIds): InlineMarkup {
-  const text = (backLabel && backLabel.trim()) || DEFAULT_BACK_LABEL;
+export function backToMenu(backLabel?: string | null, backStyle?: string, emojiIds?: InnerEmojiIds, lang = "ru"): InlineMarkup {
+  const text = (backLabel && backLabel.trim()) || _t("back_to_menu", lang);
   return { inline_keyboard: [[btn(text, "menu:main", resolveStyle(toStyle(backStyle), "danger"), emojiIds?.back)]] };
 }
 
@@ -648,42 +653,42 @@ export function optionPaymentMethodButtons(
   return { inline_keyboard: rows };
 }
 
-export function profileButtons(backLabel?: string | null, innerStyles?: InnerButtonStyles, emojiIds?: InnerEmojiIds, autoRenewEnabled?: boolean): InlineMarkup {
-  const back = (backLabel && backLabel.trim()) || DEFAULT_BACK_LABEL;
+export function profileButtons(backLabel?: string | null, innerStyles?: InnerButtonStyles, emojiIds?: InnerEmojiIds, autoRenewEnabled?: boolean, lang = "ru"): InlineMarkup {
+  const back = (backLabel && backLabel.trim()) || _t("back_to_menu", lang);
   const profile = resolveStyle(toStyle(innerStyles?.profile), "primary");
   const backSty = resolveStyle(toStyle(innerStyles?.back), "danger");
   const profileId = emojiIds?.profile;
-  const autoRenewText = autoRenewEnabled ? "🔄 Автопродление: ВКЛ" : "🔄 Автопродление: ОТКЛ";
+  const autoRenewText = autoRenewEnabled ? _t("profile.btn_autorenew_on", lang) : _t("profile.btn_autorenew_off", lang);
   const autoRenewData = autoRenewEnabled ? "profile:autorenew:off" : "profile:autorenew:on";
   return {
     inline_keyboard: [
       [btn(autoRenewText, autoRenewData, profile, profileId)],
-      [btn("🌐 Язык", "profile:lang", profile, profileId), btn("💱 Валюта", "profile:currency", profile, profileId)],
+      [btn(_t("profile.btn_lang", lang), "profile:lang", profile, profileId), btn(_t("profile.btn_currency", lang), "profile:currency", profile, profileId)],
       [btn(back, "menu:main", backSty, emojiIds?.back)],
     ],
   };
 }
 
-export function langButtons(langs: string[], innerStyles?: InnerButtonStyles, emojiIds?: InnerEmojiIds): InlineMarkup {
+export function langButtons(langs: string[], innerStyles?: InnerButtonStyles, emojiIds?: InnerEmojiIds, lang = "ru"): InlineMarkup {
   const langStyle = resolveStyle(toStyle(innerStyles?.lang), "primary");
   const backSty = resolveStyle(toStyle(innerStyles?.back), "danger");
   const row: InlineButton[] = langs.slice(0, 3).map((l) => btn(l.toUpperCase(), `set_lang:${l}`, langStyle));
-  return { inline_keyboard: [row, [btn("◀️ Назад", "menu:profile", backSty, emojiIds?.back)]] };
+  return { inline_keyboard: [row, [btn(_t("back", lang), "menu:profile", backSty, emojiIds?.back)]] };
 }
 
-export function currencyButtons(currencies: string[], innerStyles?: InnerButtonStyles, emojiIds?: InnerEmojiIds): InlineMarkup {
+export function currencyButtons(currencies: string[], innerStyles?: InnerButtonStyles, emojiIds?: InnerEmojiIds, lang = "ru"): InlineMarkup {
   const currencyStyle = resolveStyle(toStyle(innerStyles?.currency), "primary");
   const backSty = resolveStyle(toStyle(innerStyles?.back), "danger");
   const row: InlineButton[] = currencies.slice(0, 3).map((c) => btn(c.toUpperCase(), `set_currency:${c}`, currencyStyle));
-  return { inline_keyboard: [row, [btn("◀️ Назад", "menu:profile", backSty, emojiIds?.back)]] };
+  return { inline_keyboard: [row, [btn(_t("back", lang), "menu:profile", backSty, emojiIds?.back)]] };
 }
 
-export function trialConfirmButton(innerStyles?: InnerButtonStyles, emojiIds?: InnerEmojiIds): InlineMarkup {
+export function trialConfirmButton(innerStyles?: InnerButtonStyles, emojiIds?: InnerEmojiIds, lang = "ru"): InlineMarkup {
   const trialConfirm = resolveStyle(toStyle(innerStyles?.trialConfirm), "success");
   const backSty = resolveStyle(toStyle(innerStyles?.back), "danger");
   return {
     inline_keyboard: [
-      [btn("🎁 Бесплатный Тест", "trial:confirm", trialConfirm, emojiIds?.trial), btn("Отмена", "menu:main", backSty, emojiIds?.back)],
+      [btn(_t("menu.btn_trial", lang), "trial:confirm", trialConfirm, emojiIds?.trial), btn(_t("cancel", lang), "menu:main", backSty, emojiIds?.back)],
     ],
   };
 }

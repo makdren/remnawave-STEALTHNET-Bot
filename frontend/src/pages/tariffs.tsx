@@ -232,7 +232,7 @@ function SortableTariffRow({
         <span className="text-muted-foreground text-sm">трафик: {formatTraffic(t.trafficLimitBytes)}</span>
         {t.trafficResetMode && t.trafficResetMode !== "no_reset" && (
           <span className="text-muted-foreground text-sm">
-            {t.trafficResetMode === "on_purchase" ? "сброс при покупке" : t.trafficResetMode === "monthly" ? "сброс ежемесячно" : ""}
+            {t.trafficResetMode === "on_purchase" ? "сброс при покупке" : t.trafficResetMode === "monthly" ? "сброс ежемесячно" : t.trafficResetMode === "monthly_rolling" ? "скользящий месяц" : ""}
           </span>
         )}
         {t.deviceLimit != null && (
@@ -866,11 +866,13 @@ function TariffModal({
               <option value="no_reset">Без сброса</option>
               <option value="on_purchase">Сброс при покупке тарифа</option>
               <option value="monthly">Ежемесячный сброс</option>
+              <option value="monthly_rolling">Скользящий месяц</option>
             </select>
             <p className="text-xs text-muted-foreground mt-1">
               {trafficResetMode === "no_reset" && "Трафик не сбрасывается — лимит действует на весь срок тарифа."}
               {trafficResetMode === "on_purchase" && "Трафик обнуляется при каждой покупке/продлении тарифа."}
               {trafficResetMode === "monthly" && "Трафик обнуляется каждый месяц (Remna MONTH). Например: 10 ГБ/мес на 3 месяца."}
+              {trafficResetMode === "monthly_rolling" && "Трафик сбрасывается через 30 дней от последнего сброса (Remna MONTH_ROLLING)."}
             </p>
           </div>
           <div>

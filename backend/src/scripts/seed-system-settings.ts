@@ -1,3 +1,6 @@
+import { readFileSync } from "fs";
+import { dirname, resolve } from "path";
+import { fileURLToPath } from "url";
 import { prisma } from "../db.js";
 
 const DEFAULTS: Array<[string, string]> = [
@@ -34,5 +37,28 @@ export async function ensureSystemSettings() {
       create: { key, value },
       update: {},
     });
+  }
+  await seedEnglishPack();
+}
+
+async function seedEnglishPack() {
+  const existing = await prisma.systemSetting.findUnique({ where: { key: "lang_pack_en" } });
+  if (existing) return;
+  try {
+    const dir = dirname(fileURLToPath(import.meta.url));
+    const candidates = [
+      resolve(dir, "../i18n/en.json"),
+      resolve(dir, "../../../frontend/src/i18n/locales/en.json"),
+    ];
+    let data: string | null = null;
+    for (const p of candidates) {
+      try { data = readFileSync(p, "utf-8"); break; } catch { /* next */ }
+    }
+    if (!data) { console.warn("[seed] en.json not found, skip"); return; }
+    JSON.parse(data);
+    await prisma.systemSetting.create({ data: { key: "lang_pack_en", value: data } });
+    console.log("[seed] English language pack seeded");
+  } catch (e) {
+    console.warn("[seed] Could not seed English pack:", e instanceof Error ? e.message : e);
   }
 }

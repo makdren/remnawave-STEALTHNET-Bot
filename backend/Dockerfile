@@ -14,6 +14,7 @@ RUN apk add --no-cache postgresql-client
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/src/i18n/*.json ./dist/i18n/
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/prisma ./prisma

@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import type { DashboardStats, RemnaNode, RemnaNodesResponse, ServerStats } from "@/lib/api";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/auth";
 import {
   AreaChart,
@@ -76,9 +77,13 @@ function formatBytes(bytes: number | null | undefined): string {
   return bytes + " B";
 }
 
-function formatNodeCpuRam(cpuCount: number | null | undefined, totalRam: string | null | undefined): string {
-  const cpu = cpuCount != null ? String(cpuCount) : "—";
-  const ram = totalRam?.trim() || "—";
+function formatNodeCpuRam(node: { cpuCount?: number | null; totalRam?: string | null; system?: { info?: { cpus?: number; memoryTotal?: number } | null } | null }): string {
+  const cpuCores = node.system?.info?.cpus ?? node.cpuCount;
+  const cpu = cpuCores != null ? `${cpuCores} cores` : "—";
+
+  const memTotal = node.system?.info?.memoryTotal;
+  const ram = memTotal != null ? formatBytes(memTotal) : (node.totalRam?.trim() || "—");
+
   return `${cpu} / ${ram}`;
 }
 
@@ -608,6 +613,7 @@ function ServerCommandCenter({ serverStats }: { serverStats: ServerStats }) {
 /* ══════════════════════════════════════════════════════════════════ */
 
 export function DashboardPage() {
+  const { t } = useTranslation();
   const { state } = useAuth();
   const token = state.accessToken ?? null;
   const admin = state.admin;
@@ -642,7 +648,7 @@ export function DashboardPage() {
         else await api.remnaNodeRestart(token, nodeUuid);
         await refetchNodes();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Ошибка действия с нодой");
+        setError(e instanceof Error ? e.message : t("admin.dashboard.node_error"));
       } finally {
         setNodeActionUuid(null);
       }
@@ -687,7 +693,7 @@ export function DashboardPage() {
         setDefaultCurrency(curr ? String(curr).toUpperCase() : "USD");
       } catch (e) {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Ошибка загрузки");
+          setError(e instanceof Error ? e.message : t("admin.dashboard.loading_error"));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -746,7 +752,7 @@ export function DashboardPage() {
           transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
           className="text-primary tracking-widest text-xs font-bold"
         >
-          INITIALIZING_SYSTEM_
+          {t("admin.dashboard.initializing")}
         </motion.div>
       </div>
     );
@@ -769,9 +775,9 @@ export function DashboardPage() {
           className="text-2xl font-bold tracking-widest uppercase text-slate-900 dark:text-white flex items-center gap-3"
           style={{ textShadow: "0 0 20px hsl(var(--primary)/0.3)" }}
         >
-          <span className="text-primary/50">~/</span> Дашборд <motion.span animate={{opacity:[0,1]}} transition={{repeat:Infinity, duration:0.8}} className="w-4 h-6 bg-primary inline-block"></motion.span>
+          <span className="text-primary/50">~/</span> {t("admin.dashboard.title")} <motion.span animate={{opacity:[0,1]}} transition={{repeat:Infinity, duration:0.8}} className="w-4 h-6 bg-primary inline-block"></motion.span>
         </h1>
-        <p className="text-slate-500 dark:text-primary/60 mt-2 text-xs tracking-widest uppercase">Статистика / Пользователи / Продажи / Аналитика / Ноды_Remna</p>
+        <p className="text-slate-500 dark:text-primary/60 mt-2 text-xs tracking-widest uppercase">{t("admin.dashboard.subtitle")}</p>
         {/* Animated header underline */}
         <motion.div
           className="h-[1px] mt-4"
@@ -791,7 +797,7 @@ export function DashboardPage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          [WARNING]: У вас нет доступа ни к одному разделу. Обратитесь к администратору.
+          {t("admin.dashboard.no_access_warning")}
         </motion.div>
       )}
 
@@ -808,30 +814,30 @@ export function DashboardPage() {
 
       {/* ═══ Users Section ═══ */}
       <section>
-        <SectionHeader icon={Users} title="Пользователи" subtitle="Статистика клиентской базы" />
+        <SectionHeader icon={Users} title={t("admin.dashboard.users_title")} subtitle={t("admin.dashboard.users_subtitle")} />
         <motion.div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3" variants={staggerContainer} initial="hidden" animate="visible">
           <StatCard
             index={0}
             icon={Users}
-            title="Всего пользователей"
+            title={t("admin.dashboard.total_users")}
             value={stats ? <CountUpNumber value={stats.users.total} /> : "—"}
-            subtitle="Клиенты панели"
+            subtitle={t("admin.dashboard.panel_clients")}
             accentColor="primary"
           />
           <StatCard
             index={1}
             icon={Shield}
-            title="Привязано к Remna"
+            title={t("admin.dashboard.bound_to_remna")}
             value={stats ? <CountUpNumber value={stats.users.withRemna} /> : "—"}
-            subtitle="С remnawaveUuid"
+            subtitle={t("admin.dashboard.with_remna_uuid")}
             accentColor="cyan"
           />
           <StatCard
             index={2}
             icon={UserPlus}
-            title="Новых сегодня"
+            title={t("admin.dashboard.new_today")}
             value={stats ? <CountUpNumber value={stats.users.newToday} /> : "—"}
-            subtitle="Регистрации за день"
+            subtitle={t("admin.dashboard.registrations_today")}
             accentColor="emerald"
           />
         </motion.div>
@@ -839,42 +845,42 @@ export function DashboardPage() {
 
       {/* ═══ Analytics Section ═══ */}
       <section>
-        <SectionHeader icon={Activity} title="Микроаналитика" subtitle="Ключевые метрики за периоды" />
+        <SectionHeader icon={Activity} title={t("admin.dashboard.micro_analytics")} subtitle={t("admin.dashboard.key_metrics")} />
         <GlassCard animIndex={5}>
           <CardContent className="relative pt-6">
             <div className="flex flex-col gap-6">
               {/* Sales Stats Grid */}
               <div className="grid gap-6 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
                 <div className="space-y-1">
-                  <p className="text-[10px] tracking-widest uppercase text-slate-500 dark:text-primary/60">&gt; Всего</p>
+                  <p className="text-[10px] tracking-widest uppercase text-slate-500 dark:text-primary/60">&gt; {t("admin.dashboard.total")}</p>
                   <p className="text-xl font-bold tabular-nums tracking-widest text-slate-900 dark:text-white">
                     {stats ? <CountUpMoney value={stats.sales.totalAmount} currency={defaultCurrency} /> : "—"}
                   </p>
                   <p className="text-[10px] tracking-widest text-slate-400 dark:text-primary/50 uppercase">{stats?.sales.totalCount ?? 0} PAYMENTS</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-[10px] tracking-widest uppercase text-slate-500 dark:text-primary/60">&gt; За сегодня</p>
+                  <p className="text-[10px] tracking-widest uppercase text-slate-500 dark:text-primary/60">&gt; {t("admin.dashboard.today")}</p>
                   <p className="text-xl font-bold tabular-nums tracking-widest text-slate-900 dark:text-white">
                     {stats ? <CountUpMoney value={stats.sales.todayAmount} currency={defaultCurrency} /> : "—"}
                   </p>
                   <p className="text-[10px] tracking-widest text-slate-400 dark:text-primary/50 uppercase">{stats?.sales.todayCount ?? 0} PAYMENTS</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-[10px] tracking-widest uppercase text-slate-500 dark:text-primary/60">&gt; 7 дней</p>
+                  <p className="text-[10px] tracking-widest uppercase text-slate-500 dark:text-primary/60">&gt; {t("admin.dashboard.7_days")}</p>
                   <p className="text-xl font-bold tabular-nums tracking-widest text-slate-900 dark:text-white">
                     {stats ? <CountUpMoney value={stats.sales.last7DaysAmount} currency={defaultCurrency} /> : "—"}
                   </p>
                   <p className="text-[10px] tracking-widest text-slate-400 dark:text-primary/50 uppercase">{stats?.sales.last7DaysCount ?? 0} PAYMENTS</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-[10px] tracking-widest uppercase text-slate-500 dark:text-primary/60">&gt; 30 дней</p>
+                  <p className="text-[10px] tracking-widest uppercase text-slate-500 dark:text-primary/60">&gt; {t("admin.dashboard.30_days")}</p>
                   <p className="text-xl font-bold tabular-nums tracking-widest text-slate-900 dark:text-white">
                     {stats ? <CountUpMoney value={stats.sales.last30DaysAmount} currency={defaultCurrency} /> : "—"}
                   </p>
                   <p className="text-[10px] tracking-widest text-slate-400 dark:text-primary/50 uppercase">{stats?.sales.last30DaysCount ?? 0} PAYMENTS</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-[10px] tracking-widest uppercase text-slate-500 dark:text-primary/60">&gt; 90 дней</p>
+                  <p className="text-[10px] tracking-widest uppercase text-slate-500 dark:text-primary/60">&gt; {t("admin.dashboard.90_days")}</p>
                   <p className="text-xl font-bold tabular-nums tracking-widest text-slate-900 dark:text-white">
                     {analyticsData ? <CountUpMoney value={sales90d} currency={defaultCurrency} /> : "—"}
                   </p>
@@ -884,7 +890,7 @@ export function DashboardPage() {
 
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-xs tracking-widest uppercase text-slate-500 dark:text-primary/60">&gt; Аналитика за период</p>
+                  <p className="text-xs tracking-widest uppercase text-slate-500 dark:text-primary/60">&gt; {t("admin.dashboard.analytics_period")}</p>
                   <h3 className="text-lg font-bold tracking-widest text-slate-900 dark:text-white">Revenue vs New Users</h3>
                 </div>
                 <div className="flex items-center gap-2">
@@ -969,7 +975,7 @@ export function DashboardPage() {
       {/* ═══ Server Command Center Section ═══ */}
       {serverStats && (
         <section>
-          <SectionHeader icon={Server} title="Командный центр" subtitle="Мониторинг ядра сервера" />
+          <SectionHeader icon={Server} title={t("admin.dashboard.command_center")} subtitle={t("admin.dashboard.server_monitoring")} />
           <motion.div variants={cardVariants} initial="hidden" animate="visible" custom={6}>
             <ServerCommandCenter serverStats={serverStats} />
           </motion.div>
@@ -980,15 +986,15 @@ export function DashboardPage() {
       <section>
         <SectionHeader
           icon={Globe}
-          title="Ноды Remna"
-          subtitle={hasRemnaNodesAccess && nodes.length > 0 ? `${nodesOnline} из ${nodesTotal} онлайн` : "Статус, трафик, CPU/RAM, онлайн пользователей"}
+          title={t("admin.dashboard.remna_nodes")}
+          subtitle={hasRemnaNodesAccess && nodes.length > 0 ? t("admin.dashboard.nodes_online_count", { online: nodesOnline, total: nodesTotal }) : t("admin.dashboard.nodes_subtitle")}
         />
         <motion.div variants={cardVariants} initial="hidden" animate="visible" custom={7}>
           {!hasRemnaNodesAccess ? (
             <Card className="bg-white/5 dark:bg-white/5 backdrop-blur-md border-white/10 dark:border-white/10 rounded-none font-mono">
               <CardContent className="py-8">
                 <p className="text-slate-500 dark:text-primary/60 text-xs tracking-widest uppercase text-center">
-                  [ACCESS_DENIED] Нет доступа к управлению нодами Remna. Обратитесь к администратору.
+                  [ACCESS_DENIED] {t("admin.dashboard.no_node_access")}
                 </p>
               </CardContent>
             </Card>
@@ -996,7 +1002,7 @@ export function DashboardPage() {
             <Card className="bg-white/5 dark:bg-white/5 backdrop-blur-md border-white/10 dark:border-white/10 rounded-none font-mono">
               <CardContent className="py-8">
                 <p className="text-slate-500 dark:text-primary/60 text-xs tracking-widest uppercase text-center">
-                  [SYSTEM_EMPTY] Ноды не загружены или Remna API не настроен. Проверьте настройки.
+                  [SYSTEM_EMPTY] {t("admin.dashboard.nodes_not_loaded")}
                 </p>
               </CardContent>
             </Card>
@@ -1010,12 +1016,12 @@ export function DashboardPage() {
               {nodes.map((node, idx) => {
                 const isBusy = nodeActionUuid === node.uuid;
                 const statusLabel = node.isDisabled
-                  ? "Отключена"
+                  ? t("admin.dashboard.node_disabled")
                   : node.isConnecting
-                    ? "Подключение…"
+                    ? t("admin.dashboard.node_connecting")
                     : node.isConnected
-                      ? "Онлайн"
-                      : "Офлайн";
+                      ? t("admin.dashboard.node_online")
+                      : t("admin.dashboard.node_offline");
                 const statusColor = node.isDisabled
                   ? "text-gray-400"
                   : node.isConnecting
@@ -1089,7 +1095,7 @@ export function DashboardPage() {
                                   <Cpu className="h-3 w-3"/> CPU/RAM [ALLOC]
                                 </span>
                                 <div className="text-sm sm:text-base font-bold text-slate-800 dark:text-primary tabular-nums">
-                                  {formatNodeCpuRam(node.cpuCount, node.totalRam)}
+                                  {formatNodeCpuRam(node)}
                                 </div>
                               </div>
                               <div className="space-y-1.5">

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { LogIn, Shield, Loader2 } from "lucide-react";
 import { useClientAuth } from "@/contexts/client-auth";
@@ -23,6 +24,7 @@ function GoogleIcon({ className }: { className?: string }) {
 }
 
 export function ClientLoginPage() {
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [emailError, setEmailError] = useState("");
@@ -47,9 +49,9 @@ export function ClientLoginPage() {
   const navigate = useNavigate();
 
   function validateEmail(value: string): string {
-    if (!value.trim()) return "Email обязателен";
+    if (!value.trim()) return t("cabinet.login.email_required");
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(value)) return "Введите корректный email";
+    if (!emailRegex.test(value)) return t("cabinet.login.email_invalid");
     return "";
   }
 
@@ -133,7 +135,7 @@ export function ClientLoginPage() {
         if (attempts > maxAttempts) {
           if (tgPollRef.current) clearInterval(tgPollRef.current);
           setTgAuthPending(false);
-          setError("Время ожидания истекло. Попробуйте снова.");
+          setError(t("cabinet.login.error_timeout"));
           return;
         }
         try {
@@ -151,9 +153,9 @@ export function ClientLoginPage() {
       }, 2000);
     } catch (err) {
       setTgAuthPending(false);
-      setError(err instanceof Error ? err.message : "Ошибка авторизации через Telegram");
+      setError(err instanceof Error ? err.message : t("cabinet.login.error_telegram"));
     }
-  }, [telegramBotUsername, tgAuthPending, loginByTelegramDeepLink, navigate]);
+  }, [telegramBotUsername, tgAuthPending, loginByTelegramDeepLink, navigate, t]);
 
   // Обработка OAuth авторизации через Telegram (popup)
   const tgOAuthPopupRef = useRef<Window | null>(null);
@@ -174,9 +176,9 @@ export function ClientLoginPage() {
         telegramUsername: authData.username,
       })
         .then(() => navigate("/cabinet", { replace: true }))
-        .catch((err: unknown) => setError(err instanceof Error ? err.message : "Ошибка авторизации через Telegram"));
+        .catch((err: unknown) => setError(err instanceof Error ? err.message : t("cabinet.login.error_telegram")));
     },
-    [registerByTelegram, navigate],
+    [registerByTelegram, navigate, t],
   );
 
   // Слушаем postMessage от попапа (Telegram шлёт JSON-строку с event:"auth_result")
@@ -289,9 +291,9 @@ export function ClientLoginPage() {
     setLoading(true);
     loginByGoogle(idToken)
       .then(() => navigate("/cabinet", { replace: true }))
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Ошибка Google"))
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : t("cabinet.login.error_google")))
       .finally(() => setLoading(false));
-  }, [loginByGoogle, navigate]);
+  }, [loginByGoogle, navigate, t]);
 
   const handleAppleLogin = useCallback(async () => {
     if (!appleEnabled) return;
@@ -313,10 +315,10 @@ export function ClientLoginPage() {
       url.searchParams.set("state", state);
       window.location.href = url.toString();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка Apple");
+      setError(err instanceof Error ? err.message : t("cabinet.login.error_apple"));
       setLoading(false);
     }
-  }, [appleEnabled]);
+  }, [appleEnabled, t]);
 
   useEffect(() => {
     const hash = window.location.hash?.replace("#", "") || "";
@@ -329,9 +331,9 @@ export function ClientLoginPage() {
     setLoading(true);
     loginByApple(idToken)
       .then(() => navigate("/cabinet", { replace: true }))
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Ошибка Apple"))
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : t("cabinet.login.error_apple")))
       .finally(() => setLoading(false));
-  }, [loginByApple, navigate]);
+  }, [loginByApple, navigate, t]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -346,7 +348,7 @@ export function ClientLoginPage() {
       await login(email, password);
       navigate("/cabinet", { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка входа");
+      setError(err instanceof Error ? err.message : t("cabinet.login.error_login"));
     } finally {
       setLoading(false);
     }
@@ -379,8 +381,8 @@ export function ClientLoginPage() {
                 <LogIn className="h-10 w-10 text-primary" />
               </div>
             </div>
-            <CardTitle className="text-2xl">Вход</CardTitle>
-            <p className="text-muted-foreground text-sm">Вход в личный кабинет</p>
+            <CardTitle className="text-2xl">{t("cabinet.login.title")}</CardTitle>
+            <p className="text-muted-foreground text-sm">{t("cabinet.login.subtitle")}</p>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -409,7 +411,7 @@ export function ClientLoginPage() {
                 {emailError && <p className="text-xs text-destructive">{emailError}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Пароль</Label>
+                <Label htmlFor="password">{t("cabinet.login.password_label")}</Label>
                 <Input
                   id="password"
                   type="password"
@@ -422,13 +424,13 @@ export function ClientLoginPage() {
                 />
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Вход…" : "Войти"}
+                {loading ? t("cabinet.login.submit_loading") : t("cabinet.login.submit")}
               </Button>
               {(telegramBotUsername || googleEnabled || appleEnabled) && (
                 <div className="space-y-3">
                   <div className="relative flex items-center gap-2">
                     <div className="flex-1 border-t border-border" />
-                    <span className="text-xs text-muted-foreground px-2">или</span>
+                    <span className="text-xs text-muted-foreground px-2">{t("cabinet.login.or")}</span>
                     <div className="flex-1 border-t border-border" />
                   </div>
                   {googleEnabled && googleClientId && (
@@ -437,7 +439,7 @@ export function ClientLoginPage() {
                         type="button"
                         onClick={handleGoogleLogin}
                         disabled={loading}
-                        title="Войти через Google"
+                        title={t("cabinet.login.google_title")}
                         className={cn(
                           "h-11 w-11 shrink-0 rounded-full flex items-center justify-center",
                           "border border-border bg-muted/50 hover:bg-muted transition-colors",
@@ -457,7 +459,7 @@ export function ClientLoginPage() {
                       disabled={loading}
                     >
                       <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
-                      Войти через Apple
+                      {t("cabinet.login.apple")}
                     </Button>
                   )}
                   {telegramBotUsername && (
@@ -472,12 +474,12 @@ export function ClientLoginPage() {
                         {tgAuthPending ? (
                           <>
                             <Loader2 className="h-4 w-4 animate-spin" />
-                            Ожидаем подтверждение…
+                            {t("cabinet.login.telegram_pending")}
                           </>
                         ) : (
                           <>
                             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
-                            Войти через Telegram
+                            {t("cabinet.login.telegram")}
                           </>
                         )}
                       </Button>
@@ -489,7 +491,7 @@ export function ClientLoginPage() {
                           onClick={handleTelegramOAuthFallback}
                         >
                           <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
-                          Не открылся Telegram? Войти через веб-версию
+                          {t("cabinet.login.telegram_fallback")}
                         </Button>
                       )}
                     </div>
@@ -497,9 +499,9 @@ export function ClientLoginPage() {
                 </div>
               )}
               <p className="text-center text-sm text-muted-foreground">
-                Нет аккаунта?{" "}
+                {t("cabinet.login.no_account")}{" "}
                 <Link to="/cabinet/register" className="text-primary hover:underline">
-                  Зарегистрироваться
+                  {t("cabinet.login.register_link")}
                 </Link>
               </p>
             </form>

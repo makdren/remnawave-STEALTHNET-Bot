@@ -284,6 +284,18 @@ export function remnaRemoveAllUsersFromInternalSquad(squadUuid: string) {
   });
 }
 
+/** GET /api/bandwidth-stats/users/{uuid} — user usage by date range */
+export function remnaGetUserBandwidthStats(userUuid: string, start: string, end: string) {
+  const params = new URLSearchParams({ start, end });
+  return remnaFetch<{
+    response: {
+      categories: string[];
+      series: { name: string; data: number[] }[];
+      sparklineData: number[];
+    };
+  }>(`/api/bandwidth-stats/users/${userUuid}?${params}`);
+}
+
 /** GET /api/bandwidth-stats/nodes/{uuid}/users — top users usage on node by range */
 export function remnaGetNodeUsersUsage(nodeUuid: string, start: string, end: string, topUsersLimit = 50) {
   const params = new URLSearchParams({
@@ -300,7 +312,7 @@ export function remnaGetNodeUsersUsage(nodeUuid: string, start: string, end: str
   }>(`/api/bandwidth-stats/nodes/${nodeUuid}/users?${params}`);
 }
 
-/** GET /api/bandwidth-stats/nodes/realtime — realtime usage per node */
+/** GET /api/bandwidth-stats/nodes/realtime — realtime usage per node (removed in API 2.7.2, kept for compat) */
 export function remnaGetNodesRealtimeUsage() {
   return remnaFetch<{
     response: {
@@ -315,4 +327,56 @@ export function remnaGetNodesRealtimeUsage() {
       totalSpeedBps: number;
     }[];
   }>("/api/bandwidth-stats/nodes/realtime");
+}
+
+/** POST /api/ip-control/fetch-users-ips/{nodeUuid} — start async job to fetch user IPs on a node */
+export function remnaFetchUsersIps(nodeUuid: string) {
+  return remnaFetch<{ response: { jobId: string } }>(
+    `/api/ip-control/fetch-users-ips/${nodeUuid}`,
+    { method: "POST" },
+  );
+}
+
+/** GET /api/ip-control/fetch-users-ips/result/{jobId} — poll async job result */
+export function remnaGetFetchUsersIpsResult(jobId: string) {
+  return remnaFetch<{
+    response: {
+      isCompleted: boolean;
+      isFailed: boolean;
+      result: {
+        success: boolean;
+        nodeUuid: string;
+        users: { userId: string; ips: { ip: string; lastSeen: string }[] }[];
+      } | null;
+    };
+  }>(`/api/ip-control/fetch-users-ips/result/${jobId}`);
+}
+
+/** GET /api/system/nodes/metrics — Prometheus-style metrics per node */
+export function remnaGetNodesMetrics() {
+  return remnaFetch<{
+    response: {
+      nodes: {
+        nodeUuid: string;
+        nodeName: string;
+        countryEmoji: string;
+        providerName: string;
+        usersOnline: number;
+        inboundsStats: { tag: string; upload: string; download: string }[];
+        outboundsStats: { tag: string; upload: string; download: string }[];
+      }[];
+    };
+  }>("/api/system/nodes/metrics");
+}
+
+/** GET /api/users/{uuid} — resolve user by UUID (returns full user with username, etc.) */
+export function remnaGetUserByUuid(uuid: string) {
+  return remnaFetch<{
+    response: {
+      uuid: string;
+      username: string;
+      shortUuid: string;
+      [key: string]: unknown;
+    };
+  }>(`/api/users/${uuid}`);
 }
