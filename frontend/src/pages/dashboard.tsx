@@ -14,11 +14,15 @@ import {
   Wifi,
   Zap,
   Cpu,
+  Gift,
+  Send,
+  CheckCircle,
+  TrendingUp,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
-import type { DashboardStats, RemnaNode, RemnaNodesResponse, ServerStats } from "@/lib/api";
+import type { DashboardStats, RemnaNode, RemnaNodesResponse, ServerStats, GiftAnalytics } from "@/lib/api";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/auth";
 import {
@@ -627,6 +631,7 @@ export function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [serverStats, setServerStats] = useState<ServerStats | null>(null);
   const [nodes, setNodes] = useState<RemnaNode[]>([]);
+  const [giftAnalytics, setGiftAnalytics] = useState<GiftAnalytics | null>(null);
   const [defaultCurrency, setDefaultCurrency] = useState<string>("USD");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -672,17 +677,20 @@ export function DashboardPage() {
         const settingsP = api.getSettings(token!).catch(() => null);
         const serverP = api.getServerStats(token!).catch(() => null);
         const analyticsP = api.getAnalytics(token!).catch(() => null);
-        const [statsRes, nodesRes, settingsRes, serverRes, analyticsRes] = await Promise.all([
+        const giftAnalyticsP = api.getGiftAnalytics(token!).catch(() => null);
+        const [statsRes, nodesRes, settingsRes, serverRes, analyticsRes, giftAnalyticsRes] = await Promise.all([
           statsP,
           nodesP,
           settingsP,
           serverP,
           analyticsP,
+          giftAnalyticsP,
         ]);
         if (cancelled) return;
         setStats(statsRes);
         setServerStats(serverRes);
         setAnalyticsData(analyticsRes);
+        setGiftAnalytics(giftAnalyticsRes);
         if (nodesRes != null) {
           const data = nodesRes as RemnaNodesResponse;
           setNodes(Array.isArray(data?.response) ? data.response : []);
@@ -971,6 +979,47 @@ export function DashboardPage() {
           </CardContent>
         </GlassCard>
       </section>
+
+      {/* ═══ Gift Analytics Section ═══ */}
+      {giftAnalytics && (giftAnalytics.totalSubscriptions > 0 || giftAnalytics.pendingCodes > 0) && (
+        <section>
+          <SectionHeader icon={Gift} title="Подарки" subtitle="gift_system analytics" />
+          <motion.div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4" variants={staggerContainer} initial="hidden" animate="visible">
+            <StatCard
+              index={0}
+              icon={Gift}
+              title="Всего подписок"
+              value={<CountUpNumber value={giftAnalytics.totalSubscriptions} />}
+              subtitle={`+${giftAnalytics.last30Days} за 30 дней`}
+              accentColor="violet"
+            />
+            <StatCard
+              index={1}
+              icon={CheckCircle}
+              title="Свои"
+              value={<CountUpNumber value={giftAnalytics.activatedSelf} />}
+              subtitle="активировано себе"
+              accentColor="emerald"
+            />
+            <StatCard
+              index={2}
+              icon={Send}
+              title="Подарено"
+              value={<CountUpNumber value={giftAnalytics.gifted} />}
+              subtitle={`${giftAnalytics.redeemedCodes} кодов использовано`}
+              accentColor="cyan"
+            />
+            <StatCard
+              index={3}
+              icon={TrendingUp}
+              title="Конверсия"
+              value={<span>{giftAnalytics.conversionRate}%</span>}
+              subtitle={`${giftAnalytics.pendingCodes} ожид. · ${giftAnalytics.expiredCodes} истёк.`}
+              accentColor="amber"
+            />
+          </motion.div>
+        </section>
+      )}
 
       {/* ═══ Server Command Center Section ═══ */}
       {serverStats && (

@@ -606,6 +606,57 @@ export const api = {
     return request(`/admin/admins/${id}`, { method: "DELETE", token });
   },
 
+  // ────── Admin Secondary Subscriptions ──────
+  async getSecondarySubscriptions(
+    token: string,
+    filters?: AdminSecondarySubscriptionFilters
+  ): Promise<AdminSecondarySubscriptionsResponse> {
+    const qs = new URLSearchParams();
+    if (filters?.page) qs.set("page", String(filters.page));
+    if (filters?.limit) qs.set("limit", String(filters.limit));
+    if (filters?.search) qs.set("search", filters.search);
+    if (filters?.giftStatus) qs.set("giftStatus", filters.giftStatus);
+    if (filters?.dateFrom) qs.set("dateFrom", filters.dateFrom);
+    if (filters?.dateTo) qs.set("dateTo", filters.dateTo);
+    if (filters?.sortBy) qs.set("sortBy", filters.sortBy);
+    if (filters?.sortDir) qs.set("sortDir", filters.sortDir);
+    const q = qs.toString();
+    return request(`/admin/secondary-subscriptions${q ? `?${q}` : ""}`, { token });
+  },
+  async getSecondarySubscription(
+    token: string,
+    id: string
+  ): Promise<AdminSecondarySubscriptionDetail> {
+    return request(`/admin/secondary-subscriptions/${id}`, { token });
+  },
+  async deleteSecondarySubscription(token: string, id: string): Promise<{ success: boolean }> {
+    return request(`/admin/secondary-subscriptions/${id}`, { method: "DELETE", token });
+  },
+  async deleteSecondarySubscriptionsBulk(token: string, ids: string[]): Promise<{ success: boolean; deleted: number }> {
+    return request("/admin/secondary-subscriptions/bulk", {
+      method: "DELETE",
+      body: JSON.stringify({ ids }),
+      token,
+    });
+  },
+
+  // ────── Gift Analytics ──────
+  async getGiftAnalytics(token: string): Promise<GiftAnalytics> {
+    return request("/admin/gift-analytics", { token });
+  },
+
+  // ────── Admin Gift Code Creation ──────
+  async adminCreateGiftCode(
+    token: string,
+    data: { clientId: string; tariffId: string; giftMessage?: string },
+  ): Promise<{ code: string; expiresAt: string; secondarySubscriptionId: string }> {
+    return request("/admin/gift-codes/create", {
+      method: "POST",
+      body: JSON.stringify(data),
+      token,
+    });
+  },
+
   /** Конкурсы: список */
   async getContests(token: string): Promise<ContestListItem[]> {
     return request("/admin/contests", { token });
@@ -889,6 +940,106 @@ export const api = {
     return request(`/admin/tariff-categories/${id}`, { method: "DELETE", token });
   },
 
+  // Tour Steps (admin)
+  async getTourSteps(token: string): Promise<{ items: TourStepRecord[] }> {
+    return request("/admin/tour-steps", { token });
+  },
+
+  async createTourStep(token: string, payload: CreateTourStepPayload): Promise<TourStepRecord> {
+    return request("/admin/tour-steps", { method: "POST", body: JSON.stringify(payload), token });
+  },
+
+  async updateTourStep(token: string, id: string, payload: UpdateTourStepPayload): Promise<TourStepRecord> {
+    return request(`/admin/tour-steps/${id}`, { method: "PATCH", body: JSON.stringify(payload), token });
+  },
+
+  async deleteTourStep(token: string, id: string): Promise<{ success: boolean }> {
+    return request(`/admin/tour-steps/${id}`, { method: "DELETE", token });
+  },
+
+  async reorderTourSteps(token: string, items: { id: string; sortOrder: number }[]): Promise<{ success: boolean }> {
+    return request("/admin/tour-steps/reorder", { method: "PATCH", body: JSON.stringify({ items }), token });
+  },
+
+  async seedDefaultTourSteps(token: string): Promise<{ items: TourStepRecord[] }> {
+    return request("/admin/tour-steps/seed-defaults", { method: "POST", token });
+  },
+
+  // Tour Mascots (admin)
+  async getTourMascots(token: string): Promise<{ items: TourMascotRecord[] }> {
+    return request("/admin/tour-mascots", { token });
+  },
+
+  async uploadTourMascot(token: string, name: string, image?: File): Promise<TourMascotRecord> {
+    const form = new FormData();
+    form.append("name", name);
+    if (image) form.append("image", image, image.name);
+    const headers = new Headers();
+    headers.set("Authorization", `Bearer ${token}`);
+    const res = await fetch(`${API_BASE}/admin/tour-mascots`, { method: "POST", headers, body: form });
+    const text = await res.text();
+    let data: unknown;
+    try { data = text ? JSON.parse(text) : undefined; } catch { throw new Error(res.statusText || "Request failed"); }
+    if (res.status === 401 && token && tokenRefreshFn) {
+      const newToken = await tokenRefreshFn();
+      if (newToken) return api.uploadTourMascot(newToken, name, image);
+    }
+    if (!res.ok) { throw new Error((data as { message?: string })?.message ?? res.statusText); }
+    return data as TourMascotRecord;
+  },
+
+  async deleteTourMascot(token: string, id: string): Promise<{ success: boolean }> {
+    return request(`/admin/tour-mascots/${id}`, { method: "DELETE", token });
+  },
+
+  async updateTourMascot(token: string, id: string, name: string): Promise<TourMascotRecord> {
+    return request(`/admin/tour-mascots/${id}`, { method: "PATCH", token, body: JSON.stringify({ name }) });
+  },
+
+  async uploadMascotEmotion(token: string, mascotId: string, mood: string, image: File): Promise<MascotEmotionRecord> {
+    const form = new FormData();
+    form.append("mood", mood);
+    form.append("image", image, image.name);
+    const headers = new Headers();
+    headers.set("Authorization", `Bearer ${token}`);
+    const res = await fetch(`${API_BASE}/admin/tour-mascots/${mascotId}/emotions`, { method: "POST", headers, body: form });
+    const text = await res.text();
+    let data: unknown;
+    try { data = text ? JSON.parse(text) : undefined; } catch { throw new Error(res.statusText || "Request failed"); }
+    if (res.status === 401 && token && tokenRefreshFn) {
+      const newToken = await tokenRefreshFn();
+      if (newToken) return api.uploadMascotEmotion(newToken, mascotId, mood, image);
+    }
+    if (!res.ok) { throw new Error((data as { message?: string })?.message ?? res.statusText); }
+    return data as MascotEmotionRecord;
+  },
+
+  async deleteMascotEmotion(token: string, mascotId: string, emotionId: string): Promise<{ success: boolean }> {
+    return request(`/admin/tour-mascots/${mascotId}/emotions/${emotionId}`, { method: "DELETE", token });
+  },
+
+  // Tour Step Video Upload (admin)
+  async uploadTourStepVideo(token: string, stepId: string, video: File): Promise<TourStepRecord> {
+    const form = new FormData();
+    form.append("video", video, video.name);
+    const headers = new Headers();
+    headers.set("Authorization", `Bearer ${token}`);
+    const res = await fetch(`${API_BASE}/admin/tour-steps/${stepId}/video`, { method: "POST", headers, body: form });
+    const text = await res.text();
+    let data: unknown;
+    try { data = text ? JSON.parse(text) : undefined; } catch { throw new Error(res.statusText || "Request failed"); }
+    if (res.status === 401 && token && tokenRefreshFn) {
+      const newToken = await tokenRefreshFn();
+      if (newToken) return api.uploadTourStepVideo(newToken, stepId, video);
+    }
+    if (!res.ok) { throw new Error((data as { message?: string })?.message ?? res.statusText); }
+    return data as TourStepRecord;
+  },
+
+  async deleteTourStepVideo(token: string, stepId: string): Promise<TourStepRecord> {
+    return request(`/admin/tour-steps/${stepId}/video`, { method: "DELETE", token });
+  },
+
   async getTariffs(token: string, categoryId?: string): Promise<{ items: TariffRecord[] }> {
     const q = categoryId ? `?categoryId=${encodeURIComponent(categoryId)}` : "";
     return request(`/admin/tariffs${q}`, { token });
@@ -975,6 +1126,25 @@ export const api = {
     return request("/client/subscription", { token });
   },
 
+  /** Подписка по Remnawave UUID (для secondary подписок на /cabinet/subscribe?uuid=xxx) */
+  async clientSubscriptionByUuid(token: string, uuid: string): Promise<{ subscription: unknown; tariffDisplayName?: string | null; message?: string }> {
+    return request(`/client/subscription/by-uuid/${encodeURIComponent(uuid)}`, { token });
+  },
+
+  /** Все подписки клиента (root + secondary) с Remnawave-данными */
+  async clientAllSubscriptions(token: string): Promise<{
+    items: Array<{
+      type: "root" | "secondary";
+      id: string;
+      subscriptionIndex: number | null;
+      subscription: unknown;
+      tariffDisplayName: string;
+      remnawaveUuid: string | null;
+    }>;
+  }> {
+    return request("/client/subscription/all", { token });
+  },
+
   async clientPayments(token: string): Promise<{ items: ClientPayment[] }> {
     return request("/client/payments", { token });
   },
@@ -1022,6 +1192,11 @@ export const api = {
 
   async getPublicTariffs(): Promise<{ items: PublicTariffCategory[] }> {
     return request("/public/tariffs");
+  },
+
+  /** Шаги тура (публичный, без авторизации) */
+  async getClientTourSteps(): Promise<{ items: ClientTourStep[] }> {
+    return request("/client/tour-steps");
   },
 
   /** Публичный список тарифов прокси по категориям */
@@ -1192,6 +1367,10 @@ export const api = {
     return request("/client/set-password", { method: "POST", body: JSON.stringify(data), token });
   },
 
+  async clientCompleteOnboarding(token: string): Promise<{ message: string }> {
+    return request("/client/complete-onboarding", { method: "POST", token });
+  },
+
   /** Запросить код для привязки Telegram через бота (без авторизации по токену не нужен) */
   async clientLinkTelegramRequest(token: string): Promise<{ code: string; expiresAt: string; botUsername: string | null }> {
     return request("/client/link-telegram-request", { method: "POST", token });
@@ -1214,6 +1393,68 @@ export const api = {
 
   async getClientReferralStats(token: string): Promise<ClientReferralStats> {
     return request("/client/referral-stats", { token });
+  },
+
+  // ─── Gift Subscriptions ─────────────────────────────────────────────────────
+
+  /** Buy additional subscription (balance payment) */
+  async giftBuySubscription(token: string, tariffId: string): Promise<{ message: string; secondarySubscriptionId: string; subscriptionIndex: number }> {
+    return request("/client/gift/buy", { token, method: "POST", body: JSON.stringify({ tariffId }) });
+  },
+
+  /** List secondary subscriptions (without GIFT_RESERVED) */
+  async giftListSubscriptions(token: string): Promise<{ subscriptions: Array<{ id: string; ownerId: string; remnawaveUuid: string | null; subscriptionIndex: number; tariffId: string | null; giftStatus: string | null; giftedToClientId: string | null; createdAt: string; updatedAt: string }> }> {
+    return request("/client/gift/subscriptions", { token });
+  },
+
+  /** List ALL secondary subscriptions including GIFT_RESERVED (for gift management) */
+  async giftListAllSubscriptions(token: string): Promise<{ subscriptions: Array<{ id: string; ownerId: string; remnawaveUuid: string | null; subscriptionIndex: number; tariffId: string | null; giftStatus: string | null; giftedToClientId: string | null; createdAt: string; updatedAt: string }> }> {
+    return request("/client/gift/subscriptions/all", { token });
+  },
+
+  /** Activate subscription for self (remove GIFT_RESERVED) */
+  async giftActivateForSelf(token: string, subscriptionId: string): Promise<{ message: string; subscriptionId: string }> {
+    return request("/client/gift/activate-self", { token, method: "POST", body: JSON.stringify({ subscriptionId }) });
+  },
+
+  /** Delete a secondary subscription */
+  async giftDeleteSubscription(token: string, subscriptionId: string): Promise<{ message: string }> {
+    return request(`/client/gift/subscription/${encodeURIComponent(subscriptionId)}`, { token, method: "DELETE" });
+  },
+
+  /** Create gift code for a subscription */
+  async giftCreateCode(token: string, secondarySubscriptionId: string, giftMessage?: string): Promise<{ message: string; code: string; expiresAt: string }> {
+    return request("/client/gift/create-code", { token, method: "POST", body: JSON.stringify({ secondarySubscriptionId, giftMessage }) });
+  },
+
+  /** Redeem a gift code */
+  async giftRedeemCode(token: string, code: string): Promise<{ message: string; secondarySubscriptionId: string; subscriptionIndex: number }> {
+    return request("/client/gift/redeem", { token, method: "POST", body: JSON.stringify({ code }) });
+  },
+
+  /** Cancel a gift code */
+  async giftCancelCode(token: string, codeOrId: string): Promise<{ message: string }> {
+    return request(`/client/gift/cancel/${encodeURIComponent(codeOrId)}`, { token, method: "DELETE" });
+  },
+
+  /** List gift codes created by the client */
+  async giftListCodes(token: string): Promise<{ codes: Array<{ id: string; code: string; status: string; expiresAt: string; createdAt: string; redeemedAt: string | null; giftMessage: string | null; secondarySubscriptionId: string }> }> {
+    return request("/client/gift/codes", { token });
+  },
+
+  /** Get gift history with pagination */
+  async giftGetHistory(token: string, page: number = 1, limit: number = 20): Promise<{ items: Array<{ id: string; eventType: string; metadata: unknown; createdAt: string; secondarySubscriptionId: string | null }>; total: number; page: number; limit: number }> {
+    return request(`/client/gift/history?page=${page}&limit=${limit}`, { token });
+  },
+
+  /** Get Remnawave subscription URL for a secondary subscription */
+  async giftGetSubscriptionUrl(token: string, subscriptionId: string): Promise<{ uuid: string }> {
+    return request(`/client/gift/subscription-url/${encodeURIComponent(subscriptionId)}`, { token });
+  },
+
+  /** Get public info about a gift code (no auth required) */
+  async getPublicGiftCodeInfo(code: string): Promise<PublicGiftCodeInfo> {
+    return request(`/gift/public/${encodeURIComponent(code)}`);
   },
 
   /** Список тикетов клиента (доступно при включённой тикет-системе) */
@@ -1659,7 +1900,15 @@ export type UpdateSettingsPayload = {
   geoMapEnabled?: boolean;
   geoCacheTtl?: number;
   maxmindDbPath?: string | null;
-};
+  giftSubscriptionsEnabled?: boolean;
+  giftCodeExpiryHours?: number;
+  maxAdditionalSubscriptions?: number;
+  giftCodeFormatLength?: number;
+  giftRateLimitPerMinute?: number;
+  giftExpiryNotificationDays?: number;
+  giftReferralEnabled?: boolean;
+  giftMessageMaxLength?: number;
+}
 
 export interface ClientRecord {
   id: string;
@@ -2013,6 +2262,14 @@ export interface AdminSettings {
   geoMapEnabled?: boolean;
   geoCacheTtl?: number;
   maxmindDbPath?: string | null;
+  giftSubscriptionsEnabled?: boolean;
+  giftCodeExpiryHours?: number;
+  maxAdditionalSubscriptions?: number;
+  giftCodeFormatLength?: number;
+  giftRateLimitPerMinute?: number;
+  giftExpiryNotificationDays?: number;
+  giftReferralEnabled?: boolean;
+  giftMessageMaxLength?: number;
 }
 
 /** Конфиг страницы подписки (формат как sub.stealthnet.app) */
@@ -2149,6 +2406,104 @@ export interface TrafficAbuseStats {
 export interface TrafficAbuseResponse {
   abusers: TrafficAbuser[];
   stats: TrafficAbuseStats;
+}
+
+// ────── Admin Secondary Subscriptions ──────
+
+export interface AdminSecondarySubscriptionOwner {
+  id: string;
+  email: string | null;
+  telegramId: string | null;
+  telegramUsername: string | null;
+}
+
+export interface AdminSecondarySubscriptionTariff {
+  id: string;
+  name: string;
+  durationDays: number;
+  price: number;
+  category?: string | null;
+}
+
+export interface AdminGiftCodeBrief {
+  id: string;
+  code: string;
+  status: string;
+  giftMessage: string | null;
+  expiresAt: string;
+  redeemedAt: string | null;
+  createdAt: string;
+  redeemedBy: { id: string; email: string | null; telegramUsername: string | null } | null;
+  creator?: { id: string; email: string | null; telegramUsername: string | null } | null;
+}
+
+export interface AdminSecondarySubscription {
+  id: string;
+  ownerId: string;
+  remnawaveUuid: string | null;
+  subscriptionIndex: number;
+  tariffId: string | null;
+  giftStatus: string | null;
+  giftedToClientId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  owner: AdminSecondarySubscriptionOwner;
+  giftedToClient: AdminSecondarySubscriptionOwner | null;
+  tariff: AdminSecondarySubscriptionTariff | null;
+  latestGiftCode: AdminGiftCodeBrief | null;
+}
+
+export interface AdminSecondarySubscriptionsResponse {
+  items: AdminSecondarySubscription[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface AdminSecondarySubscriptionDetail extends AdminSecondarySubscription {
+  giftCodes: AdminGiftCodeBrief[];
+  remnaData: Record<string, unknown> | null;
+  history: {
+    id: string;
+    clientId: string;
+    secondarySubscriptionId: string | null;
+    eventType: string;
+    metadata: Record<string, unknown> | null;
+    createdAt: string;
+  }[];
+}
+
+export interface AdminSecondarySubscriptionFilters {
+  page?: number;
+  limit?: number;
+  search?: string;
+  giftStatus?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  sortBy?: string;
+  sortDir?: "asc" | "desc";
+}
+
+export interface GiftAnalytics {
+  totalSubscriptions: number;
+  last30Days: number;
+  activatedSelf: number;
+  gifted: number;
+  pendingCodes: number;
+  expiredCodes: number;
+  redeemedCodes: number;
+  conversionRate: number;
+}
+
+export interface PublicGiftCodeInfo {
+  code: string;
+  status: "ACTIVE" | "REDEEMED" | "EXPIRED" | "CANCELLED";
+  giftMessage: string | null;
+  expiresAt: string;
+  createdAt: string;
+  tariffName: string | null;
+  isExpired: boolean;
 }
 
 export interface RemnaNode {
@@ -2437,6 +2792,8 @@ export interface ClientProfile {
   autoRenewTariffId?: string | null;
   /** Название привязанного способа оплаты ЮKassa (например "Банковская карта *4444") */
   yookassaPaymentMethodTitle?: string | null;
+  /** Завершён ли онбоардинг (установлен ли пароль для email-регистрации) */
+  onboardingCompleted?: boolean;
 }
 
 export interface ClientAuthResponse {
@@ -2480,8 +2837,10 @@ export interface PublicTariffCategory {
   name: string;
   emojiKey: string | null;
   emoji: string;
-  tariffs: { id: string; name: string; description: string | null; durationDays: number; price: number; currency: string; trafficLimitBytes: number | null; trafficResetMode?: string; deviceLimit: number | null }[];
+  tariffs: PublicTariff[];
 }
+
+export type PublicTariff = { id: string; name: string; description: string | null; durationDays: number; price: number; currency: string; trafficLimitBytes: number | null; trafficResetMode?: string; deviceLimit: number | null };
 
 // ——— Промо-группы ———
 export interface PromoGroup {
@@ -2587,6 +2946,74 @@ export type CreatePromoCodePayload = {
 };
 
 export type UpdatePromoCodePayload = Partial<CreatePromoCodePayload>;
+
+// ——— Tour Mascots ———
+
+export interface MascotEmotionRecord {
+  id: string;
+  mood: string;
+  imageUrl: string;
+}
+
+export interface TourMascotRecord {
+  id: string;
+  name: string;
+  imageUrl: string;
+  isBuiltIn: boolean;
+  createdAt: string;
+  emotions: MascotEmotionRecord[];
+}
+
+// ——— Tour Steps ———
+
+export interface TourStepRecord {
+  id: string;
+  target: string;
+  targetLabel: string;
+  title: string;
+  content: string;
+  videoUrl: string | null;
+  placement: string;
+  route: string | null;
+  mascotId: string | null;
+  mood: string;
+  sortOrder: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  mascot: TourMascotRecord | null;
+}
+
+export interface CreateTourStepPayload {
+  target: string;
+  targetLabel: string;
+  title: string;
+  content: string;
+  videoUrl?: string | null;
+  placement?: string;
+  route?: string | null;
+  mascotId?: string | null;
+  mood?: string;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export type UpdateTourStepPayload = Partial<CreateTourStepPayload>;
+
+export interface ClientTourStep {
+  id: string;
+  target: string;
+  targetLabel: string;
+  title: string;
+  content: string;
+  videoUrl: string | null;
+  placement: string;
+  route: string | null;
+  mascotId: string | null;
+  mood: string;
+  sortOrder: number;
+  mascot: TourMascotRecord | null;
+}
 
 export interface GeoMapNode {
   uuid: string;
@@ -2710,4 +3137,12 @@ export interface PublicConfig {
     readyToConnectDesc?: string | null;
   } | null;
   translations?: Record<string, Record<string, unknown>>;
+  giftSubscriptionsEnabled?: boolean;
+  giftCodeExpiryHours?: number;
+  maxAdditionalSubscriptions?: number;
+  giftCodeFormatLength?: number;
+  giftRateLimitPerMinute?: number;
+  giftExpiryNotificationDays?: number;
+  giftReferralEnabled?: boolean;
+  giftMessageMaxLength?: number;
 }

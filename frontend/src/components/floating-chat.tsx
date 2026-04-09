@@ -455,6 +455,15 @@ export function FloatingChat() {
     if (!aiChatEnabled && activeChat === "ai") setActiveChat("support");
   }, [aiChatEnabled, activeChat]);
 
+  // Tour integration: programmatically open chat when tour requests it
+  useEffect(() => {
+    const handleTourOpen = () => {
+      setIsOpen(true);
+    };
+    window.addEventListener("tour:open-chat", handleTourOpen);
+    return () => window.removeEventListener("tour:open-chat", handleTourOpen);
+  }, []);
+
   const [aiChats, setAiChats] = useState<Message[]>(() => getInitialAiMessage("Сервис"));
   useEffect(() => {
     setAiChats((prev) => {
@@ -476,9 +485,9 @@ export function FloatingChat() {
     setIsScrolled(e.currentTarget.scrollTop > 100);
   };
 
-  // Poll for support unread count
+  // Poll for support unread count (skip if tickets are disabled to avoid 404)
   const refreshUnread = () => {
-    if (!token) return;
+    if (!token || !config?.ticketsEnabled) return;
     api.getUnreadTicketsCount(token).then((r) => {
       setSupportUnread(r.count);
     }).catch(() => {});
@@ -488,7 +497,7 @@ export function FloatingChat() {
     refreshUnread();
     const intervalId = window.setInterval(refreshUnread, 15000); // Poll every 15s
     return () => window.clearInterval(intervalId);
-  }, [token]);
+  }, [token, config?.ticketsEnabled]);
 
   // Скрываем кнопку чата когда открыт любой Dialog (Radix)
   useEffect(() => {
@@ -592,6 +601,7 @@ export function FloatingChat() {
           {isOpen && (
             <motion.div
               key="chat-panel"
+              data-tour="floating-chat"
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}

@@ -15,6 +15,7 @@ import {
   remnaUsernameFromClient,
   remnaResetUserTraffic,
 } from "../remna/remna.client.js";
+import { createAdditionalSubscription } from "../gift/gift.service.js";
 
 export type ActivationResult = { ok: true } | { ok: false; error: string; status: number };
 
@@ -206,20 +207,50 @@ export async function activateTariffByPaymentId(paymentId: string): Promise<Acti
     return { ok: false, error: "Клиент не найден", status: 404 };
   }
 
+  // Проверяем, является ли это покупкой дополнительной подписки
+  const isAdditional = isAdditionalSubscriptionPayment(payment.metadata);
+
   if (payment.tariffId) {
     const tariff = await prisma.tariff.findUnique({ where: { id: payment.tariffId } });
     if (!tariff) {
       return { ok: false, error: "Тариф не найден", status: 404 };
     }
+
+    if (isAdditional) {
+      const result = await createAdditionalSubscription(client.id, {
+        durationDays: tariff.durationDays,
+        trafficLimitBytes: tariff.trafficLimitBytes,
+        deviceLimit: tariff.deviceLimit,
+        internalSquadUuids: tariff.internalSquadUuids,
+        trafficResetMode: tariff.trafficResetMode ?? undefined,
+      });
+      return result.ok ? { ok: true } : { ok: false, error: result.error, status: result.status };
+    }
+
     return activateTariffForClient(client, tariff);
   }
 
   const customBuild = parseCustomBuildMetadata(payment.metadata);
   if (customBuild) {
+    if (isAdditional) {
+      const result = await createAdditionalSubscription(client.id, customBuild);
+      return result.ok ? { ok: true } : { ok: false, error: result.error, status: result.status };
+    }
     return activateTariffForClient(client, customBuild);
   }
 
   return { ok: false, error: "Тариф не привязан к платежу", status: 400 };
+}
+
+/** Проверяет, содержит ли metadata флаг isAdditionalSubscription. */
+function isAdditionalSubscriptionPayment(metadata: string | null): boolean {
+  if (!metadata?.trim()) return false;
+  try {
+    const o = JSON.parse(metadata) as Record<string, unknown>;
+    return o?.isAdditionalSubscription === true;
+  } catch {
+    return false;
+  }
 }
 
 function parseCustomBuildMetadata(metadata: string | null): { durationDays: number; trafficLimitBytes: bigint | null; deviceLimit: number | null; internalSquadUuids: string[] } | null {

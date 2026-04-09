@@ -60,6 +60,7 @@ model AdminNotificationPreference {
 }
 
 // Клиент панели (покупатель подписок): сайт, бот, mini app
+// Дополнительные подписки хранятся в отдельной таблице SecondarySubscription
 model Client {
   id                  String   @id @default(cuid())
   email               String?  @unique
@@ -85,6 +86,7 @@ model Client {
   utmTerm             String?  @map("utm_term")
   totpSecret          String?  @map("totp_secret")
   totpEnabled         Boolean  @default(false) @map("totp_enabled")
+  onboardingCompleted Boolean  @default(true) @map("onboarding_completed")
   googleId            String?  @unique @map("google_id")
   appleId             String?  @unique @map("apple_id")
   autoRenewEnabled    Boolean  @default(false) @map("auto_renew_enabled")
@@ -96,18 +98,23 @@ model Client {
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
 
-  referrer          Client?            @relation("ClientReferrer", fields: [referrerId], references: [id])
-  referrals         Client[]           @relation("ClientReferrer")
-  payments          Payment[]
-  autoRenewTariff   Tariff?            @relation("ClientAutoRenewTariff", fields: [autoRenewTariffId], references: [id], onDelete: SetNull)
-  referralCredits   ReferralCredit[]
-  promoActivations  PromoActivation[]
-  promoCodeUsages   PromoCodeUsage[]
-  autoBroadcastLogs AutoBroadcastLog[]
-  proxySlots        ProxySlot[]
-  singboxSlots      SingboxSlot[]
-  tickets           Ticket[]
-  contestWinners    ContestWinner[]
+  referrer              Client?                  @relation("ClientReferrer", fields: [referrerId], references: [id])
+  referrals             Client[]                 @relation("ClientReferrer")
+  payments              Payment[]
+  autoRenewTariff       Tariff?                  @relation("ClientAutoRenewTariff", fields: [autoRenewTariffId], references: [id], onDelete: SetNull)
+  referralCredits       ReferralCredit[]
+  promoActivations      PromoActivation[]
+  promoCodeUsages       PromoCodeUsage[]
+  autoBroadcastLogs     AutoBroadcastLog[]
+  proxySlots            ProxySlot[]
+  singboxSlots          SingboxSlot[]
+  tickets               Ticket[]
+  contestWinners        ContestWinner[]
+  giftCodesCreated      GiftCode[]               @relation("GiftCodeCreator")
+  giftCodesRedeemed     GiftCode[]               @relation("GiftCodeRedeemer")
+  ownedSubscriptions    SecondarySubscription[]   @relation("OwnerSubscriptions")
+  receivedSubscriptions SecondarySubscription[]   @relation("ReceivedSubscriptions")
+  giftHistory           GiftHistory[]
 
   @@index([telegramId])
   @@index([email])
@@ -355,6 +362,7 @@ model Tariff {
   category         TariffCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   payments         Payment[]
   autoRenewClients Client[]       @relation("ClientAutoRenewTariff")
+  secondarySubscriptions SecondarySubscription[]
 
   @@index([categoryId])
   @@map("tariffs")
@@ -645,6 +653,73 @@ model ContestWinner {
   @@map("contest_winners")
 }
 
+// Дополнительная подписка: отдельная VPN-подписка, привязанная к root-клиенту
+// Используется для подарков и дополнительных аккаунтов (другой пул серверов)
+model SecondarySubscription {
+  id                  String    @id @default(cuid())
+  ownerId             String    @map("owner_id")
+  remnawaveUuid       String?   @map("remnawave_uuid")
+  subscriptionIndex   Int       @map("subscription_index") // 1, 2, 3...
+  tariffId            String?   @map("tariff_id")
+  giftStatus          String?   @map("gift_status") // null = owned | GIFT_RESERVED | GIFT_CODE_ACTIVE | GIFTED
+  giftedToClientId    String?   @map("gifted_to_client_id") // если подарено — кому
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  owner               Client    @relation("OwnerSubscriptions", fields: [ownerId], references: [id], onDelete: Cascade)
+  giftedToClient      Client?   @relation("ReceivedSubscriptions", fields: [giftedToClientId], references: [id], onDelete: SetNull)
+  tariff              Tariff?   @relation(fields: [tariffId], references: [id], onDelete: SetNull)
+  giftCodes           GiftCode[] @relation("GiftCodeSubscription")
+
+  @@unique([ownerId, subscriptionIndex])
+  @@index([ownerId])
+  @@index([remnawaveUuid])
+  @@index([giftStatus])
+  @@map("secondary_subscriptions")
+}
+
+// Лог событий подарочной системы (аудит)
+model GiftHistory {
+  id                      String    @id @default(cuid())
+  clientId                String    @map("client_id")
+  secondarySubscriptionId String?   @map("secondary_subscription_id")
+  eventType               String    @map("event_type") // PURCHASED | ACTIVATED_SELF | CODE_CREATED | GIFT_SENT | GIFT_RECEIVED | CODE_CANCELLED | CODE_EXPIRED | DELETED
+  metadata                Json?     @map("metadata")
+  createdAt               DateTime  @default(now()) @map("created_at")
+
+  client                  Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([secondarySubscriptionId])
+  @@index([createdAt])
+  @@map("gift_history")
+}
+
+// Код подарка подписки: создаётся при нажатии «Подарить», погашается получателем
+model GiftCode {
+  id                      String    @id @default(cuid())
+  code                    String    @unique // 12-символьный код XXXX-XXXX-XXXX
+  creatorId               String    @map("creator_id") // root-клиент, создавший подарок
+  secondarySubscriptionId String    @map("secondary_subscription_id") // FK → SecondarySubscription
+  redeemedById            String?   @map("redeemed_by_id") // root-клиент, активировавший подарок
+  status                  String    @default("ACTIVE") // ACTIVE | REDEEMED | EXPIRED | CANCELLED
+  giftMessage             String?   @map("gift_message") // персональное сообщение (макс 200 символов)
+  expiresAt               DateTime  @map("expires_at")
+  redeemedAt              DateTime? @map("redeemed_at")
+  expiryNotifiedAt        DateTime? @map("expiry_notified_at") // когда отправлено уведомление об истечении
+  createdAt               DateTime  @default(now()) @map("created_at")
+
+  creator               Client                @relation("GiftCodeCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  redeemedBy            Client?               @relation("GiftCodeRedeemer", fields: [redeemedById], references: [id], onDelete: SetNull)
+  secondarySubscription SecondarySubscription  @relation("GiftCodeSubscription", fields: [secondarySubscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([code])
+  @@index([creatorId])
+  @@index([secondarySubscriptionId])
+  @@index([status])
+  @@map("gift_codes")
+}
+
 model TelegramAuthToken {
   id                  String   @id @default(cuid())
   token               String   @unique
@@ -656,4 +731,50 @@ model TelegramAuthToken {
   @@index([token])
   @@index([expiresAt])
   @@map("telegram_auth_tokens")
+}
+
+model TourStep {
+  id          String   @id @default(cuid())
+  target      String   // CSS selector: '[data-tour="subscription"]' or 'body'
+  targetLabel String   @map("target_label") // Human-readable: "Подписка", "Баланс"
+  title       String   // Tooltip title: "Ваша подписка"
+  content     String   @db.Text // Tooltip body text
+  videoUrl    String?  @map("video_url") @db.VarChar(1000) // YouTube URL or /api/uploads/videos/xxx.mp4
+  placement   String   @default("bottom") // top | bottom | left | right | center
+  route       String?  @db.VarChar(255) // Cabinet route: "/cabinet/dashboard", "/cabinet/tariffs", null = current page
+  mascotId    String?  @map("mascot_id") // FK to TourMascot or null
+  mood        String   @default("point") // wave | point | happy | think
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  mascot TourMascot? @relation(fields: [mascotId], references: [id], onDelete: SetNull)
+
+  @@map("tour_steps")
+}
+
+model TourMascot {
+  id        String   @id @default(cuid())
+  name      String   @db.VarChar(100) // "AEGIS", "Техно-тян", "Custom 1"
+  imageUrl  String   @map("image_url") @db.VarChar(500) // /api/uploads/mascots/xxx.png — дефолтное изображение
+  isBuiltIn Boolean  @default(false) @map("is_built_in") // true = нельзя удалить
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tourSteps TourStep[]
+  emotions  MascotEmotion[]
+
+  @@map("tour_mascots")
+}
+
+model MascotEmotion {
+  id       String @id @default(cuid())
+  mascotId String @map("mascot_id")
+  mood     String @db.VarChar(50) // wave | point | happy | think
+  imageUrl String @map("image_url") @db.VarChar(500) // /api/uploads/mascots/{hash}.png
+
+  mascot TourMascot @relation(fields: [mascotId], references: [id], onDelete: Cascade)
+
+  @@unique([mascotId, mood]) // Одна эмоция на перса = один PNG
+  @@map("mascot_emotions")
 }

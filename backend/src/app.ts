@@ -1,4 +1,5 @@
 import express from "express";
+import path from "path";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
@@ -24,6 +25,7 @@ import { trafficAbuseRouter } from "./modules/admin/traffic-abuse.routes.js";
 import { apiKeysAdminRouter } from "./modules/api-keys/api-keys.admin.routes.js";
 import { externalApiRouter } from "./modules/api-keys/external-api.routes.js";
 import { geoMapRouter } from "./modules/geo-map/geo-map.routes.js";
+import { giftRouter, giftPublicRouter } from "./modules/gift/gift.routes.js";
 
 const app = express();
 
@@ -46,7 +48,7 @@ app.use("/api/webhooks/cryptopay", express.raw({ type: "application/json" }), cr
 app.use("/api/webhooks/heleket", express.raw({ type: "application/json" }), heleketWebhooksRouter);
 
 // Лимит 5MB для настроек с логотипом и favicon (data URL)
-app.use(express.json({ limit: "5mb" }));
+app.use(express.json({ limit: "200mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
 // ——— Защита от накрутки аккаунтов и перебора ———
@@ -114,9 +116,25 @@ const limiter = rateLimit({
 });
 app.use("/api/", limiter);
 
+// Gift public endpoint: 5 attempts per minute per IP (brute force protection)
+const giftPublicLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: dev ? 100 : 5,
+  message: { message: "Слишком много попыток. Подождите минуту." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use("/api/gift/public", giftPublicLimiter);
+
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", version: "3.2.7" });
 });
+
+// Статика для загруженных файлов (маскоты, видео)
+app.use("/api/uploads", express.static(path.join("/app/uploads"), {
+  maxAge: "30d",
+  immutable: true,
+}));
 
 app.use("/api/auth", authRouter);
 app.use("/api/admin", adminRouter);
@@ -130,6 +148,8 @@ app.use("/api/admin/singbox", singboxAdminRouter);
 app.use("/api/proxy-nodes", proxyAgentRouter);
 app.use("/api/singbox-nodes", singboxAgentRouter);
 app.use("/api/client", clientRouter);
+app.use("/api/client/gift", giftRouter);
+app.use("/api/gift/public", giftPublicRouter);
 app.use("/api/public", publicConfigRouter);
 app.use("/api/public", contestPublicRouter);
 app.use("/api/v1", externalApiRouter);

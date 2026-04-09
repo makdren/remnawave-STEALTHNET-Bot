@@ -127,6 +127,7 @@ clientAuthRouter.post("/register", async (req, res) => {
           utmContent: data.utm_content ?? null,
           utmTerm: data.utm_term ?? null,
           autoRenewEnabled: config.defaultAutoRenewEnabled ?? false,
+          onboardingCompleted: false,
         },
       });
       notifyAdminsAboutNewClient(client.id).catch(() => {});
@@ -200,7 +201,7 @@ clientAuthRouter.post("/register", async (req, res) => {
   if (hasTelegram) {
     const existing = await prisma.client.findUnique({
       where: { telegramId: data.telegramId! },
-      select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
+      select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true, onboardingCompleted: true },
     });
     if (existing) {
       if (!existing.isBlocked) {
@@ -279,7 +280,7 @@ clientAuthRouter.post("/verify-link-email", async (req, res) => {
   const client = await prisma.client.update({
     where: { id: pending.clientId },
     data: { email: pending.email },
-    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
+    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true, onboardingCompleted: true },
   });
   await prisma.pendingEmailLink.deleteMany({ where: { id: pending.id } }).catch(() => {});
   const auth = buildAuthResponse(client);
@@ -303,7 +304,7 @@ clientAuthRouter.post("/verify-email", async (req, res) => {
 
   const existingClient = await prisma.client.findUnique({
     where: { email: pending.email },
-    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
+    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true, onboardingCompleted: true },
   });
   if (existingClient) {
     await prisma.pendingEmailRegistration.delete({ where: { id: pending.id } }).catch(() => {});
@@ -337,6 +338,7 @@ clientAuthRouter.post("/verify-email", async (req, res) => {
       utmContent: pending.utmContent,
       utmTerm: pending.utmTerm,
       autoRenewEnabled: configForAutoRenew.defaultAutoRenewEnabled ?? false,
+      onboardingCompleted: false,
     },
   });
 
@@ -367,7 +369,7 @@ clientAuthRouter.post("/login", async (req, res) => {
 
   const full = await prisma.client.findUnique({
     where: { id: client.id },
-    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
+    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true, onboardingCompleted: true },
   });
   if (!full) return res.status(401).json({ message: "Invalid email or password" });
   const auth = buildAuthResponse(full);
@@ -427,7 +429,7 @@ clientAuthRouter.post("/telegram-miniapp", async (req, res) => {
   const telegramUsername = tgUser.username?.trim() ?? null;
   const existing = await prisma.client.findUnique({
     where: { telegramId },
-    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
+    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true, onboardingCompleted: true },
   });
   if (existing) {
     if (existing.isBlocked) return res.status(403).json({ message: "Account is blocked" });
@@ -489,7 +491,7 @@ clientAuthRouter.post("/2fa-login", async (req, res) => {
   if (!payload) return res.status(401).json({ message: "Сессия истекла. Войдите снова." });
   const client = await prisma.client.findUnique({
     where: { id: payload.clientId },
-    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpSecret: true, totpEnabled: true, createdAt: true },
+    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpSecret: true, totpEnabled: true, createdAt: true, onboardingCompleted: true },
   });
   if (!client?.totpEnabled || !client.totpSecret) return res.status(401).json({ message: "2FA не включена. Войдите снова." });
   const result = await verify({ secret: client.totpSecret, token: body.data.code });
@@ -502,7 +504,7 @@ clientAuthRouter.get("/me", requireClientAuth, async (req, res) => {
   const client = (req as unknown as { client: { id: string } }).client;
   const full = await prisma.client.findUnique({
     where: { id: client.id },
-    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true, yookassaPaymentMethodTitle: true },
+    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true, yookassaPaymentMethodTitle: true, onboardingCompleted: true },
   });
   if (!full) return res.status(401).json({ message: "Unauthorized" });
   return res.json(toClientShape(full));
@@ -527,6 +529,7 @@ function toClientShape(c: {
   autoRenewEnabled?: boolean;
   autoRenewTariffId?: string | null;
   yookassaPaymentMethodTitle?: string | null;
+  onboardingCompleted?: boolean;
 }) {
   return {
     id: c.id,
@@ -547,6 +550,7 @@ function toClientShape(c: {
     autoRenewEnabled: c.autoRenewEnabled ?? false,
     autoRenewTariffId: c.autoRenewTariffId ?? null,
     yookassaPaymentMethodTitle: c.yookassaPaymentMethodTitle ?? null,
+    onboardingCompleted: c.onboardingCompleted ?? true,
   };
 }
 
@@ -586,7 +590,7 @@ clientAuthRouter.post("/google", async (req, res) => {
 
   const existing = await prisma.client.findUnique({
     where: { googleId },
-    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
+    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true, onboardingCompleted: true },
   });
   if (existing) {
     if (existing.isBlocked) return res.status(403).json({ message: "Account is blocked" });
@@ -597,7 +601,7 @@ clientAuthRouter.post("/google", async (req, res) => {
   if (googleEmail) {
     const byEmail = await prisma.client.findUnique({
       where: { email: googleEmail },
-      select: { id: true, email: true, googleId: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
+      select: { id: true, email: true, googleId: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true, onboardingCompleted: true },
     });
     if (byEmail) {
       if (byEmail.isBlocked) return res.status(403).json({ message: "Account is blocked" });
@@ -672,7 +676,7 @@ clientAuthRouter.post("/apple", async (req, res) => {
 
   const existing = await prisma.client.findUnique({
     where: { appleId: appleSub },
-    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
+    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true, onboardingCompleted: true },
   });
   if (existing) {
     if (existing.isBlocked) return res.status(403).json({ message: "Account is blocked" });
@@ -683,7 +687,7 @@ clientAuthRouter.post("/apple", async (req, res) => {
   if (appleEmail) {
     const byEmail = await prisma.client.findUnique({
       where: { email: appleEmail },
-      select: { id: true, email: true, appleId: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true },
+      select: { id: true, email: true, appleId: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true, onboardingCompleted: true },
     });
     if (byEmail) {
       if (byEmail.isBlocked) return res.status(403).json({ message: "Account is blocked" });
@@ -967,6 +971,41 @@ clientRouter.get("/yoomoney/callback", async (req, res) => {
   return res.redirect(302, redirectOk);
 });
 
+// ——— Tour Steps (публичные, без авторизации — ПЕРЕД requireClientAuth!) ———
+clientRouter.get("/tour-steps", async (_req, res) => {
+  try {
+    const steps = await prisma.tourStep.findMany({
+      where: { isActive: true },
+      include: { mascot: { include: { emotions: true } } },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    });
+    return res.json({
+      items: steps.map(s => ({
+        id: s.id,
+        target: s.target,
+        targetLabel: s.targetLabel,
+        title: s.title,
+        content: s.content,
+        videoUrl: s.videoUrl,
+        placement: s.placement,
+        route: s.route,
+        mascotId: s.mascotId,
+        mood: s.mood,
+        sortOrder: s.sortOrder,
+        mascot: s.mascot ? {
+          id: s.mascot.id, name: s.mascot.name, imageUrl: s.mascot.imageUrl,
+          emotions: (s.mascot.emotions ?? []).map((e: { id: string; mood: string; imageUrl: string }) => ({
+            id: e.id, mood: e.mood, imageUrl: e.imageUrl,
+          })),
+        } : null,
+      })),
+    });
+  } catch (e) {
+    console.error("GET /tour-steps error:", e);
+    return res.status(500).json({ message: "Ошибка загрузки шагов тура" });
+  }
+});
+
 clientRouter.use(requireClientAuth);
 
 // ——— 2FA (TOTP) ———
@@ -1064,10 +1103,11 @@ clientRouter.post("/set-password", requireClientAuth, async (req, res) => {
 
   const clientData = await prisma.client.findUnique({
     where: { id: client.id },
-    select: { passwordHash: true },
+    select: { passwordHash: true, onboardingCompleted: true },
   });
 
-  if (clientData?.passwordHash) {
+  // Разрешаем установку пароля если: пароля нет ИЛИ онбоардинг не завершён (dummy-пароль от email-регистрации)
+  if (clientData?.passwordHash && clientData.onboardingCompleted) {
     return res.status(400).json({ message: "Пароль уже установлен. Используйте смену пароля." });
   }
 
@@ -1078,6 +1118,15 @@ clientRouter.post("/set-password", requireClientAuth, async (req, res) => {
   });
 
   return res.json({ message: "Пароль установлен" });
+});
+
+clientRouter.post("/complete-onboarding", requireClientAuth, async (req, res) => {
+  const client = (req as unknown as { client: { id: string } }).client;
+  await prisma.client.update({
+    where: { id: client.id },
+    data: { onboardingCompleted: true },
+  });
+  return res.json({ message: "Onboarding завершён" });
 });
 
 const updateProfileSchema = z.object({
@@ -1093,13 +1142,13 @@ clientRouter.patch("/profile", async (req, res) => {
   if (body.data.preferredLang !== undefined) updates.preferredLang = body.data.preferredLang;
   if (body.data.preferredCurrency !== undefined) updates.preferredCurrency = body.data.preferredCurrency;
   if (Object.keys(updates).length === 0) {
-    const current = await prisma.client.findUnique({ where: { id: client.id }, select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, createdAt: true } });
+    const current = await prisma.client.findUnique({ where: { id: client.id }, select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, createdAt: true, onboardingCompleted: true } });
     return res.json(current ? toClientShape(current) : { message: "Not found" });
   }
   const updated = await prisma.client.update({
     where: { id: client.id },
     data: updates,
-    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, createdAt: true },
+    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, createdAt: true, onboardingCompleted: true },
   });
   return res.json(toClientShape(updated));
 });
@@ -1119,14 +1168,14 @@ clientRouter.patch("/auto-renew", async (req, res) => {
   if (body.data.tariffId !== undefined) updates.autoRenewTariffId = body.data.tariffId;
 
   if (Object.keys(updates).length === 0) {
-    const current = await prisma.client.findUnique({ where: { id: client.id }, select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, createdAt: true } });
+    const current = await prisma.client.findUnique({ where: { id: client.id }, select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, createdAt: true, onboardingCompleted: true } });
     return res.json(current ? toClientShape(current) : { message: "Not found" });
   }
 
   const updated = await prisma.client.update({
     where: { id: client.id },
     data: updates,
-    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, createdAt: true },
+    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, createdAt: true, onboardingCompleted: true },
   });
   return res.json(toClientShape(updated));
 });
@@ -1169,7 +1218,7 @@ clientRouter.post("/link-telegram", async (req, res) => {
   const updated = await prisma.client.update({
     where: { id: client.id },
     data: { telegramId, telegramUsername },
-    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, createdAt: true },
+    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, createdAt: true, onboardingCompleted: true },
   });
   return res.json({ client: toClientShape(updated) });
 });
@@ -1224,10 +1273,9 @@ clientRouter.get("/referral-stats", async (req, res) => {
   });
   if (!c) return res.status(404).json({ message: "Not found" });
   const config = await getSystemConfig();
-  let referralPercent: number = c.referralPercent ?? 0;
-  if (referralPercent === 0) {
-    referralPercent = config.defaultReferralPercent ?? 0;
-  }
+  // Показываем фактический персональный процент клиента.
+  // Если он не задан (null), используем дефолт из системных настроек.
+  const referralPercent: number = c.referralPercent ?? (config.defaultReferralPercent ?? 0);
   const totalEarnings = await prisma.referralCredit.aggregate({
     where: { referrerId: client.id },
     _sum: { amount: true },
@@ -1343,7 +1391,7 @@ clientRouter.post("/trial", async (req, res) => {
       where: { id: client.id },
       data: { remnawaveUuid: existingUuid, trialUsed: true },
     });
-    const updated = await prisma.client.findUnique({ where: { id: client.id }, select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, createdAt: true } });
+    const updated = await prisma.client.findUnique({ where: { id: client.id }, select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, createdAt: true, onboardingCompleted: true } });
     return res.json({ message: "Бесплатный тест активирован", client: updated ? toClientShape(updated) : null });
   }
 
@@ -1351,7 +1399,7 @@ clientRouter.post("/trial", async (req, res) => {
     where: { id: client.id },
     data: { trialUsed: true },
   });
-  const updated = await prisma.client.findUnique({ where: { id: client.id }, select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, createdAt: true } });
+  const updated = await prisma.client.findUnique({ where: { id: client.id }, select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, createdAt: true, onboardingCompleted: true } });
   return res.json({ message: "Бесплатный тест активирован", client: updated ? toClientShape(updated) : null });
 });
 
@@ -1715,11 +1763,118 @@ clientRouter.get("/subscription", async (req, res) => {
   return res.json({ subscription: result.data ?? null, tariffDisplayName });
 });
 
+/**
+ * GET /api/client/subscription/by-uuid/:uuid — Подписка по Remnawave UUID.
+ * Используется на /cabinet/subscribe?uuid=xxx для secondary подписок.
+ */
+clientRouter.get("/subscription/by-uuid/:uuid", async (req, res) => {
+  const client = (req as unknown as { client: { id: string; remnawaveUuid: string | null } }).client;
+  const clientId = (req as unknown as { clientId: string }).clientId;
+  const { uuid } = req.params;
+  if (!uuid || typeof uuid !== "string") {
+    return res.status(400).json({ subscription: null, tariffDisplayName: null, message: "UUID не указан" });
+  }
+
+  // Проверяем принадлежность: root или secondary подписка
+  const isRoot = client.remnawaveUuid === uuid;
+  if (!isRoot) {
+    const secondarySub = await prisma.secondarySubscription.findFirst({
+      where: { ownerId: clientId, remnawaveUuid: uuid },
+    });
+    if (!secondarySub) {
+      return res.status(404).json({ subscription: null, tariffDisplayName: null, message: "Подписка не найдена" });
+    }
+  }
+
+  const result = await remnaGetUser(uuid);
+  if (result.error) {
+    return res.json({ subscription: null, tariffDisplayName: null, message: result.error });
+  }
+  const tariffDisplayName = await resolveTariffDisplayName(result.data ?? null);
+  return res.json({ subscription: result.data ?? null, tariffDisplayName });
+});
+
+/**
+ * GET /api/client/subscription/all — Все подписки клиента (root + secondary).
+ * Возвращает массив с Remnawave-данными для каждой подписки.
+ */
+clientRouter.get("/subscription/all", async (req, res) => {
+  const client = (req as unknown as { client: { id: string; remnawaveUuid: string | null } }).client;
+  const clientId = (req as unknown as { clientId: string }).clientId;
+
+  type SubInfo = {
+    type: "root" | "secondary";
+    id: string;
+    subscriptionIndex: number | null;
+    subscription: unknown;
+    tariffDisplayName: string;
+    remnawaveUuid: string | null;
+  };
+
+  const items: SubInfo[] = [];
+
+  // 1. Root подписка
+  if (client.remnawaveUuid) {
+    const rootResult = await remnaGetUser(client.remnawaveUuid);
+    let rootTariff = await resolveTariffDisplayName(rootResult.data ?? null);
+    if (rootTariff === "Тест" || rootTariff === "Тариф не выбран") {
+      const lastPaidTariff = await prisma.payment.findFirst({
+        where: { clientId, status: "PAID", tariffId: { not: null } },
+        orderBy: { paidAt: "desc" },
+        select: { tariff: { select: { name: true } } },
+      });
+      const name = lastPaidTariff?.tariff?.name?.trim();
+      if (name) rootTariff = name;
+    }
+    items.push({
+      type: "root",
+      id: clientId,
+      subscriptionIndex: 0,
+      subscription: rootResult.data ?? null,
+      tariffDisplayName: rootTariff,
+      remnawaveUuid: client.remnawaveUuid,
+    });
+  }
+
+  // 2. Secondary подписки:
+  // - свои обычные (ownerId + giftStatus null)
+  // - активированные на себя (ownerId + giftStatus ACTIVATED_SELF)
+  // - полученные в подарок (giftedToClientId + giftStatus GIFTED)
+  const secondaries = await prisma.secondarySubscription.findMany({
+    where: {
+      OR: [
+        { ownerId: clientId, giftStatus: null },
+        { ownerId: clientId, giftStatus: "" },
+        { ownerId: clientId, giftStatus: "ACTIVATED_SELF" },
+        { giftedToClientId: clientId, giftStatus: "GIFTED" },
+      ],
+    },
+    select: { id: true, remnawaveUuid: true, subscriptionIndex: true },
+    orderBy: { subscriptionIndex: "asc" },
+  });
+
+  for (const sec of secondaries) {
+    if (!sec.remnawaveUuid) continue;
+    const secResult = await remnaGetUser(sec.remnawaveUuid);
+    const secTariff = await resolveTariffDisplayName(secResult.data ?? null);
+    items.push({
+      type: "secondary",
+      id: sec.id,
+      subscriptionIndex: sec.subscriptionIndex,
+      subscription: secResult.data ?? null,
+      tariffDisplayName: secTariff,
+      remnawaveUuid: sec.remnawaveUuid,
+    });
+  }
+
+  return res.json({ items });
+});
+
 /** GET /api/client/devices — список устройств (HWID) пользователя в Remna */
 clientRouter.get("/devices", async (req, res) => {
   const client = (req as unknown as { client: { id: string; remnawaveUuid: string | null } }).client;
   if (!client.remnawaveUuid) {
-    return res.status(400).json({ message: "Подписка не привязана" });
+    return res.json({ total: 0, devices: [] });
   }
   const result = await remnaGetUserHwidDevices(client.remnawaveUuid);
   if (result.error) {
@@ -2460,6 +2615,9 @@ clientRouter.post("/yoomoney/process-payment", async (req, res) => {
     select: { balance: true },
   });
 
+  const { distributeReferralRewards } = await import("../referral/referral.service.js");
+  await distributeReferralRewards(payment.id).catch((e) => console.error("[referral] yoomoney process-payment:", e));
+
   return res.json({ message: "Баланс пополнен", newBalance: updated.balance });
 });
 
@@ -2805,6 +2963,26 @@ clientRouter.post("/yookassa/create-payment", async (req, res) => {
       return res.status(400).json({ message: "Минимальная сумма платежа — 1" });
     }
 
+    // Применяем промокод на скидку (не для опций и гибких тарифов)
+    let promoCodeRecord: { id: string } | null = null;
+    if (promoCode?.trim() && !extraOption && !customBuildBody) {
+      const result = await validatePromoCode(promoCode.trim(), clientId);
+      if (!result.ok) return res.status(result.status).json({ message: result.error });
+      const promo = result.promo;
+      if (promo.type !== "DISCOUNT") return res.status(400).json({ message: "Этот промокод не даёт скидку на оплату" });
+      const originalAmount = amountRounded;
+      if (promo.discountPercent && promo.discountPercent > 0) {
+        amountRounded = Math.max(0, amountRounded - amountRounded * promo.discountPercent / 100);
+      }
+      if (promo.discountFixed && promo.discountFixed > 0) {
+        amountRounded = Math.max(0, amountRounded - promo.discountFixed);
+      }
+      amountRounded = Math.round(amountRounded * 100) / 100;
+      if (amountRounded <= 0) return res.status(400).json({ message: "Итоговая сумма не может быть 0" });
+      promoCodeRecord = promo;
+      metadataObj = { ...metadataObj, promoCodeId: promo.id, originalAmount };
+    }
+
     const client = await prisma.client.findUnique({
       where: { id: clientId },
       select: { email: true },
@@ -2857,6 +3035,11 @@ clientRouter.post("/yookassa/create-payment", async (req, res) => {
       return res.status(500).json({ message: result.error });
     }
 
+    // Записываем использование промокода
+    if (promoCodeRecord) {
+      await prisma.promoCodeUsage.create({ data: { promoCodeId: promoCodeRecord.id, clientId } });
+    }
+
     return res.status(201).json({
       paymentId: payment.id,
       confirmationUrl: result.confirmationUrl,
@@ -2880,7 +3063,7 @@ clientRouter.post("/yookassa/unlink-payment-method", async (req, res) => {
     const updated = await prisma.client.update({
       where: { id: clientId },
       data: { yookassaPaymentMethodId: null, yookassaPaymentMethodTitle: null },
-      select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true, yookassaPaymentMethodTitle: true },
+      select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true, yookassaPaymentMethodTitle: true, onboardingCompleted: true },
     });
     return res.json({ client: toClientShape(updated as Parameters<typeof toClientShape>[0]) });
   } catch (err) {
@@ -2995,6 +3178,26 @@ clientRouter.post("/cryptopay/create-payment", async (req, res) => {
     if (!fiatSupported.includes(currencyUpper)) return res.status(400).json({ message: "Crypto Pay: поддерживаются USD, RUB, EUR и др. Укажите валюту из списка." });
     if (amountRounded < 0.5) return res.status(400).json({ message: "Минимальная сумма — 0.5" });
 
+    // Применяем промокод на скидку (не для опций и гибких тарифов)
+    let promoCodeRecord: { id: string } | null = null;
+    if (promoCodeStr?.trim() && !extraOption && !customBuildBody) {
+      const result = await validatePromoCode(promoCodeStr.trim(), clientId);
+      if (!result.ok) return res.status(result.status).json({ message: result.error });
+      const promo = result.promo;
+      if (promo.type !== "DISCOUNT") return res.status(400).json({ message: "Этот промокод не даёт скидку на оплату" });
+      const originalAmount = amountRounded;
+      if (promo.discountPercent && promo.discountPercent > 0) {
+        amountRounded = Math.max(0, amountRounded - amountRounded * promo.discountPercent / 100);
+      }
+      if (promo.discountFixed && promo.discountFixed > 0) {
+        amountRounded = Math.max(0, amountRounded - promo.discountFixed);
+      }
+      amountRounded = Math.round(amountRounded * 100) / 100;
+      if (amountRounded <= 0) return res.status(400).json({ message: "Итоговая сумма не может быть 0" });
+      promoCodeRecord = promo;
+      metadataObj = { ...metadataObj, promoCodeId: promo.id, originalAmount };
+    }
+
     const orderId = randomUUID();
     const payment = await prisma.payment.create({
       data: {
@@ -3036,6 +3239,11 @@ clientRouter.post("/cryptopay/create-payment", async (req, res) => {
     if (!result.ok) {
       await prisma.payment.delete({ where: { id: payment.id } }).catch(() => {});
       return res.status(500).json({ message: result.error });
+    }
+
+    // Записываем использование промокода
+    if (promoCodeRecord) {
+      await prisma.promoCodeUsage.create({ data: { promoCodeId: promoCodeRecord.id, clientId } });
     }
 
     return res.status(201).json({
@@ -3154,6 +3362,26 @@ clientRouter.post("/heleket/create-payment", async (req, res) => {
 
     if (amountRounded < 1) return res.status(400).json({ message: "Минимальная сумма платежа — 1" });
 
+    // Применяем промокод на скидку (не для опций и гибких тарифов)
+    let promoCodeRecord: { id: string } | null = null;
+    if (promoCodeStr?.trim() && !extraOption && !customBuildBody) {
+      const result = await validatePromoCode(promoCodeStr.trim(), clientId);
+      if (!result.ok) return res.status(result.status).json({ message: result.error });
+      const promo = result.promo;
+      if (promo.type !== "DISCOUNT") return res.status(400).json({ message: "Этот промокод не даёт скидку на оплату" });
+      const originalAmount = amountRounded;
+      if (promo.discountPercent && promo.discountPercent > 0) {
+        amountRounded = Math.max(0, amountRounded - amountRounded * promo.discountPercent / 100);
+      }
+      if (promo.discountFixed && promo.discountFixed > 0) {
+        amountRounded = Math.max(0, amountRounded - promo.discountFixed);
+      }
+      amountRounded = Math.round(amountRounded * 100) / 100;
+      if (amountRounded <= 0) return res.status(400).json({ message: "Итоговая сумма не может быть 0" });
+      promoCodeRecord = promo;
+      metadataObj = { ...metadataObj, promoCodeId: promo.id, originalAmount };
+    }
+
     const orderId = randomUUID();
     const payment = await prisma.payment.create({
       data: {
@@ -3192,6 +3420,11 @@ clientRouter.post("/heleket/create-payment", async (req, res) => {
     if (!result.ok) {
       await prisma.payment.delete({ where: { id: payment.id } }).catch(() => {});
       return res.status(500).json({ message: result.error });
+    }
+
+    // Записываем использование промокода
+    if (promoCodeRecord) {
+      await prisma.promoCodeUsage.create({ data: { promoCodeId: promoCodeRecord.id, clientId } });
     }
 
     return res.status(201).json({
@@ -3718,4 +3951,6 @@ publicConfigRouter.get("/singbox-tariffs", async (_req, res) => {
     return res.status(500).json({ message: "Ошибка загрузки тарифов Sing-box" });
   }
 });
+
+
 

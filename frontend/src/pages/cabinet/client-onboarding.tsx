@@ -69,17 +69,23 @@ export function ClientOnboardingPage() {
 
   const [exitOverlay, setExitOverlay] = useState(false);
 
-  // Auto-redirect on done — сначала показываем overlay, потом переходим
-  useEffect(() => {
-    if (step === "done") {
-      const t1 = setTimeout(() => setExitOverlay(true), 1800);
-      const t2 = setTimeout(() => {
+  const [doneLoading, setDoneLoading] = useState(false);
+
+  async function handleFinishOnboarding() {
+    if (!token) return;
+    setDoneLoading(true);
+    try {
+      await api.clientCompleteOnboarding(token);
+      await refreshProfile();
+      setExitOverlay(true);
+      setTimeout(() => {
         clearNewTelegramUser();
         navigate("/cabinet/dashboard", { replace: true });
-      }, 2800);
-      return () => { clearTimeout(t1); clearTimeout(t2); };
+      }, 600);
+    } catch {
+      setDoneLoading(false);
     }
-  }, [step, navigate, clearNewTelegramUser]);
+  }
 
   async function handleSetPassword() {
     if (!token) return;
@@ -109,7 +115,6 @@ export function ClientOnboardingPage() {
     setTwoFaLoading(true);
     try {
       await api.client2FAConfirm(token, twoFaCode);
-      await refreshProfile();
       goTo("done");
     } catch (e) {
       setTwoFaError(e instanceof Error ? e.message : "Неверный код");
@@ -119,7 +124,6 @@ export function ClientOnboardingPage() {
   }
 
   async function handleSkip2FA() {
-    await refreshProfile();
     goTo("done");
   }
 
@@ -201,9 +205,9 @@ export function ClientOnboardingPage() {
                   transition={{ delay: 0.25 }}
                   className="text-muted-foreground mb-1"
                 >
-                  Аккаунт создан через Telegram
+                  {client?.telegramUsername ? "Аккаунт создан через Telegram" : "Аккаунт успешно создан"}
                 </motion.p>
-                {client?.telegramUsername && (
+                {client?.telegramUsername ? (
                   <motion.span
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -212,7 +216,16 @@ export function ClientOnboardingPage() {
                   >
                     @{client.telegramUsername}
                   </motion.span>
-                )}
+                ) : client?.email ? (
+                  <motion.span
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.3 }}
+                    className="text-primary font-bold text-lg mb-4"
+                  >
+                    {client.email}
+                  </motion.span>
+                ) : null}
                 <motion.p
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -298,13 +311,6 @@ export function ClientOnboardingPage() {
                 >
                   {passwordLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Далее <ChevronRight className="h-5 w-5" /></>}
                 </Button>
-                <button
-                  type="button"
-                  onClick={() => goTo("2fa")}
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Пропустить этот шаг
-                </button>
               </motion.div>
             )}
 
@@ -401,24 +407,29 @@ export function ClientOnboardingPage() {
                   transition={{ delay: 0.2 }}
                   className="text-3xl font-extrabold tracking-tight mb-2"
                 >
-                  Готово!
+                  Настройка завершена!
                 </motion.h2>
                 <motion.p
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.3 }}
-                  className="text-muted-foreground"
+                  className="text-muted-foreground mb-8"
                 >
-                  Добро пожаловать в кабинет
+                  Ваш аккаунт полностью готов к работе
                 </motion.p>
                 <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.5 }}
-                  className="mt-6 flex items-center gap-2 text-sm text-muted-foreground"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                  className="w-full"
                 >
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Переходим в кабинет…
+                  <Button
+                    className="w-full h-14 rounded-2xl text-base font-bold shadow-xl hover:scale-[1.02] transition-all gap-2"
+                    onClick={handleFinishOnboarding}
+                    disabled={doneLoading}
+                  >
+                    {doneLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Перейти в кабинет <ChevronRight className="h-5 w-5" /></>}
+                  </Button>
                 </motion.div>
               </motion.div>
             )}

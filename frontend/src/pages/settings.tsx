@@ -44,6 +44,7 @@ const DEFAULT_BOT_BUTTONS: BotButtonItem[] = [
   { id: "tickets", visible: true, label: "🎫 Тикеты", order: 6.5, style: "primary", emojiKey: "NOTE" },
   { id: "support", visible: true, label: "🆘 Поддержка", order: 7, style: "primary", emojiKey: "NOTE" },
   { id: "promocode", visible: true, label: "🎟️ Промокод", order: 8, style: "primary", emojiKey: "STAR" },
+  { id: "gift", visible: true, label: "🎁 Подарки", order: 8.5, style: "primary", emojiKey: "TRIAL" },
   { id: "extra_options", visible: true, label: "➕ Доп. опции", order: 9, style: "primary", emojiKey: "PACKAGE" },
 ];
 
@@ -249,6 +250,14 @@ export function SettingsPage() {
         sellOptionsDevicesProducts: (data as AdminSettings).sellOptionsDevicesProducts ?? [],
         sellOptionsServersEnabled: (data as AdminSettings).sellOptionsServersEnabled ?? false,
         sellOptionsServersProducts: (data as AdminSettings).sellOptionsServersProducts ?? [],
+        giftSubscriptionsEnabled: (data as AdminSettings).giftSubscriptionsEnabled ?? false,
+        giftCodeExpiryHours: (data as AdminSettings).giftCodeExpiryHours ?? 72,
+        maxAdditionalSubscriptions: (data as AdminSettings).maxAdditionalSubscriptions ?? 5,
+        giftCodeFormatLength: (data as AdminSettings).giftCodeFormatLength ?? 12,
+        giftRateLimitPerMinute: (data as AdminSettings).giftRateLimitPerMinute ?? 5,
+        giftExpiryNotificationDays: (data as AdminSettings).giftExpiryNotificationDays ?? 3,
+        giftReferralEnabled: (data as AdminSettings).giftReferralEnabled ?? true,
+        giftMessageMaxLength: (data as AdminSettings).giftMessageMaxLength ?? 200,
       });
     }).finally(() => setLoading(false));
     api.getAutoRenewStats(token).then(setAutoRenewStats).catch(() => {});
@@ -578,6 +587,14 @@ export function SettingsPage() {
         sellOptionsDevicesProducts: settings.sellOptionsDevicesProducts?.length ? JSON.stringify(settings.sellOptionsDevicesProducts) : null,
         sellOptionsServersEnabled: settings.sellOptionsServersEnabled ?? false,
         sellOptionsServersProducts: settings.sellOptionsServersProducts?.length ? JSON.stringify(settings.sellOptionsServersProducts) : null,
+        giftSubscriptionsEnabled: settings.giftSubscriptionsEnabled ?? false,
+        giftCodeExpiryHours: settings.giftCodeExpiryHours ?? 72,
+        maxAdditionalSubscriptions: settings.maxAdditionalSubscriptions ?? 5,
+        giftCodeFormatLength: settings.giftCodeFormatLength ?? 12,
+        giftRateLimitPerMinute: settings.giftRateLimitPerMinute ?? 5,
+        giftExpiryNotificationDays: settings.giftExpiryNotificationDays ?? 3,
+        giftReferralEnabled: settings.giftReferralEnabled ?? true,
+        giftMessageMaxLength: settings.giftMessageMaxLength ?? 200,
         customBuildEnabled: settings.customBuildEnabled ?? false,
         customBuildPricePerDay: settings.customBuildPricePerDay ?? 0,
         customBuildPricePerDevice: settings.customBuildPricePerDevice ?? 0,
@@ -802,6 +819,10 @@ export function SettingsPage() {
           <TabsTrigger value="geo-map" className="gap-2 py-3 px-4 rounded-xl">
             <MapPin className="h-4 w-4 shrink-0" />
             {t("admin.settings.tab_map")}
+          </TabsTrigger>
+          <TabsTrigger value="gifts" className="gap-2 py-3 px-4 rounded-xl">
+            <Gift className="h-4 w-4 shrink-0" />
+            Подарки
           </TabsTrigger>
           <TabsTrigger value="sync" className="gap-2 py-3 px-4 rounded-xl">
             <ArrowLeftRight className="h-4 w-4 shrink-0" />
@@ -1211,6 +1232,7 @@ export function SettingsPage() {
                     </div>
                   </div>
                 </div>
+
                 {message && <p className="text-sm text-muted-foreground">{message}</p>}
                 <Button type="submit" disabled={saving}>
                   {saving ? t("admin.settings.saving") : t("admin.settings.save")}
@@ -4247,6 +4269,186 @@ export function SettingsPage() {
                 }}
                 disabled={saving}
               >
+                {saving ? t("admin.settings.saving") : t("admin.settings.save")}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="gifts">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Gift className="h-5 w-5" />
+                Подарки и дополнительные подписки
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Настройки системы подарков, кодов и дополнительных подписок
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center gap-3">
+                <Switch
+                  id="gift-subscriptions-enabled"
+                  checked={!!settings.giftSubscriptionsEnabled}
+                  onCheckedChange={(checked: boolean) =>
+                    setSettings((s) => (s ? { ...s, giftSubscriptionsEnabled: checked === true } : s))
+                  }
+                />
+                <div>
+                  <Label htmlFor="gift-subscriptions-enabled" className="text-base font-medium cursor-pointer">
+                    Включить систему подарков
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Разрешить клиентам покупать дополнительные подписки и дарить их другим пользователям
+                  </p>
+                </div>
+              </div>
+
+              {settings.giftSubscriptionsEnabled && (
+                <div className="space-y-6 pl-4 border-l-2 border-primary/30">
+                  <div className="space-y-4 rounded-lg border p-4 bg-muted/20">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Gift className="h-4 w-4 text-primary shrink-0" />
+                      <Label className="text-base font-medium">Основные настройки</Label>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="gift-code-expiry-hours">Срок действия кода (часы)</Label>
+                        <Input
+                          id="gift-code-expiry-hours"
+                          type="number"
+                          min={1}
+                          value={settings.giftCodeExpiryHours ?? 72}
+                          onChange={(e) =>
+                            setSettings((s) => (s ? { ...s, giftCodeExpiryHours: parseInt(e.target.value, 10) || 72 } : s))
+                          }
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Через сколько часов истекает неиспользованный подарочный код
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="max-additional-subscriptions">Макс. доп. подписок</Label>
+                        <Input
+                          id="max-additional-subscriptions"
+                          type="number"
+                          min={1}
+                          value={settings.maxAdditionalSubscriptions ?? 5}
+                          onChange={(e) =>
+                            setSettings((s) => (s ? { ...s, maxAdditionalSubscriptions: parseInt(e.target.value, 10) || 5 } : s))
+                          }
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Максимальное количество дополнительных подписок на одного клиента
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 rounded-lg border p-4 bg-muted/20">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Settings2 className="h-4 w-4 text-primary shrink-0" />
+                      <Label className="text-base font-medium">Коды и лимиты</Label>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="gift-code-format-length">Длина кода</Label>
+                        <Input
+                          id="gift-code-format-length"
+                          type="number"
+                          min={6}
+                          max={24}
+                          value={settings.giftCodeFormatLength ?? 12}
+                          onChange={(e) =>
+                            setSettings((s) => (s ? { ...s, giftCodeFormatLength: parseInt(e.target.value, 10) || 12 } : s))
+                          }
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Количество символов в подарочном коде (формат XXXX-XXXX-XXXX)
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="gift-rate-limit">Лимит попыток/мин</Label>
+                        <Input
+                          id="gift-rate-limit"
+                          type="number"
+                          min={1}
+                          max={60}
+                          value={settings.giftRateLimitPerMinute ?? 5}
+                          onChange={(e) =>
+                            setSettings((s) => (s ? { ...s, giftRateLimitPerMinute: parseInt(e.target.value, 10) || 5 } : s))
+                          }
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Максимум попыток активации подарочного кода в минуту (защита от перебора)
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="gift-message-max-length">Макс. длина сообщения</Label>
+                        <Input
+                          id="gift-message-max-length"
+                          type="number"
+                          min={0}
+                          max={1000}
+                          value={settings.giftMessageMaxLength ?? 200}
+                          onChange={(e) =>
+                            setSettings((s) => (s ? { ...s, giftMessageMaxLength: parseInt(e.target.value, 10) || 200 } : s))
+                          }
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Максимальная длина персонального сообщения к подарку
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 rounded-lg border p-4 bg-muted/20">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Users className="h-4 w-4 text-primary shrink-0" />
+                      <Label className="text-base font-medium">Уведомления и рефералы</Label>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="gift-expiry-notification-days">Уведомление за (дни)</Label>
+                        <Input
+                          id="gift-expiry-notification-days"
+                          type="number"
+                          min={0}
+                          max={30}
+                          value={settings.giftExpiryNotificationDays ?? 3}
+                          onChange={(e) =>
+                            setSettings((s) => (s ? { ...s, giftExpiryNotificationDays: parseInt(e.target.value, 10) || 3 } : s))
+                          }
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          За сколько дней до истечения подарочной подписки уведомлять пользователя
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/40">
+                        <Switch
+                          id="gift-referral-enabled"
+                          checked={settings.giftReferralEnabled !== false}
+                          onCheckedChange={(checked: boolean) =>
+                            setSettings((s) => (s ? { ...s, giftReferralEnabled: checked === true } : s))
+                          }
+                        />
+                        <div>
+                          <Label htmlFor="gift-referral-enabled" className="text-sm font-medium cursor-pointer">
+                            Реферальная связь через подарки
+                          </Label>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            При активации подарка новым пользователем, отправитель становится его рефералом
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {message && <p className="text-sm text-muted-foreground">{message}</p>}
+              <Button type="submit" disabled={saving}>
                 {saving ? t("admin.settings.saving") : t("admin.settings.save")}
               </Button>
             </CardContent>

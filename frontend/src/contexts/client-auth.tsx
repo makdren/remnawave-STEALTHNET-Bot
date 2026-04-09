@@ -142,7 +142,7 @@ export function ClientAuthProvider({ children }: { children: React.ReactNode }) 
         return;
       }
       if (isAuthResponse(res)) {
-        setState({ token: res.token, client: res.client, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: null, isNewTelegramUser: false });
+        setState({ token: res.token, client: res.client, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: null, isNewTelegramUser: true });
         saveState(res.token, res.client);
       }
     },
@@ -218,7 +218,7 @@ export function ClientAuthProvider({ children }: { children: React.ReactNode }) 
       return;
     }
     if (isAuthResponse(res)) {
-      setState({ token: res.token, client: res.client, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: null, isNewTelegramUser: false });
+      setState({ token: res.token, client: res.client, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: null, isNewTelegramUser: true });
       saveState(res.token, res.client);
     }
   }, []);

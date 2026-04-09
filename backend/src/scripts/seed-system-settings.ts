@@ -28,6 +28,14 @@ const DEFAULTS: Array<[string, string]> = [
   ["auto_renew_grace_period_days", "2"],
   ["auto_renew_max_retries", "3"],
   ["yookassa_recurring_enabled", "false"],
+  ["gift_subscriptions_enabled", "false"],
+  ["gift_code_expiry_hours", "72"],
+  ["max_additional_subscriptions", "5"],
+  ["gift_code_format_length", "12"],
+  ["gift_rate_limit_per_minute", "5"],
+  ["gift_expiry_notification_days", "3"],
+  ["gift_referral_enabled", "true"],
+  ["gift_message_max_length", "200"],
 ];
 
 export async function ensureSystemSettings() {

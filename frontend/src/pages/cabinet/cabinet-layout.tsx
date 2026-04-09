@@ -9,11 +9,12 @@ import { useLanguageSync } from "@/i18n/use-language-sync";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { GlassSelect } from "@/components/ui/glass-select";
-import { LayoutDashboard, Package, User, LogOut, Shield, Users, Sun, Moon, PlusCircle, Globe, KeyRound, MessageSquare, Palette, Monitor, Check, Loader2, Settings, Layers, MoreHorizontal, ChevronDown, Wallet } from "lucide-react";
+import { LayoutDashboard, Package, User, LogOut, Shield, Users, Sun, Moon, PlusCircle, Globe, KeyRound, MessageSquare, Palette, Monitor, Check, Loader2, Settings, Layers, MoreHorizontal, ChevronDown, Wallet, Gift } from "lucide-react";
 import { useTheme, ACCENT_PALETTES, type ThemeMode, type ThemeAccent } from "@/contexts/theme";
 import { cn } from "@/lib/utils";
 import { FloatingChat } from "@/components/floating-chat";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DashboardTour } from "@/components/tour/dashboard-tour";
 
 function formatMoney(amount: number, currency: string) {
   return new Intl.NumberFormat("ru-RU", {
@@ -155,6 +156,7 @@ function useNavItems() {
     { to: "/cabinet/singbox", label: t("cabinet.nav.access"), icon: KeyRound },
     { to: "/cabinet/referral", label: t("cabinet.nav.referrals"), icon: Users },
     { to: "/cabinet/tickets", label: t("cabinet.nav.tickets"), icon: MessageSquare },
+    { to: "/cabinet/gifts", label: "Подарки", icon: Gift },
     { to: "/cabinet/profile", label: t("cabinet.nav.profile"), icon: User },
   ], [t]);
 }
@@ -337,7 +339,7 @@ function SettingsPopover() {
   const currencies = activeCurrencies.length ? activeCurrencies : ["usd", "rub"];
 
   return (
-    <div className="relative" ref={popoverRef}>
+    <div className="relative" ref={popoverRef} data-tour="language-currency">
       <Button variant="ghost" size="sm" className="gap-1.5 text-xs h-8 px-2 bg-background/20 hover:bg-background/40" onClick={() => setShow(!show)}>
         <Settings className="h-3.5 w-3.5" />
       </Button>
@@ -385,7 +387,7 @@ function SettingsPopover() {
   );
 }
 
-function resolveNavItems(allNavItems: { to: string; label: string; icon: typeof LayoutDashboard }[], config: { sellOptionsEnabled?: boolean; showProxyEnabled?: boolean; showSingboxEnabled?: boolean; ticketsEnabled?: boolean; customBuildConfig?: { enabled: true } | null } | null) {
+function resolveNavItems(allNavItems: { to: string; label: string; icon: typeof LayoutDashboard }[], config: { sellOptionsEnabled?: boolean; showProxyEnabled?: boolean; showSingboxEnabled?: boolean; ticketsEnabled?: boolean; customBuildConfig?: { enabled: true } | null; giftSubscriptionsEnabled?: boolean } | null) {
   let items = allNavItems;
   // Убираем вкладку тикетов, так как теперь поддержка внутри виджета чата
   items = items.filter((i) => i.to !== "/cabinet/tickets");
@@ -394,6 +396,7 @@ function resolveNavItems(allNavItems: { to: string; label: string; icon: typeof 
   if (!config?.sellOptionsEnabled) items = items.filter((i) => i.to !== "/cabinet/extra-options");
   if (!config?.showProxyEnabled) items = items.filter((i) => i.to !== "/cabinet/proxy");
   if (!config?.showSingboxEnabled) items = items.filter((i) => i.to !== "/cabinet/singbox");
+  if (!config?.giftSubscriptionsEnabled) items = items.filter((i) => i.to !== "/cabinet/gifts");
 
   return items;
 }
@@ -401,13 +404,27 @@ function resolveNavItems(allNavItems: { to: string; label: string; icon: typeof 
 const MAX_VISIBLE_NAV = 4;
 const MAX_VISIBLE_DESKTOP = 5;
 
+/** Маппинг route → data-tour атрибут для тура */
+const ROUTE_TOUR_MAP: Record<string, string> = {
+  "/cabinet/dashboard": "dashboard",
+  "/cabinet/tariffs": "tariffs",
+  "/cabinet/custom-build": "custom-build",
+  "/cabinet/extra-options": "extra-options",
+  "/cabinet/proxy": "proxy",
+  "/cabinet/singbox": "singbox",
+  "/cabinet/referral": "referrals",
+  "/cabinet/tickets": "support",
+  "/cabinet/gifts": "gifts",
+  "/cabinet/profile": "profile",
+};
+
 function MobileCabinetShell() {
   const location = useLocation();
   const { t } = useTranslation();
   const { state, logout, refreshProfile } = useClientAuth();
   const config = useCabinetConfig();
   const allNavItems = useNavItems();
-  const navItems = useMemo(() => resolveNavItems(allNavItems, config), [allNavItems, config?.sellOptionsEnabled, config?.showProxyEnabled, config?.showSingboxEnabled, config?.ticketsEnabled, config?.customBuildConfig]);
+  const navItems = useMemo(() => resolveNavItems(allNavItems, config), [allNavItems, config?.sellOptionsEnabled, config?.showProxyEnabled, config?.showSingboxEnabled, config?.ticketsEnabled, config?.customBuildConfig, config?.giftSubscriptionsEnabled]);
   const [logoError, setLogoError] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const visibleItems = navItems.slice(0, MAX_VISIBLE_NAV);
@@ -429,7 +446,7 @@ function MobileCabinetShell() {
         <div className="relative flex h-14 items-center justify-between gap-3 px-4 min-w-0 w-full max-w-7xl mx-auto">
           <Link to="/cabinet/dashboard" className="flex items-center gap-2.5 font-semibold text-base tracking-tight shrink-0 min-w-0">
             {logo ? (
-              <span className="flex items-center justify-center h-8 px-1.5 rounded-lg dark:bg-transparent bg-zinc-900 shrink-0">
+              <span className="flex items-center justify-center h-8 px-1.5 rounded-lg shrink-0">
                 <img src={logo} alt="" className="h-6 max-w-[100px] object-contain" onError={() => setLogoError(true)} />
               </span>
             ) : (
@@ -465,6 +482,7 @@ function MobileCabinetShell() {
               <Link
                 key={to}
                 to={to}
+                data-tour={ROUTE_TOUR_MAP[to]}
                 className={cn(
                   "flex flex-col items-center justify-center gap-0.5 py-1 px-1 h-14 flex-1 min-w-0 max-w-[5rem] rounded-xl transition-all duration-300",
                   active ? "bg-primary/20 text-primary shadow-sm scale-105" : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground hover:scale-105"
@@ -540,7 +558,7 @@ function CabinetShell() {
   const { state, logout, refreshProfile } = useClientAuth();
   const config = useCabinetConfig();
   const allNavItems = useNavItems();
-  const navItems = useMemo(() => resolveNavItems(allNavItems, config), [allNavItems, config?.sellOptionsEnabled, config?.showProxyEnabled, config?.showSingboxEnabled, config?.ticketsEnabled, config?.customBuildConfig]);
+  const navItems = useMemo(() => resolveNavItems(allNavItems, config), [allNavItems, config?.sellOptionsEnabled, config?.showProxyEnabled, config?.showSingboxEnabled, config?.ticketsEnabled, config?.customBuildConfig, config?.giftSubscriptionsEnabled]);
   const isMiniapp = useIsMiniapp();
   const isMobile = useIsMobile();
   const [logoError, setLogoError] = useState(false);
@@ -576,7 +594,7 @@ function CabinetShell() {
         <div className="relative w-full max-w-7xl mx-auto flex h-16 items-center justify-between gap-4 px-4">
           <Link to="/cabinet/dashboard" className="flex items-center gap-2.5 font-semibold text-lg tracking-tight shrink-0 hover:opacity-80 transition-opacity">
             {logo ? (
-              <span className="flex items-center justify-center h-9 px-2 rounded-lg dark:bg-transparent bg-zinc-900 shrink-0">
+              <span className="flex items-center justify-center h-9 px-2 rounded-lg shrink-0">
                 <img src={logo} alt="" className="h-6 max-w-[110px] object-contain" onError={() => setLogoError(true)} />
               </span>
             ) : (
@@ -589,8 +607,11 @@ function CabinetShell() {
           <nav className="flex items-center gap-1 flex-wrap justify-center flex-1">
             {visibleNav.map(({ to, label, icon: Icon }) => {
               const active = location.pathname === to;
+              const dataTourMap = ROUTE_TOUR_MAP;
+              const tourAttr = dataTourMap[to];
+
               return (
-                <Link key={to} to={to}>
+                <Link key={to} to={to} data-tour={tourAttr}>
                   <Button
                     variant={active ? "secondary" : "ghost"}
                     size="sm"
@@ -709,8 +730,25 @@ export function CabinetLayout() {
 function CabinetShellWithMiniapp() {
   const isMiniapp = useIsMiniapp();
   const isMobile = useIsMobile();
+  const { state } = useClientAuth();
+  const [runTour, setRunTour] = useState(false);
+
+  useEffect(() => {
+    if (!state.token) return;
+    if (!localStorage.getItem("stealthnet_tour_completed")) {
+      setTimeout(() => setRunTour(true), 500);
+    }
+  }, [state.token]);
+
   return (
     <IsMiniappContext.Provider value={isMiniapp || isMobile}>
+      <DashboardTour
+        run={runTour}
+        onComplete={() => {
+          setRunTour(false);
+          localStorage.setItem("stealthnet_tour_completed", "true");
+        }}
+      />
       <CabinetShell />
     </IsMiniappContext.Provider>
   );

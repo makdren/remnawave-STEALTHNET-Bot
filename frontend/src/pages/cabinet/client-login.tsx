@@ -9,7 +9,6 @@ import type { PublicConfig } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 function GoogleIcon({ className }: { className?: string }) {
@@ -355,7 +354,10 @@ export function ClientLoginPage() {
   }
 
   return (
-    <div className="min-h-svh flex flex-col items-center justify-center bg-transparent p-4">
+    <div className="min-h-svh flex flex-col items-center justify-center p-4 relative overflow-hidden">
+      {/* Background blobs */}
+      <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-primary/20 blur-[120px] pointer-events-none" />
+      <div className="absolute -bottom-40 -right-40 w-96 h-96 rounded-full bg-primary/10 blur-[120px] pointer-events-none" />
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -374,17 +376,26 @@ export function ClientLoginPage() {
           )}
           {brand.serviceName ? <span className="font-semibold text-xl">{brand.serviceName}</span> : null}
         </div>
-        <Card className="border shadow-lg">
-          <CardHeader className="space-y-1 text-center">
+        <div className="relative rounded-[2.5rem] border border-white/10 dark:border-white/5 bg-background/40 backdrop-blur-2xl shadow-2xl overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent pointer-events-none" />
+          <div className="p-8 sm:p-10 relative z-10">
+
+          
+            <div className="space-y-1 text-center mb-8">
+
             <div className="flex justify-center mb-2">
-              <div className="rounded-lg bg-primary/10 p-3">
+              <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-primary/10 border border-primary/20 mb-2">
                 <LogIn className="h-10 w-10 text-primary" />
               </div>
             </div>
-            <CardTitle className="text-2xl">{t("cabinet.login.title")}</CardTitle>
+            
+              <h2 className="text-3xl font-extrabold tracking-tight mb-2">{t("cabinet.login.title")}</h2>
+
             <p className="text-muted-foreground text-sm">{t("cabinet.login.subtitle")}</p>
-          </CardHeader>
-          <CardContent>
+          
+            </div>
+
+          
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Скрытое поле: iOS/Safari реже выводит панель автозаполнения на каждый символ */}
               <input type="text" name="prevent_autofill" autoComplete="off" tabIndex={-1} className="absolute opacity-0 pointer-events-none h-0 w-0 overflow-hidden" aria-hidden />
@@ -395,8 +406,7 @@ export function ClientLoginPage() {
               )}
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
+                <Input id="email"
                   type="email"
                   name="login_email"
                   placeholder="your@email.com"
@@ -406,24 +416,15 @@ export function ClientLoginPage() {
                   required
                   autoComplete="off"
                   data-form-type="other"
-                  className={emailError ? "border-destructive focus-visible:ring-destructive" : ""}
+                   className={cn("h-12 rounded-xl bg-background/50 backdrop-blur-sm border-white/10 focus-visible:ring-primary/50 transition-all", emailError ? "border-destructive focus-visible:ring-destructive" : "")}
                 />
                 {emailError && <p className="text-xs text-destructive">{emailError}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">{t("cabinet.login.password_label")}</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  name="login_password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  autoComplete="off"
-                  data-form-type="other"
-                />
+                <Input id="password" type="password" name="login_password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="off" data-form-type="other" className="h-12 rounded-xl bg-background/50 backdrop-blur-sm border-white/10 focus-visible:ring-primary/50 transition-all" />
               </div>
-              <Button type="submit" className="w-full" disabled={loading}>
+              <Button type="submit" className="w-full h-14 rounded-2xl text-base font-bold shadow-xl hover:scale-[1.02] transition-all gap-2" disabled={loading}>
                 {loading ? t("cabinet.login.submit_loading") : t("cabinet.login.submit")}
               </Button>
               {(telegramBotUsername || googleEnabled || appleEnabled) && (
@@ -505,8 +506,10 @@ export function ClientLoginPage() {
                 </Link>
               </p>
             </form>
-          </CardContent>
-        </Card>
+          
+        
+          </div>
+        </div>
       </motion.div>
     </div>
   );

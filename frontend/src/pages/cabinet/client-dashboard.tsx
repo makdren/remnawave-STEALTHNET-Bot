@@ -20,7 +20,8 @@ import {
   Users,
   
   AlertCircle,
-  Zap
+  Zap,
+  Smartphone
 } from "lucide-react";
 import { useClientAuth } from "@/contexts/client-auth";
 import { useCabinetConfig } from "@/contexts/cabinet-config";
@@ -32,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+
 
 function formatDate(s: string | null) {
   if (!s) return "—";
@@ -110,6 +112,7 @@ export function ClientDashboardPage() {
   const config = useCabinetConfig();
   const [searchParams, setSearchParams] = useSearchParams();
   const [subscription, setSubscription] = useState<unknown>(null);
+  const [secondarySubscriptions, setSecondarySubscriptions] = useState<Array<{ type: string; id: string; subscriptionIndex: number | null; subscription: unknown; tariffDisplayName: string; remnawaveUuid: string | null }>>([]);
   const [tariffDisplayName, setTariffDisplayName] = useState<string | null>(null);
   const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
   const [_payments, setPayments] = useState<ClientPayment[]>([]);
@@ -163,14 +166,16 @@ export function ClientDashboardPage() {
       api.clientSubscription(token),
       api.clientPayments(token),
       api.getClientDevices(token).catch(() => ({ total: 0 })),
+      api.clientAllSubscriptions(token).catch(() => ({ items: [] })),
     ])
-      .then(([subRes, payRes, devRes]) => {
+      .then(([subRes, payRes, devRes, allSubRes]) => {
         if (cancelled) return;
         setSubscription(subRes.subscription ?? null);
         setTariffDisplayName(subRes.tariffDisplayName ?? null);
         if (subRes.message) setSubscriptionError(subRes.message);
         setPayments(payRes.items ?? []);
         setDeviceCount(devRes.total ?? null);
+        setSecondarySubscriptions((allSubRes.items || []).filter(s => s.type === "secondary"));
       })
       .catch((e) => {
         if (!cancelled) setSubscriptionError(e instanceof Error ? e.message : t("cabinet.dashboard.error_loading"));
@@ -185,6 +190,25 @@ export function ClientDashboardPage() {
     if (!token || !isMiniapp) return;
     api.getClientReferralStats(token).then(setReferralStats).catch(() => {});
   }, [token, isMiniapp]);
+
+  // Auto-redeem pending gift code (saved by /gift/:code page before redirect to login/register)
+  const [giftRedeemMessage, setGiftRedeemMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!token || loading) return;
+    const pendingCode = localStorage.getItem("stealthnet_pending_gift");
+    if (!pendingCode) return;
+    localStorage.removeItem("stealthnet_pending_gift");
+    api.giftRedeemCode(token, pendingCode)
+      .then((res) => {
+        setGiftRedeemMessage({ type: "success", text: res.message || "Подарок активирован!" });
+        setRefreshKey((k) => k + 1);
+      })
+      .catch((err) => {
+        const msg = err instanceof Error ? err.message : "Не удалось активировать подарок";
+        setGiftRedeemMessage({ type: "error", text: msg });
+      });
+  }, [token, loading]);
 
   async function toggleAutoRenew(enabled: boolean) {
     if (!token || !client) return;
@@ -285,6 +309,11 @@ export function ClientDashboardPage() {
             Оплата не прошла. Попробуйте снова.
           </div>
         )}
+        {giftRedeemMessage && (
+          <div className={`rounded-xl backdrop-blur-md px-4 py-3 text-sm font-medium shadow-sm ${giftRedeemMessage.type === "success" ? "bg-green-500/15 border border-green-500/30 text-green-700 dark:text-green-400" : "bg-destructive/15 border border-destructive/30 text-destructive"}`}>
+            {giftRedeemMessage.type === "success" ? "🎁 " : "❌ "}{giftRedeemMessage.text}
+          </div>
+        )}
 
         {/* 1. Статус, срок, тариф, трафик, устройства — с иконками */}
         <section className="rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl p-5 shadow-sm overflow-hidden transition-all duration-300">
@@ -314,7 +343,7 @@ export function ClientDashboardPage() {
                 )}
                 {subParsed.hwidDeviceLimit != null && subParsed.hwidDeviceLimit > 0 && deviceCount != null && (
                   <span className="text-sm font-semibold text-foreground bg-primary/10 text-primary px-3 py-1.5 rounded-full border border-primary/20 flex items-center gap-1.5">
-                    📱 {deviceCount} / {subParsed.hwidDeviceLimit}
+                    <Smartphone className="h-4 w-4" /> {deviceCount} / {subParsed.hwidDeviceLimit}
                   </span>
                 )}
               </div>
@@ -373,6 +402,112 @@ export function ClientDashboardPage() {
             </div>
           )}
         </section>
+
+        {secondarySubscriptions.length > 0 && secondarySubscriptions.map((sec) => {
+          const secParsed = parseSubscription(sec.subscription);
+          const secHasActive = sec.subscription && typeof sec.subscription === "object" && (secParsed.status === "ACTIVE" || secParsed.status === undefined);
+          const secExpireDate = secParsed.expireAt ? new Date(secParsed.expireAt) : null;
+          const secDaysLeft = secExpireDate && secExpireDate > new Date() ? Math.max(0, Math.ceil((secExpireDate.getTime() - Date.now()) / (24*60*60*1000))) : null;
+          const secTrafficPercent = secParsed.trafficLimitBytes && secParsed.trafficLimitBytes > 0 && secParsed.trafficUsed != null ? Math.min(100, Math.round((secParsed.trafficUsed / secParsed.trafficLimitBytes) * 100)) : null;
+
+          return (
+            <section key={sec.id} className="rounded-3xl border border-indigo-500/30 bg-card/40 backdrop-blur-xl p-5 shadow-sm overflow-hidden transition-all duration-300">
+              <h2 className="flex items-center gap-2 text-[13px] font-semibold uppercase tracking-wider text-muted-foreground/80 mb-4">
+                <div className="p-1.5 bg-indigo-500/20 rounded-lg">
+                  <Package className="h-4 w-4 shrink-0 text-indigo-400" />
+                </div>
+                Дополнительная подписка #{sec.subscriptionIndex ?? ""}
+              </h2>
+              
+              <div className="space-y-4 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {secHasActive ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold bg-indigo-500/20 text-indigo-400 border border-indigo-500/20">
+                      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                      Активна
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold bg-muted/30 text-muted-foreground border border-border/50">
+                      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                      Неактивна
+                    </span>
+                  )}
+                  {secDaysLeft != null && (
+                    <span className="text-sm font-semibold text-foreground bg-foreground/5 px-3 py-1.5 rounded-full border border-border/50">
+                      {t("cabinet.dashboard.days_left")} {secDaysLeft} {secDaysLeft === 1 ? t("cabinet.common.day_one") : secDaysLeft < 5 ? t("cabinet.common.day_few") : t("cabinet.common.day_many")}
+                    </span>
+                  )}
+                  {secParsed.hwidDeviceLimit != null && secParsed.hwidDeviceLimit > 0 && (
+                    <span className="text-sm font-semibold text-foreground bg-indigo-500/10 text-indigo-400 px-3 py-1.5 rounded-full border border-indigo-500/20 flex items-center gap-1.5">
+                      <Smartphone className="h-4 w-4" /> {secParsed.hwidDeviceLimit}
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-3 border-t border-border/50 pt-4 mt-2">
+                  {sec.tariffDisplayName && (
+                    <div className="flex items-center gap-4 bg-background/40 p-3.5 rounded-2xl border border-border/50 transition-colors hover:bg-background/60 shadow-sm">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400">
+                        <Package className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">{t("cabinet.dashboard.tariff_label")}</p>
+                        <p className="text-[14px] font-semibold truncate text-foreground" title={sec.tariffDisplayName}>
+                          {sec.tariffDisplayName}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {secParsed.expireAt && (
+                    <div className="flex items-center gap-4 bg-background/40 p-3.5 rounded-2xl border border-border/50 transition-colors hover:bg-background/60 shadow-sm">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400">
+                        <Calendar className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">{t("cabinet.dashboard.valid_until")}</p>
+                        <p className="text-[14px] font-semibold text-foreground">
+                          {formatDate(secParsed.expireAt)}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  <div className="bg-background/40 p-3.5 rounded-2xl border border-border/50 space-y-3 transition-colors hover:bg-background/60 shadow-sm">
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400">
+                        <Wifi className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">{t("cabinet.dashboard.traffic")}</p>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[14px] font-semibold text-foreground">
+                            {secParsed.trafficLimitBytes != null && secParsed.trafficLimitBytes > 0
+                              ? `${formatBytes(secParsed.trafficUsed ?? 0)} / ${formatBytes(secParsed.trafficLimitBytes)}`
+                              : t("cabinet.dashboard.unlimited")}
+                          </p>
+                          {secTrafficPercent != null && <span className="text-[12px] font-bold text-muted-foreground">{secTrafficPercent}%</span>}
+                        </div>
+                      </div>
+                    </div>
+                    {secTrafficPercent != null && (
+                      <div className="h-2 w-full rounded-full bg-muted/30 overflow-hidden">
+                        <div className="h-full rounded-full bg-indigo-500 transition-all duration-500 ease-in-out" style={{ width: `${secTrafficPercent}%` }} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <Button className="w-full gap-2 shadow-lg h-12 rounded-xl text-md hover:scale-[1.02] transition-transform duration-300 [&_svg]:self-center [&_span]:leading-none bg-indigo-600 hover:bg-indigo-700 text-white" asChild>
+                    <Link to={`/cabinet/subscribe?uuid=${sec.remnawaveUuid}`} className="inline-flex w-full items-center justify-center gap-2">
+                      <Wifi className="h-5 w-5 shrink-0" />
+                      <span className="inline-flex items-center leading-none">Подключиться</span>
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            </section>
+          );
+        })}
 
         {/* 2. Как подключиться — ссылка и кнопка */}
         <section className="rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl p-5 shadow-sm overflow-hidden transition-all duration-300">
@@ -511,6 +646,11 @@ export function ClientDashboardPage() {
                 {t("cabinet.dashboard.payment_failed")}
               </div>
             )}
+            {giftRedeemMessage && (
+              <div className={`mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm ${giftRedeemMessage.type === "success" ? "bg-green-500/15 border border-green-500/30 text-green-700 dark:text-green-400" : "bg-destructive/15 border border-destructive/30 text-destructive"}`}>
+                {giftRedeemMessage.type === "success" ? "🎁" : "❌"} {giftRedeemMessage.text}
+              </div>
+            )}
             {trialError && <p className="mt-3 text-sm text-destructive font-medium">{trialError}</p>}
           </div>
 
@@ -548,7 +688,7 @@ export function ClientDashboardPage() {
       {/* Cards grid */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {/* Подписка / тариф */}
-        <Card className="rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-300 sm:col-span-2 lg:col-span-1 flex flex-col">
+        <Card data-tour="subscription" className="rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-300 sm:col-span-2 lg:col-span-1 flex flex-col">
           <CardHeader className="pb-4">
             <CardTitle className="flex items-center gap-3 text-xl text-foreground">
               <div className="p-2.5 bg-primary/20 rounded-xl">
@@ -576,7 +716,7 @@ export function ClientDashboardPage() {
                   )}
                   {subParsed.hwidDeviceLimit != null && subParsed.hwidDeviceLimit > 0 && deviceCount != null && (
                     <span className="text-sm font-semibold text-foreground bg-primary/10 text-primary px-3 py-1.5 rounded-full border border-primary/20 shadow-sm flex items-center gap-1.5">
-                      📱 {deviceCount} / {subParsed.hwidDeviceLimit}
+                      <Smartphone className="h-4 w-4" /> {deviceCount} / {subParsed.hwidDeviceLimit}
                     </span>
                   )}
                 </div>
@@ -635,7 +775,7 @@ export function ClientDashboardPage() {
         </Card>
 
         {/* Баланс + пополнение */}
-        <Card className="rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col justify-between">
+        <Card data-tour="balance" className="rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col justify-between">
           <CardHeader className="pb-4">
             <CardTitle className="flex items-center gap-3 text-xl text-foreground">
               <div className="p-2.5 bg-primary/20 rounded-xl">
@@ -744,6 +884,133 @@ export function ClientDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {secondarySubscriptions.length > 0 && (
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="space-y-4 pt-4"
+        >
+          <h2 className="flex items-center gap-2 text-xl font-bold tracking-tight text-foreground ml-1">
+            <Package className="h-6 w-6 text-indigo-400" />
+            Дополнительные подписки
+          </h2>
+          <div className="grid gap-6 sm:grid-cols-2">
+            {secondarySubscriptions.map((sec) => {
+              const secParsed = parseSubscription(sec.subscription);
+              const secHasActive = sec.subscription && typeof sec.subscription === "object" && (secParsed.status === "ACTIVE" || secParsed.status === undefined);
+              const secExpireDate = secParsed.expireAt ? new Date(secParsed.expireAt) : null;
+              const secDaysLeft = secExpireDate && secExpireDate > new Date() ? Math.max(0, Math.ceil((secExpireDate.getTime() - Date.now()) / (24*60*60*1000))) : null;
+              const secTrafficPercent = secParsed.trafficLimitBytes && secParsed.trafficLimitBytes > 0 && secParsed.trafficUsed != null ? Math.min(100, Math.round((secParsed.trafficUsed / secParsed.trafficLimitBytes) * 100)) : null;
+
+              return (
+                <Card key={sec.id} className="rounded-3xl border border-indigo-500/30 bg-card/40 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="flex items-center justify-between text-lg text-foreground">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-indigo-500/20 rounded-xl">
+                          <Package className="h-5 w-5 text-indigo-400" />
+                        </div>
+                        Подписка #{sec.subscriptionIndex ?? ""}
+                      </div>
+                      {secHasActive ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-semibold bg-indigo-500/15 text-indigo-400 border border-indigo-500/20">
+                          <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                          Активна
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-semibold bg-muted/30 text-muted-foreground border border-border/50">
+                          <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                          Неактивна
+                        </span>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex-1 flex flex-col justify-center">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 flex-wrap mb-2">
+                        {secDaysLeft != null && (
+                          <span className="text-sm font-semibold text-foreground bg-foreground/5 px-3 py-1.5 rounded-full border border-border/50 shadow-sm">
+                            {secDaysLeft} {secDaysLeft === 1 ? t("cabinet.common.day_one") : secDaysLeft < 5 ? t("cabinet.common.day_few") : t("cabinet.common.day_many")}
+                          </span>
+                        )}
+                        {secParsed.hwidDeviceLimit != null && secParsed.hwidDeviceLimit > 0 && (
+                          <span className="text-sm font-semibold text-foreground bg-indigo-500/10 text-indigo-400 px-3 py-1.5 rounded-full border border-indigo-500/20 shadow-sm flex items-center gap-1.5">
+                            <Smartphone className="h-4 w-4" /> {secParsed.hwidDeviceLimit}
+                          </span>
+                        )}
+                      </div>
+                      
+                      {sec.tariffDisplayName && (
+                        <div className="flex items-center gap-4 bg-background/40 p-4 rounded-2xl border border-border/50 transition-colors hover:bg-background/60 shadow-sm">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400">
+                            <Package className="h-6 w-6" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">{t("cabinet.dashboard.tariff_label")}</p>
+                            <p className="text-[15px] font-semibold truncate text-foreground">
+                              {sec.tariffDisplayName}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {secParsed.expireAt && (
+                        <div className="flex items-center gap-4 bg-background/40 p-4 rounded-2xl border border-border/50 transition-colors hover:bg-background/60 shadow-sm">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400">
+                            <Calendar className="h-6 w-6" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">{t("cabinet.dashboard.valid_until")}</p>
+                            <p className="text-[15px] font-semibold text-foreground">
+                              {formatDate(secParsed.expireAt)}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="bg-background/40 p-4 rounded-2xl border border-border/50 space-y-3 transition-colors hover:bg-background/60 shadow-sm">
+                        <div className="flex items-center gap-4">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400">
+                            <Wifi className="h-6 w-6" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">{t("cabinet.dashboard.traffic")}</p>
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-[15px] font-semibold text-foreground">
+                                {secParsed.trafficLimitBytes != null && secParsed.trafficLimitBytes > 0
+                                  ? `${formatBytes(secParsed.trafficUsed ?? 0)} / ${formatBytes(secParsed.trafficLimitBytes)}`
+                                  : t("cabinet.dashboard.unlimited")}
+                              </p>
+                              {secTrafficPercent != null && <span className="text-[13px] font-bold text-muted-foreground">{secTrafficPercent}%</span>}
+                            </div>
+                          </div>
+                        </div>
+                        {secTrafficPercent != null && (
+                          <div className="h-2 w-full rounded-full bg-muted/30 overflow-hidden">
+                            <div className="h-full rounded-full bg-indigo-500 transition-all duration-500 ease-in-out" style={{ width: `${secTrafficPercent}%` }} />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="pt-2">
+                        <Button variant="default" size="lg" className="w-full gap-2 rounded-xl shadow-lg h-14 text-[16px] hover:scale-105 transition-transform [&_svg]:self-center [&_span]:leading-none bg-indigo-600 hover:bg-indigo-700 text-white" asChild>
+                          <Link to={`/cabinet/subscribe?uuid=${sec.remnawaveUuid}`} className="inline-flex items-center justify-center gap-2 leading-none">
+                            <Wifi className="h-5 w-5 shrink-0" />
+                            <span className="inline-flex items-center leading-none">Подключиться</span>
+                          </Link>
+                        </Button>
+                      </div>
+
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </motion.section>
+      )}
     </div>
   );
 }

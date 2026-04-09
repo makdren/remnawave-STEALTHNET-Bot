@@ -370,7 +370,7 @@ export function ClientTariffsPage() {
               autoComplete="off"
               inputMode="text"
               value={promoInput}
-              onChange={(e) => { setPromoInput(e.target.value); if (promoResult) { setPromoResult(null); setPromoError(null); } }}
+              onChange={(e) => setPromoInput(e.target.value)}
               placeholder={t("cabinet.tariffs.promo_placeholder")}
               className={cn("font-mono font-medium focus-visible:ring-primary/50", isMobileOrMiniapp ? "text-base bg-card/40 border-white/5 h-14 rounded-2xl" : "text-sm bg-background border-border/50 h-12 rounded-xl shadow-sm")}
               disabled={payLoading || promoChecking}
@@ -619,7 +619,7 @@ export function ClientTariffsPage() {
             </div>
 
             <div className="p-4 sm:p-6 pb-8">
-               <PaymentContent />
+               {PaymentContent()}
             </div>
           </motion.div>
         ) : (
@@ -630,6 +630,7 @@ export function ClientTariffsPage() {
             exit={{ opacity: 0, x: 20 }}
             transition={{ duration: 0.2 }}
             className="space-y-8 max-w-6xl mx-auto"
+            data-tour="tariff-list"
           >
             <div className="flex flex-col gap-2">
               <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">{t("cabinet.tariffs.title")}</h1>
@@ -855,7 +856,7 @@ export function ClientTariffsPage() {
               <DialogDescription className="hidden" />
             </DialogHeader>
 
-            <PaymentContent />
+            {PaymentContent()}
 
             <DialogFooter className="mt-4 sm:justify-center border-t border-border/50 pt-4">
               <Button variant="ghost" onClick={closePayment} disabled={payLoading} className="rounded-xl hover:bg-background/50 hover:text-foreground text-muted-foreground transition-colors">

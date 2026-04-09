@@ -79,19 +79,31 @@ export function ClientReferralPage() {
 
   return (
     <div className="space-y-6 w-full min-w-0 pb-10">
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
+      <motion.section
+        initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="min-w-0"
+        transition={{ duration: 0.4 }}
+        className="relative overflow-hidden rounded-3xl bg-card/40 backdrop-blur-2xl border border-border/50 p-8 sm:p-10 shadow-xl"
       >
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight truncate">Рефералы</h1>
-        <p className="text-muted-foreground text-sm mt-1 truncate">
-          Приглашайте друзей — получайте процент от их пополнений
-        </p>
-      </motion.div>
+        <div className="absolute top-0 right-0 w-64 h-64 rounded-full bg-primary/20 blur-[80px] pointer-events-none -mr-20 -mt-20" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 rounded-full bg-blue-500/10 blur-[80px] pointer-events-none -ml-20 -mb-20" />
+        
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
+          <div className="flex-1">
+            <div className="flex items-center gap-4 mb-3">
+              <div className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-inner border border-primary/20">
+                <Users className="h-7 w-7" />
+              </div>
+              <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl text-foreground">Рефералы</h1>
+            </div>
+            <p className="text-[16px] text-muted-foreground max-w-xl leading-relaxed">
+              Приглашайте друзей — получайте процент от их пополнений прямо на свой баланс
+            </p>
+          </div>
+        </div>
+      </motion.section>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6" data-tour="referral-stats">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -163,6 +175,7 @@ export function ClientReferralPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.2 }}
             className="relative flex flex-col rounded-[2rem] shadow-[0_8px_40px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_40px_rgba(0,0,0,0.3)] min-w-0"
+            data-tour="referral-link"
           >
             <div className="absolute inset-0 overflow-hidden rounded-[2rem] border border-white/10 dark:border-white/5 bg-background/40 backdrop-blur-2xl">
               <div className="absolute -bottom-32 -left-32 h-64 w-64 rounded-full bg-primary/10 blur-[80px] pointer-events-none" />

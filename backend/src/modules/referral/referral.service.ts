@@ -63,14 +63,17 @@ export async function distributeReferralRewards(paymentId: string): Promise<{ di
 
     const amount = payment.amount;
     const updates: { clientId: string; bonus: number; level: number }[] = [];
-    if (level1 && !level1.isBlocked && p1 > 0) {
-      updates.push({ clientId: level1.id, bonus: Math.round(amount * (p1 / 100) * 100) / 100, level: 1 });
+    const pct1 = level1?.referralPercent ?? p1;
+    const pct2 = level2?.referralPercent ?? p2;
+    const pct3 = level3?.referralPercent ?? p3;
+    if (level1 && !level1.isBlocked && pct1 > 0) {
+      updates.push({ clientId: level1.id, bonus: Math.round(amount * (pct1 / 100) * 100) / 100, level: 1 });
     }
-    if (level2 && !level2.isBlocked && p2 > 0) {
-      updates.push({ clientId: level2.id, bonus: Math.round(amount * (p2 / 100) * 100) / 100, level: 2 });
+    if (level2 && !level2.isBlocked && pct2 > 0) {
+      updates.push({ clientId: level2.id, bonus: Math.round(amount * (pct2 / 100) * 100) / 100, level: 2 });
     }
-    if (level3 && !level3.isBlocked && p3 > 0) {
-      updates.push({ clientId: level3.id, bonus: Math.round(amount * (p3 / 100) * 100) / 100, level: 3 });
+    if (level3 && !level3.isBlocked && pct3 > 0) {
+      updates.push({ clientId: level3.id, bonus: Math.round(amount * (pct3 / 100) * 100) / 100, level: 3 });
     }
 
     for (const { clientId, bonus, level } of updates) {
