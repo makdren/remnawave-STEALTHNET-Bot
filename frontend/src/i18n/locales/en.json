@@ -284,7 +284,7 @@
       "selected_count": "Selected: {count}",
       "remove": "Remove",
       "add": "+ Add",
-      "hwid_devices": "HWID devices ({count})",
+      "hwid_devices": "HWID devices",
       "hwid_limit": "/ limit:",
       "loading_short": "Loading…",
       "no_registered_devices": "No registered devices",

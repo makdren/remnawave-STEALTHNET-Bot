@@ -47,12 +47,14 @@ import { distributeReferralRewards } from "../referral/referral.service.js";
 import { markPaymentPaid } from "../payment/mark-paid.service.js";
 import { registerBackupRoutes } from "../backup/backup.routes.js";
 import { runBroadcast, getBroadcastRecipientsCount } from "../broadcast/broadcast.service.js";
+import { uploadMascotImage, uploadVideo, mascotUrl, videoUploadUrl, removeUploadedFile } from "../../lib/upload.js";
 import {
   notifyAdminsAboutSupportReply,
   notifyAdminsAboutTicketStatusChange,
 } from "../notification/telegram-notify.service.js";
 import { runRule, runAllRules, getEligibleClientIds } from "../auto-broadcast/auto-broadcast.service.js";
 import { testNalogConnection } from "../nalog/nalog.service.js";
+import { adminCreateGiftCode } from "../gift/gift.service.js";
 import { languageRouter } from "./language.routes.js";
 
 export const adminRouter = Router();
@@ -1275,6 +1277,14 @@ const updateSettingsSchema = z.object({
   geoMapEnabled: z.boolean().optional(),
   geoCacheTtl: z.number().min(10).max(3600).optional(),
   maxmindDbPath: z.string().max(500).nullable().optional(),
+  giftSubscriptionsEnabled: z.boolean().optional(),
+  giftCodeExpiryHours: z.number().int().min(1).max(8760).optional(),
+  maxAdditionalSubscriptions: z.number().int().min(1).max(100).optional(),
+  giftCodeFormatLength: z.number().int().min(6).max(24).optional(),
+  giftRateLimitPerMinute: z.number().int().min(1).max(60).optional(),
+  giftExpiryNotificationDays: z.number().int().min(0).max(30).optional(),
+  giftReferralEnabled: z.boolean().optional(),
+  giftMessageMaxLength: z.number().int().min(0).max(1000).optional(),
 });
 
 adminRouter.patch("/settings", async (req, res) => {
@@ -2013,6 +2023,26 @@ adminRouter.patch("/settings", async (req, res) => {
     const v = updates[key];
     if (v === undefined) continue;
     const val = typeof v === "boolean" ? (v ? "true" : "false") : (v === null ? "" : String(v));
+    await prisma.systemSetting.upsert({
+      where: { key: dbKey },
+      create: { key: dbKey, value: val },
+      update: { value: val },
+    });
+  }
+  const giftKeys: [keyof typeof updates, string][] = [
+    ["giftSubscriptionsEnabled", "gift_subscriptions_enabled"],
+    ["giftCodeExpiryHours", "gift_code_expiry_hours"],
+    ["maxAdditionalSubscriptions", "max_additional_subscriptions"],
+    ["giftCodeFormatLength", "gift_code_format_length"],
+    ["giftRateLimitPerMinute", "gift_rate_limit_per_minute"],
+    ["giftExpiryNotificationDays", "gift_expiry_notification_days"],
+    ["giftReferralEnabled", "gift_referral_enabled"],
+    ["giftMessageMaxLength", "gift_message_max_length"],
+  ];
+  for (const [key, dbKey] of giftKeys) {
+    const v = updates[key];
+    if (v === undefined) continue;
+    const val = typeof v === "boolean" ? (v ? "true" : "false") : String(v);
     await prisma.systemSetting.upsert({
       where: { key: dbKey },
       create: { key: dbKey, value: val },
@@ -3349,4 +3379,787 @@ adminRouter.delete("/admins/:id", asyncRoute(async (req, res) => {
   }
   await prisma.admin.delete({ where: { id: req.params.id } });
   return res.json({ success: true });
+}));
+
+// ────── Secondary Subscriptions Admin API ──────
+
+adminRouter.get("/secondary-subscriptions", asyncRoute(async (req, res) => {
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+  const skip = (page - 1) * limit;
+  const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+  const giftStatus = typeof req.query.giftStatus === "string" ? req.query.giftStatus : "";
+  const dateFrom = typeof req.query.dateFrom === "string" ? req.query.dateFrom : "";
+  const dateTo = typeof req.query.dateTo === "string" ? req.query.dateTo : "";
+  const sortBy = typeof req.query.sortBy === "string" ? req.query.sortBy : "createdAt";
+  const sortDir = req.query.sortDir === "asc" ? "asc" as const : "desc" as const;
+
+  const where: Prisma.SecondarySubscriptionWhereInput = {};
+  const conditions: Prisma.SecondarySubscriptionWhereInput[] = [];
+
+  // Gift status filter
+  if (giftStatus === "owned") {
+    conditions.push({
+      OR: [
+        { giftStatus: null, giftedToClientId: null },
+        { giftStatus: "", giftedToClientId: null },
+        { giftStatus: "ACTIVATED_SELF" },
+      ],
+    });
+  } else if (giftStatus === "ACTIVATED_SELF") {
+    conditions.push({ giftStatus: "ACTIVATED_SELF" });
+  } else if (giftStatus === "GIFT_RESERVED" || giftStatus === "GIFT_CODE_ACTIVE" || giftStatus === "GIFTED") {
+    conditions.push({ giftStatus });
+  }
+
+  // Search by owner email/telegramUsername/telegramId
+  if (search.length > 0) {
+    conditions.push({
+      OR: [
+        { owner: { id: { equals: search } } },
+        { owner: { email: { contains: search, mode: "insensitive" as const } } },
+        { owner: { telegramUsername: { contains: search, mode: "insensitive" as const } } },
+        { owner: { telegramId: { contains: search } } },
+        { giftedToClient: { id: { equals: search } } },
+        { giftedToClient: { email: { contains: search, mode: "insensitive" as const } } },
+        { giftedToClient: { telegramUsername: { contains: search, mode: "insensitive" as const } } },
+        { giftedToClient: { telegramId: { contains: search } } },
+        { remnawaveUuid: { contains: search } },
+        { id: { contains: search } },
+      ],
+    });
+  }
+
+  // Date range filter
+  if (dateFrom) {
+    const d = new Date(dateFrom);
+    if (!isNaN(d.getTime())) conditions.push({ createdAt: { gte: d } });
+  }
+  if (dateTo) {
+    const d = new Date(dateTo);
+    if (!isNaN(d.getTime())) conditions.push({ createdAt: { lte: d } });
+  }
+
+  if (conditions.length > 0) where.AND = conditions;
+
+  // Determine orderBy
+  const allowedSorts: Record<string, Prisma.SecondarySubscriptionOrderByWithRelationInput> = {
+    createdAt: { createdAt: sortDir },
+    updatedAt: { updatedAt: sortDir },
+    subscriptionIndex: { subscriptionIndex: sortDir },
+  };
+  const orderBy = allowedSorts[sortBy] ?? { createdAt: sortDir };
+
+  const [items, total] = await Promise.all([
+    prisma.secondarySubscription.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy,
+      include: {
+        owner: {
+          select: { id: true, email: true, telegramId: true, telegramUsername: true },
+        },
+        giftedToClient: {
+          select: { id: true, email: true, telegramId: true, telegramUsername: true },
+        },
+        tariff: {
+          select: { id: true, name: true, durationDays: true, price: true },
+        },
+        giftCodes: {
+          select: {
+            id: true,
+            code: true,
+            status: true,
+            giftMessage: true,
+            expiresAt: true,
+            redeemedAt: true,
+            createdAt: true,
+            redeemedBy: { select: { id: true, email: true, telegramUsername: true } },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+      },
+    }),
+    prisma.secondarySubscription.count({ where }),
+  ]);
+
+  return res.json({
+    items: items.map((s) => ({
+      ...s,
+      latestGiftCode: s.giftCodes[0] ?? null,
+      giftCodes: undefined,
+    })),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  });
+}));
+
+adminRouter.get("/secondary-subscriptions/:id", asyncRoute(async (req, res) => {
+  const sub = await prisma.secondarySubscription.findUnique({
+    where: { id: req.params.id },
+    include: {
+      owner: {
+        select: { id: true, email: true, telegramId: true, telegramUsername: true },
+      },
+      giftedToClient: {
+        select: { id: true, email: true, telegramId: true, telegramUsername: true },
+      },
+      tariff: {
+        select: { id: true, name: true, durationDays: true, price: true, category: true },
+      },
+      giftCodes: {
+        select: {
+          id: true,
+          code: true,
+          status: true,
+          giftMessage: true,
+          expiresAt: true,
+          redeemedAt: true,
+          createdAt: true,
+          creator: { select: { id: true, email: true, telegramUsername: true } },
+          redeemedBy: { select: { id: true, email: true, telegramUsername: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      },
+    },
+  });
+  if (!sub) return res.status(404).json({ message: "Подписка не найдена" });
+
+  // Fetch Remnawave data if UUID exists
+  let remnaData: Record<string, unknown> | null = null;
+  if (sub.remnawaveUuid && isRemnaConfigured()) {
+    try {
+      const r = await remnaGetUser(sub.remnawaveUuid);
+      if (!r.error && r.data) {
+        const raw = r.data as Record<string, unknown>;
+        remnaData = (raw.response ?? raw) as Record<string, unknown>;
+      }
+    } catch { /* skip */ }
+  }
+
+  // Fetch history
+  const history = await prisma.giftHistory.findMany({
+    where: { secondarySubscriptionId: sub.id },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+  });
+
+  return res.json({ ...sub, remnaData, history });
+}));
+
+adminRouter.delete("/secondary-subscriptions/:id", asyncRoute(async (req, res) => {
+  const sub = await prisma.secondarySubscription.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, remnawaveUuid: true, ownerId: true },
+  });
+  if (!sub) return res.status(404).json({ message: "Подписка не найдена" });
+
+  // Delete Remnawave user if exists
+  if (sub.remnawaveUuid && isRemnaConfigured()) {
+    try {
+      await remnaDeleteUser(sub.remnawaveUuid);
+    } catch { /* best effort */ }
+  }
+
+  // Log event
+  await prisma.giftHistory.create({
+    data: {
+      clientId: sub.ownerId,
+      secondarySubscriptionId: sub.id,
+      eventType: "DELETED",
+      metadata: { deletedBy: "admin" },
+    },
+  });
+
+  // Cascade deletes GiftCodes via DB relation
+  await prisma.secondarySubscription.delete({ where: { id: sub.id } });
+
+  return res.json({ success: true });
+}));
+
+adminRouter.delete("/secondary-subscriptions/bulk", asyncRoute(async (req, res) => {
+  const { ids } = req.body as { ids?: string[] };
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ message: "Укажите массив ids" });
+  }
+
+  const subs = await prisma.secondarySubscription.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, remnawaveUuid: true, ownerId: true },
+  });
+
+  // Delete Remnawave users
+  if (isRemnaConfigured()) {
+    await Promise.allSettled(
+      subs.filter((s) => s.remnawaveUuid).map((s) => remnaDeleteUser(s.remnawaveUuid!))
+    );
+  }
+
+  // Log events
+  await prisma.giftHistory.createMany({
+    data: subs.map((s) => ({
+      clientId: s.ownerId,
+      secondarySubscriptionId: s.id,
+      eventType: "DELETED",
+      metadata: { deletedBy: "admin", bulk: true },
+    })),
+  });
+
+  await prisma.secondarySubscription.deleteMany({ where: { id: { in: ids } } });
+
+  return res.json({ success: true, deleted: subs.length });
+}));
+
+// ────── Gift Analytics ──────
+
+adminRouter.get("/gift-analytics", asyncRoute(async (_req, res) => {
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  const [
+    totalSubscriptions,
+    last30Days,
+    activatedSelf,
+    gifted,
+    pendingCodes,
+    expiredCodes,
+    redeemedCodes,
+    totalCodes,
+  ] = await Promise.all([
+    prisma.secondarySubscription.count(),
+    prisma.secondarySubscription.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
+    prisma.secondarySubscription.count({ where: { OR: [{ giftStatus: null, giftedToClientId: null }, { giftStatus: "", giftedToClientId: null }, { giftStatus: "ACTIVATED_SELF" }] } }),
+    prisma.secondarySubscription.count({ where: { giftedToClientId: { not: null } } }),
+    prisma.giftCode.count({ where: { status: "ACTIVE" } }),
+    prisma.giftCode.count({ where: { status: "EXPIRED" } }),
+    prisma.giftCode.count({ where: { status: "REDEEMED" } }),
+    prisma.giftCode.count(),
+  ]);
+
+  const conversionRate = totalCodes > 0
+    ? Math.round((redeemedCodes / totalCodes) * 1000) / 10
+    : 0;
+
+  return res.json({
+    totalSubscriptions,
+    last30Days,
+    activatedSelf,
+    gifted,
+    pendingCodes,
+    expiredCodes,
+    redeemedCodes,
+    conversionRate,
+  });
+}));
+
+// ────── Admin Gift Code Creation ──────
+
+adminRouter.post("/gift-codes/create", asyncRoute(async (req, res) => {
+  const schema = z.object({
+    clientId: z.string().min(1),
+    tariffId: z.string().min(1),
+    giftMessage: z.string().max(200).optional(),
+  });
+
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Некорректные данные", errors: parsed.error.flatten().fieldErrors });
+  }
+
+  const { clientId, tariffId, giftMessage } = parsed.data;
+
+  // Проверяем что клиент существует
+  const client = await prisma.client.findUnique({ where: { id: clientId } });
+  if (!client) {
+    return res.status(404).json({ message: "Клиент не найден" });
+  }
+
+  const result = await adminCreateGiftCode(clientId, tariffId, giftMessage);
+  if (!result.ok) {
+    return res.status(result.status).json({ message: result.error });
+  }
+
+  return res.json(result.data);
+}));
+
+// ——— Tour Steps (конструктор тура) ———
+
+const tourStepIdSchema = z.object({ id: z.string().min(1) });
+
+const TOUR_PLACEMENTS = ["top", "bottom", "left", "right", "center"] as const;
+const TOUR_MOODS = ["wave", "point", "happy", "think"] as const;
+
+const createTourStepSchema = z.object({
+  target: z.string().min(1).max(500),
+  targetLabel: z.string().min(1).max(255),
+  title: z.string().min(1).max(500),
+  content: z.string().min(1).max(5000),
+  videoUrl: z.string().max(1000).nullable().optional(),
+  placement: z.enum(TOUR_PLACEMENTS).optional(),
+  route: z.string().max(255).nullable().optional(),
+  mascotId: z.string().max(100).nullable().optional(),
+  mood: z.enum(TOUR_MOODS).optional(),
+  sortOrder: z.number().int().optional(),
+  isActive: z.boolean().optional(),
+});
+
+const updateTourStepSchema = z.object({
+  target: z.string().min(1).max(500).optional(),
+  targetLabel: z.string().min(1).max(255).optional(),
+  title: z.string().min(1).max(500).optional(),
+  content: z.string().min(1).max(5000).optional(),
+  videoUrl: z.string().max(1000).nullable().optional(),
+  placement: z.enum(TOUR_PLACEMENTS).optional(),
+  route: z.string().max(255).nullable().optional(),
+  mascotId: z.string().max(100).nullable().optional(),
+  mood: z.enum(TOUR_MOODS).optional(),
+  sortOrder: z.number().int().optional(),
+  isActive: z.boolean().optional(),
+});
+
+const reorderTourStepsSchema = z.object({
+  items: z.array(z.object({
+    id: z.string().min(1),
+    sortOrder: z.number().int(),
+  })),
+});
+
+function tourStepToJson(s: {
+  id: string; target: string; targetLabel: string; title: string; content: string;
+  videoUrl: string | null; placement: string; route: string | null; mascotId: string | null; mood: string;
+  sortOrder: number; isActive: boolean; createdAt: Date; updatedAt: Date;
+  mascot?: { id: string; name: string; imageUrl: string; isBuiltIn: boolean; emotions?: { id: string; mood: string; imageUrl: string }[] } | null;
+}) {
+  return {
+    id: s.id,
+    target: s.target,
+    targetLabel: s.targetLabel,
+    title: s.title,
+    content: s.content,
+    videoUrl: s.videoUrl,
+    placement: s.placement,
+    route: s.route,
+    mascotId: s.mascotId,
+    mood: s.mood,
+    sortOrder: s.sortOrder,
+    isActive: s.isActive,
+    mascot: s.mascot ? { id: s.mascot.id, name: s.mascot.name, imageUrl: s.mascot.imageUrl, isBuiltIn: s.mascot.isBuiltIn, emotions: (s.mascot.emotions ?? []).map(e => ({ id: e.id, mood: e.mood, imageUrl: e.imageUrl })) } : null,
+    createdAt: s.createdAt.toISOString(),
+    updatedAt: s.updatedAt.toISOString(),
+  };
+}
+
+adminRouter.get("/tour-steps", asyncRoute(async (_req, res) => {
+  const steps = await prisma.tourStep.findMany({
+    include: { mascot: { include: { emotions: true } } },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+  return res.json({ items: steps.map(tourStepToJson) });
+}));
+
+adminRouter.post("/tour-steps", asyncRoute(async (req, res) => {
+  const body = createTourStepSchema.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ message: "Неверные данные", errors: body.error.flatten() });
+
+  const created = await prisma.tourStep.create({
+    data: {
+      target: body.data.target,
+      targetLabel: body.data.targetLabel,
+      title: body.data.title,
+      content: body.data.content,
+      videoUrl: body.data.videoUrl ?? null,
+      placement: body.data.placement ?? "bottom",
+      mascotId: body.data.mascotId ?? null,
+      mood: body.data.mood ?? "point",
+      sortOrder: body.data.sortOrder ?? 0,
+      isActive: body.data.isActive ?? true,
+    },
+    include: { mascot: { include: { emotions: true } } },
+  });
+  return res.status(201).json(tourStepToJson(created));
+}));
+
+// IMPORTANT: /reorder MUST be before /:id
+adminRouter.patch("/tour-steps/reorder", asyncRoute(async (req, res) => {
+  const body = reorderTourStepsSchema.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ message: "Неверные данные", errors: body.error.flatten() });
+
+  await prisma.$transaction(
+    body.data.items.map(item =>
+      prisma.tourStep.update({ where: { id: item.id }, data: { sortOrder: item.sortOrder } })
+    )
+  );
+  return res.json({ success: true });
+}));
+
+adminRouter.patch("/tour-steps/:id", asyncRoute(async (req, res) => {
+  const idParse = tourStepIdSchema.safeParse({ id: req.params.id });
+  if (!idParse.success) return res.status(400).json({ message: "Invalid id" });
+
+  const body = updateTourStepSchema.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ message: "Неверные данные", errors: body.error.flatten() });
+
+  const data: Record<string, unknown> = {};
+  if (body.data.target !== undefined) data.target = body.data.target;
+  if (body.data.targetLabel !== undefined) data.targetLabel = body.data.targetLabel;
+  if (body.data.title !== undefined) data.title = body.data.title;
+  if (body.data.content !== undefined) data.content = body.data.content;
+  if (body.data.videoUrl !== undefined) data.videoUrl = body.data.videoUrl;
+  if (body.data.placement !== undefined) data.placement = body.data.placement;
+  if (body.data.mascotId !== undefined) data.mascotId = body.data.mascotId;
+  if (body.data.mood !== undefined) data.mood = body.data.mood;
+  if (body.data.sortOrder !== undefined) data.sortOrder = body.data.sortOrder;
+  if (body.data.isActive !== undefined) data.isActive = body.data.isActive;
+
+  const updated = await prisma.tourStep.update({
+    where: { id: idParse.data.id },
+    data,
+    include: { mascot: { include: { emotions: true } } },
+  });
+  return res.json(tourStepToJson(updated));
+}));
+
+adminRouter.delete("/tour-steps/:id", asyncRoute(async (req, res) => {
+  const idParse = tourStepIdSchema.safeParse({ id: req.params.id });
+  if (!idParse.success) return res.status(400).json({ message: "Invalid id" });
+
+  await prisma.tourStep.delete({ where: { id: idParse.data.id } });
+  return res.json({ success: true });
+}));
+
+adminRouter.post("/tour-steps/seed-defaults", asyncRoute(async (_req, res) => {
+  // Удаляем все существующие шаги
+  await prisma.tourStep.deleteMany();
+
+  // Берём первого встроенного маскота (если есть)
+  const builtIn = await prisma.tourMascot.findFirst({ where: { isBuiltIn: true } });
+
+  const defaults = [
+    {
+      target: "body",
+      targetLabel: "Приветствие",
+      title: "Добро пожаловать! 👋",
+      content: "Привет! Это твой личный кабинет STEALTHNET. Давай я покажу, что тут есть! Тур автоматически переключит вкладки — просто нажимай «Дальше».",
+      placement: "center",
+      route: null,
+      mascotId: builtIn?.id ?? null,
+      mood: "wave",
+      sortOrder: 0,
+    },
+    {
+      target: '[data-tour="subscription"]',
+      targetLabel: "Подписка",
+      title: "Твоя подписка",
+      content: "Здесь ты видишь статус своей VPN-подписки, оставшиеся дни и трафик.",
+      placement: "bottom",
+      route: "/cabinet/dashboard",
+      mascotId: builtIn?.id ?? null,
+      mood: "point",
+      sortOrder: 1,
+    },
+    {
+      target: '[data-tour="balance"]',
+      targetLabel: "Баланс",
+      title: "Твой баланс",
+      content: "Тут отображается баланс аккаунта. Пополняй и оплачивай тарифы!",
+      placement: "left",
+      route: "/cabinet/dashboard",
+      mascotId: builtIn?.id ?? null,
+      mood: "point",
+      sortOrder: 2,
+    },
+    {
+      target: '[data-tour="tariffs"]',
+      targetLabel: "Тарифы (навигация)",
+      title: "Раздел тарифов",
+      content: "Нажми сюда, чтобы перейти к тарифам. Сейчас я покажу тебе, что там внутри!",
+      placement: "bottom",
+      route: "/cabinet/dashboard",
+      mascotId: builtIn?.id ?? null,
+      mood: "think",
+      sortOrder: 3,
+    },
+    {
+      target: '[data-tour="tariff-list"]',
+      targetLabel: "Список тарифов",
+      title: "Выбирай тариф 📦",
+      content: "Здесь все доступные тарифы. Выбирай подходящий по цене и возможностям!",
+      placement: "top",
+      route: "/cabinet/tariffs",
+      mascotId: builtIn?.id ?? null,
+      mood: "point",
+      sortOrder: 4,
+    },
+    {
+      target: '[data-tour="referrals"]',
+      targetLabel: "Рефералы (навигация)",
+      title: "Реферальная программа",
+      content: "Приглашай друзей и получай бонусы! Давай глянем подробнее...",
+      placement: "bottom",
+      route: "/cabinet/tariffs",
+      mascotId: builtIn?.id ?? null,
+      mood: "point",
+      sortOrder: 5,
+    },
+    {
+      target: '[data-tour="referral-link"]',
+      targetLabel: "Реферальная ссылка",
+      title: "Твоя реферальная ссылка 🔗",
+      content: "Скопируй ссылку и отправь друзьям. За каждого приглашённого — бонусы на баланс!",
+      placement: "bottom",
+      route: "/cabinet/referral",
+      mascotId: builtIn?.id ?? null,
+      mood: "happy",
+      sortOrder: 6,
+    },
+    {
+      target: '[data-tour="referral-stats"]',
+      targetLabel: "Статистика рефералов",
+      title: "Статистика приглашений 📊",
+      content: "Тут видно сколько друзей ты пригласил и сколько бонусов заработал. До 3 уровней глубины!",
+      placement: "top",
+      route: "/cabinet/referral",
+      mascotId: builtIn?.id ?? null,
+      mood: "point",
+      sortOrder: 7,
+    },
+    {
+      target: '[data-tour="profile"]',
+      targetLabel: "Профиль (навигация)",
+      title: "Настройки профиля",
+      content: "Здесь можно настроить аккаунт. Давай заглянем!",
+      placement: "bottom",
+      route: "/cabinet/referral",
+      mascotId: builtIn?.id ?? null,
+      mood: "think",
+      sortOrder: 8,
+    },
+    {
+      target: '[data-tour="profile-settings"]',
+      targetLabel: "Настройки",
+      title: "Язык и валюта 🌐",
+      content: "Выбирай удобный язык интерфейса и валюту для отображения цен.",
+      placement: "bottom",
+      route: "/cabinet/profile",
+      mascotId: builtIn?.id ?? null,
+      mood: "point",
+      sortOrder: 9,
+    },
+    {
+      target: '[data-tour="password-change"]',
+      targetLabel: "Смена пароля",
+      title: "Безопасность 🔐",
+      content: "Тут можно сменить пароль от аккаунта. Рекомендуем использовать надёжный пароль!",
+      placement: "top",
+      route: "/cabinet/profile",
+      mascotId: builtIn?.id ?? null,
+      mood: "point",
+      sortOrder: 10,
+    },
+    {
+      target: '[data-tour="support"]',
+      targetLabel: "Поддержка",
+      title: "Нужна помощь? 💬",
+      content: "Если что-то не работает — напиши в поддержку, мы обязательно поможем!",
+      placement: "bottom",
+      route: "/cabinet/profile",
+      mascotId: builtIn?.id ?? null,
+      mood: "wave",
+      sortOrder: 11,
+    },
+    {
+      target: "body",
+      targetLabel: "Завершение",
+      title: "Всё готово! 🎉",
+      content: "Теперь ты знаешь все разделы кабинета. Удачного использования STEALTHNET! Если забудешь — тур можно перезапустить в профиле.",
+      placement: "center",
+      route: null,
+      mascotId: builtIn?.id ?? null,
+      mood: "happy",
+      sortOrder: 12,
+    },
+  ];
+
+  const created = await prisma.$transaction(
+    defaults.map(step => prisma.tourStep.create({ data: step }))
+  );
+
+  return res.json({ items: created.map(s => tourStepToJson({ ...s, mascot: builtIn && s.mascotId === builtIn.id ? builtIn : null })) });
+}));
+
+// ——————————————————————————————————————————————————————————
+// Tour Mascots CRUD
+// ——————————————————————————————————————————————————————————
+
+adminRouter.get("/tour-mascots", asyncRoute(async (_req, res) => {
+  const mascots = await prisma.tourMascot.findMany({
+    include: { emotions: true },
+    orderBy: [{ isBuiltIn: "desc" }, { createdAt: "asc" }],
+  });
+  return res.json({ items: mascots.map(m => ({
+    id: m.id, name: m.name, imageUrl: m.imageUrl, isBuiltIn: m.isBuiltIn, createdAt: m.createdAt.toISOString(),
+    emotions: m.emotions.map(e => ({ id: e.id, mood: e.mood, imageUrl: e.imageUrl })),
+  })) });
+}));
+
+adminRouter.post("/tour-mascots", uploadMascotImage.single("image"), asyncRoute(async (req, res) => {
+  const name = typeof req.body.name === "string" && req.body.name.trim() ? req.body.name.trim() : "Маскот";
+  const imageUrl = req.file ? mascotUrl(req.file.filename) : "";
+
+  const mascot = await prisma.tourMascot.create({
+    data: {
+      name,
+      imageUrl,
+      isBuiltIn: false,
+    },
+    include: { emotions: true },
+  });
+
+  return res.status(201).json({
+    id: mascot.id, name: mascot.name, imageUrl: mascot.imageUrl, isBuiltIn: mascot.isBuiltIn,
+    createdAt: mascot.createdAt.toISOString(), emotions: [],
+  });
+}));
+
+adminRouter.patch("/tour-mascots/:id", asyncRoute(async (req, res) => {
+  const id = req.params.id;
+  const mascot = await prisma.tourMascot.findUnique({ where: { id } });
+  if (!mascot) return res.status(404).json({ message: "Маскот не найден" });
+
+  const name = typeof req.body.name === "string" && req.body.name.trim() ? req.body.name.trim() : undefined;
+  const updated = await prisma.tourMascot.update({
+    where: { id },
+    data: { ...(name ? { name } : {}) },
+    include: { emotions: true },
+  });
+
+  return res.json({
+    id: updated.id, name: updated.name, imageUrl: updated.imageUrl, isBuiltIn: updated.isBuiltIn,
+    createdAt: updated.createdAt.toISOString(),
+    emotions: updated.emotions.map(e => ({ id: e.id, mood: e.mood, imageUrl: e.imageUrl })),
+  });
+}));
+
+adminRouter.delete("/tour-mascots/:id", asyncRoute(async (req, res) => {
+  const id = req.params.id;
+  const mascot = await prisma.tourMascot.findUnique({ where: { id } });
+  if (!mascot) return res.status(404).json({ message: "Маскот не найден" });
+  if (mascot.isBuiltIn) return res.status(400).json({ message: "Нельзя удалить встроенного маскота" });
+
+  // Убираем mascotId у шагов, использующих этого маскота
+  await prisma.tourStep.updateMany({ where: { mascotId: id }, data: { mascotId: null } });
+  await prisma.tourMascot.delete({ where: { id } });
+
+  // Удаляем файл
+  const filename = mascot.imageUrl.split("/").pop();
+  if (filename) removeUploadedFile(`mascots/${filename}`);
+
+  return res.json({ success: true });
+}));
+
+// ——————————————————————————————————————————————————————————
+// Tour Mascot Emotions CRUD
+// ——————————————————————————————————————————————————————————
+
+const validMoods = ["wave", "point", "happy", "think"] as const;
+
+adminRouter.post("/tour-mascots/:id/emotions", uploadMascotImage.single("image"), asyncRoute(async (req, res) => {
+  const mascotId = req.params.id;
+  const mascot = await prisma.tourMascot.findUnique({ where: { id: mascotId } });
+  if (!mascot) return res.status(404).json({ message: "Маскот не найден" });
+  if (!req.file) return res.status(400).json({ message: "Изображение не загружено" });
+
+  const mood = typeof req.body.mood === "string" ? req.body.mood.trim() : "";
+  if (!validMoods.includes(mood as typeof validMoods[number])) {
+    removeUploadedFile(`mascots/${req.file.filename}`);
+    return res.status(400).json({ message: `Недопустимая эмоция. Доступные: ${validMoods.join(", ")}` });
+  }
+
+  // Если уже есть такая эмоция — заменяем файл
+  const existing = await prisma.mascotEmotion.findUnique({ where: { mascotId_mood: { mascotId, mood } } });
+  if (existing) {
+    const oldFilename = existing.imageUrl.split("/").pop();
+    if (oldFilename) removeUploadedFile(`mascots/${oldFilename}`);
+
+    const updated = await prisma.mascotEmotion.update({
+      where: { id: existing.id },
+      data: { imageUrl: mascotUrl(req.file.filename) },
+    });
+    return res.json({ id: updated.id, mood: updated.mood, imageUrl: updated.imageUrl });
+  }
+
+  const emotion = await prisma.mascotEmotion.create({
+    data: {
+      mascotId,
+      mood,
+      imageUrl: mascotUrl(req.file.filename),
+    },
+  });
+
+  // Если это первая эмоция — установить как дефолтную картинку маскота
+  if (!mascot.imageUrl) {
+    await prisma.tourMascot.update({ where: { id: mascotId }, data: { imageUrl: mascotUrl(req.file.filename) } });
+  }
+
+  return res.status(201).json({ id: emotion.id, mood: emotion.mood, imageUrl: emotion.imageUrl });
+}));
+
+adminRouter.delete("/tour-mascots/:id/emotions/:emotionId", asyncRoute(async (req, res) => {
+  const { id: mascotId, emotionId } = req.params;
+  const emotion = await prisma.mascotEmotion.findFirst({ where: { id: emotionId, mascotId } });
+  if (!emotion) return res.status(404).json({ message: "Эмоция не найдена" });
+
+  const filename = emotion.imageUrl.split("/").pop();
+  if (filename) removeUploadedFile(`mascots/${filename}`);
+
+  await prisma.mascotEmotion.delete({ where: { id: emotionId } });
+  return res.json({ success: true });
+}));
+
+// ——————————————————————————————————————————————————————————
+// Tour Step — Video Upload
+// ——————————————————————————————————————————————————————————
+
+adminRouter.post("/tour-steps/:id/video", uploadVideo.single("video"), asyncRoute(async (req, res) => {
+  const id = req.params.id;
+  const step = await prisma.tourStep.findUnique({ where: { id } });
+  if (!step) return res.status(404).json({ message: "Шаг не найден" });
+
+  if (!req.file) return res.status(400).json({ message: "Видео не загружено" });
+
+  // Удаляем старый файл если это был загруженный файл
+  if (step.videoUrl?.startsWith("/api/uploads/videos/")) {
+    const oldFilename = step.videoUrl.split("/").pop();
+    if (oldFilename) removeUploadedFile(`videos/${oldFilename}`);
+  }
+
+  const updated = await prisma.tourStep.update({
+    where: { id },
+    data: { videoUrl: videoUploadUrl(req.file.filename) },
+    include: { mascot: { include: { emotions: true } } },
+  });
+  return res.json(tourStepToJson(updated));
+}));
+
+adminRouter.delete("/tour-steps/:id/video", asyncRoute(async (req, res) => {
+  const id = req.params.id;
+  const step = await prisma.tourStep.findUnique({ where: { id } });
+  if (!step) return res.status(404).json({ message: "Шаг не найден" });
+
+  // Удаляем файл если это был загруженный файл
+  if (step.videoUrl?.startsWith("/api/uploads/videos/")) {
+    const oldFilename = step.videoUrl.split("/").pop();
+    if (oldFilename) removeUploadedFile(`videos/${oldFilename}`);
+  }
+
+  const updated = await prisma.tourStep.update({
+    where: { id },
+    data: { videoUrl: null },
+    include: { mascot: { include: { emotions: true } } },
+  });
+  return res.json(tourStepToJson(updated));
 }));

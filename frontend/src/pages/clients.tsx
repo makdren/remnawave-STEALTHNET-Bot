@@ -8,6 +8,7 @@ import {
   type RemnaUserFull,
   type RemnaHwidDevice,
   type RemnaUserUsageResponse,
+  type AdminSecondarySubscription,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -498,6 +499,8 @@ function ClientEditModal({
   const [devicesTotal, setDevicesTotal] = useState(0);
   const [devicesLoading, setDevicesLoading] = useState(false);
   const [usageData, setUsageData] = useState<RemnaUserUsageResponse["response"] | null>(null);
+  const [secondarySubs, setSecondarySubs] = useState<AdminSecondarySubscription[]>([]);
+  const [secondarySubsLoading, setSecondarySubsLoading] = useState(false);
 
   const loadRemnaUser = useCallback(() => {
     if (!editing.remnawaveUuid) return;
@@ -524,11 +527,25 @@ function ClientEditModal({
     }).catch(() => {});
   }, [token, editing.id, editing.remnawaveUuid]);
 
+  const loadSecondarySubs = useCallback(() => {
+    setSecondarySubsLoading(true);
+    api.getSecondarySubscriptions(token, { page: 1, limit: 100, search: editing.id })
+      .then((r) => {
+        const items = (r.items ?? []).filter(
+          (s) => s.owner?.id === editing.id || s.giftedToClient?.id === editing.id
+        );
+        setSecondarySubs(items);
+      })
+      .catch(() => setSecondarySubs([]))
+      .finally(() => setSecondarySubsLoading(false));
+  }, [token, editing.id]);
+
   useEffect(() => {
     loadRemnaUser();
     loadDevices();
     loadUsage();
-  }, [loadRemnaUser, loadDevices, loadUsage]);
+    loadSecondarySubs();
+  }, [loadRemnaUser, loadDevices, loadUsage, loadSecondarySubs]);
 
   const deleteDevice = async (hwid: string) => {
     if (!confirm(t("admin.clients.delete_device_confirm"))) return;
@@ -702,6 +719,53 @@ function ClientEditModal({
                       </div>
                     )}
                   </div>
+                </div>
+
+                <div className="rounded-xl bg-muted/30 border p-4 space-y-2 text-sm">
+                  <div className="font-medium text-xs uppercase tracking-wider text-muted-foreground mb-2">
+                    Дополнительные подписки
+                  </div>
+                  {secondarySubsLoading ? (
+                    <div className="text-sm text-muted-foreground">{t("admin.clients.loading_short")}</div>
+                  ) : secondarySubs.length === 0 ? (
+                    <div className="text-sm text-muted-foreground">Нет дополнительных подписок</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {secondarySubs.map((s) => {
+                        const status =
+                          s.giftStatus === "GIFT_RESERVED"
+                            ? "Код создан"
+                            : s.giftStatus === "GIFTED"
+                              ? "Подарена"
+                              : "Активна";
+                        const relation = s.owner?.id === editing.id ? "Владелец" : "Получатель";
+                        return (
+                          <div key={s.id} className="flex items-center justify-between rounded-lg border bg-background/40 px-3 py-2 gap-3">
+                            <div className="min-w-0">
+                              <div className="text-xs font-medium">
+                                #{s.subscriptionIndex ?? "—"} · {s.tariff?.name ?? "Тариф не указан"}
+                              </div>
+                              <div className="text-[11px] text-muted-foreground">
+                                {relation} · {status}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {s.remnawaveUuid && (
+                                <span className="text-[10px] text-muted-foreground truncate max-w-[140px]" title={s.remnawaveUuid}>
+                                  {s.remnawaveUuid}
+                                </span>
+                              )}
+                              <Button variant="outline" size="sm" asChild>
+                                <a href={`/admin/secondary-subscriptions?search=${encodeURIComponent(s.id)}`}>
+                                  Открыть детально
+                                </a>
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -989,7 +1053,7 @@ function ClientEditModal({
                   <div className="flex items-center justify-between">
                     <h3 className="font-semibold text-sm flex items-center gap-2">
                       <Smartphone className="h-4 w-4" />
-                      {t("admin.clients.hwid_devices", { count: devicesTotal })}
+                      {t("admin.clients.hwid_devices")} ({devicesTotal})
                       {remnaUser?.hwidDeviceLimit != null && <span className="text-muted-foreground font-normal">{t("admin.clients.hwid_limit")} {remnaUser.hwidDeviceLimit}</span>}
                     </h3>
                     <Button variant="ghost" size="sm" onClick={loadDevices} disabled={devicesLoading}>

@@ -43,7 +43,8 @@ server {
     index index.html;
 
     # API → бэкенд на порту 5000 (обязательно 127.0.0.1, не IP контейнера 172.x.x.x!)
-    location /api/ {
+    # ^~ гарантирует что regex-location для статики (.png, .jpg) не перехватит /api/uploads/
+    location ^~ /api/ {
         proxy_pass http://127.0.0.1:5000;
         proxy_http_version 1.1;
         proxy_set_header Host $host;

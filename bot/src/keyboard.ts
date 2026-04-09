@@ -46,6 +46,7 @@ const MENU_IDS: Record<string, string> = {
   support: "menu:support",
   promocode: "menu:promocode",
   extra_options: "menu:extra_options",
+  gift: "menu:gift",
 };
 
 const DEFAULT_BUTTONS: BotButtonConfig[] = [
@@ -64,6 +65,7 @@ const DEFAULT_BUTTONS: BotButtonConfig[] = [
   { id: "tickets", visible: true, label: "🎫 Тикеты", order: 6.5, style: "primary" },
   { id: "support", visible: true, label: "🆘 Поддержка", order: 7, style: "primary" },
   { id: "promocode", visible: true, label: "🎟️ Промокод", order: 8, style: "primary" },
+  { id: "gift", visible: true, label: "🎁 Подарки", order: 8.5, style: "primary" },
   { id: "extra_options", visible: true, label: "➕ Доп. опции", order: 9, style: "primary" },
 ];
 
@@ -105,6 +107,7 @@ export function mainMenu(opts: {
   hasSupportLinks?: boolean;
   showTickets?: boolean;
   showExtraOptions?: boolean;
+  showGift?: boolean;
   /** Кнопок в ряд: 1 или 2 (по умолчанию 1) */
   buttonsPerRow?: 1 | 2;
   /** URL страницы подписки Remna (если задан — кнопка VPN ведёт туда) */
@@ -115,6 +118,9 @@ export function mainMenu(opts: {
   let list = fromConfig ? [...configButtons] : [...DEFAULT_BUTTONS];
   if (fromConfig && !list.some((b) => b.id === "devices")) {
     list.push({ id: "devices", visible: true, label: "📱 Устройства", order: 1.5, style: "primary" });
+  }
+  if (fromConfig && opts.showGift === true && !list.some((b) => b.id === "gift")) {
+    list.push({ id: "gift", visible: true, label: "🎁 Подарки", order: 8.5, style: "primary" });
   }
   list = list
     .filter((b) => b.visible)
@@ -127,6 +133,7 @@ export function mainMenu(opts: {
       if (b.id === "tickets") return opts.showTickets === true && !!opts.appUrl?.trim();
       if (b.id === "support") return !!opts.hasSupportLinks;
       if (b.id === "extra_options") return opts.showExtraOptions === true;
+      if (b.id === "gift") return opts.showGift === true;
       return true;
     })
     .sort((a, b) => a.order - b.order);
@@ -689,6 +696,157 @@ export function trialConfirmButton(innerStyles?: InnerButtonStyles, emojiIds?: I
   return {
     inline_keyboard: [
       [btn(_t("menu.btn_trial", lang), "trial:confirm", trialConfirm, emojiIds?.trial), btn(_t("cancel", lang), "menu:main", backSty, emojiIds?.back)],
+    ],
+  };
+}
+
+// ——— Gift / Secondary Subscriptions keyboards ———
+
+/** Меню подарков: доп. подписки, активация, список подарков */
+export function giftMenuButtons(
+  backLabel?: string | null,
+  innerStyles?: InnerButtonStyles,
+  emojiIds?: InnerEmojiIds
+): InlineMarkup {
+  const tariffPay = resolveStyle(toStyle(innerStyles?.tariffPay), "success");
+  const back = (backLabel && backLabel.trim()) || DEFAULT_BACK_LABEL;
+  const backSty = resolveStyle(toStyle(innerStyles?.back), "danger");
+  return {
+    inline_keyboard: [
+      [btn("🛒 Купить доп. подписку", "gift:buy", tariffPay, emojiIds?.tariff)],
+      [btn("📋 Мои подписки", "gift:subscriptions", "primary", emojiIds?.connect)],
+      [btn("🎁 Активировать подарок", "gift:redeem", "primary", emojiIds?.trial)],
+      [btn("🎟️ Мои подарки", "gift:codes", "primary", emojiIds?.card)],
+      [btn(back, "menu:main", backSty, emojiIds?.back)],
+    ],
+  };
+}
+
+/** Список вторичных подписок с кнопками «Подключить» и «Подарить» */
+export function giftSubscriptionButtons(
+  subscriptions: { id: string; subscriptionIndex: number | null; giftStatus: string | null }[],
+  backLabel?: string | null,
+  innerStyles?: InnerButtonStyles,
+  emojiIds?: InnerEmojiIds
+): InlineMarkup {
+  const back = (backLabel && backLabel.trim()) || DEFAULT_BACK_LABEL;
+  const backSty = resolveStyle(toStyle(innerStyles?.back), "danger");
+  const rows: InlineButton[][] = [];
+  for (const sub of subscriptions) {
+    // Пропускаем подписки, активированные на себя — они не участвуют в подарках
+    if (sub.giftStatus === "ACTIVATED_SELF") continue;
+    const idx = sub.subscriptionIndex ?? 0;
+    const statusLabel = sub.giftStatus === "GIFTED" ? " (подарена)" : sub.giftStatus === "GIFT_RESERVED" ? " (код создан)" : "";
+    rows.push([
+      btn(`📲 Подписка #${idx}${statusLabel}`, `gift:connect:${sub.id}`, "primary", emojiIds?.connect),
+    ]);
+    if (!sub.giftStatus) {
+      rows.push([
+        btn(`🎁 Подарить #${idx}`, `gift:give:${sub.id}`, "success", emojiIds?.trial),
+        btn(`🗑 Удалить #${idx}`, `gift:delete:${sub.id}`, "danger"),
+      ]);
+    }
+  }
+  rows.push([btn(back, "menu:gift", backSty, emojiIds?.back)]);
+  return { inline_keyboard: rows };
+}
+
+/** После покупки доп. подписки — «Активировать себе» или «Подарить» */
+export function giftPostPurchaseButtons(
+  subscriptionId: string,
+  subscriptionIndex: number,
+  backLabel?: string | null,
+  innerStyles?: InnerButtonStyles,
+  emojiIds?: InnerEmojiIds
+): InlineMarkup {
+  const back = (backLabel && backLabel.trim()) || DEFAULT_BACK_LABEL;
+  const backSty = resolveStyle(toStyle(innerStyles?.back), "danger");
+  return {
+    inline_keyboard: [
+      [btn(`✅ Активировать себе`, `gift:connect:${subscriptionId}`, "primary", emojiIds?.connect)],
+      [btn(`🎁 Подарить`, `gift:give:${subscriptionId}`, "success", emojiIds?.trial)],
+      [btn(back, "menu:gift", backSty, emojiIds?.back)],
+    ],
+  };
+}
+
+/** Результат создания подарочного кода — только кнопка назад */
+export function giftCodeResultButtons(
+  backLabel?: string | null,
+  innerStyles?: InnerButtonStyles,
+  emojiIds?: InnerEmojiIds
+): InlineMarkup {
+  const back = (backLabel && backLabel.trim()) || DEFAULT_BACK_LABEL;
+  const backSty = resolveStyle(toStyle(innerStyles?.back), "danger");
+  return {
+    inline_keyboard: [
+      [btn(back, "menu:gift", backSty, emojiIds?.back)],
+    ],
+  };
+}
+
+/** Список подарочных кодов с кнопкой отмены для активных */
+export function giftCodesListButtons(
+  codes: { id: string; code: string; status: string }[],
+  backLabel?: string | null,
+  innerStyles?: InnerButtonStyles,
+  emojiIds?: InnerEmojiIds
+): InlineMarkup {
+  const back = (backLabel && backLabel.trim()) || DEFAULT_BACK_LABEL;
+  const backSty = resolveStyle(toStyle(innerStyles?.back), "danger");
+  const rows: InlineButton[][] = [];
+  for (const c of codes) {
+    if (c.status === "ACTIVE") {
+      rows.push([btn(`❌ Отменить ${c.code}`, `gift:cancel_code:${c.id}`, "danger")]);
+    }
+  }
+  rows.push([btn(back, "menu:gift", backSty, emojiIds?.back)]);
+  return { inline_keyboard: rows };
+}
+
+/** Тарифы для покупки подарочной подписки (с gift_tariff: префиксом) */
+export function giftTariffButtons(
+  categories: {
+    id: string;
+    name: string;
+    emoji?: string;
+    tariffs: { id: string; name: string; price: number; currency: string }[];
+  }[],
+  backLabel?: string | null,
+  innerStyles?: InnerButtonStyles,
+  emojiIds?: InnerEmojiIds
+): InlineMarkup {
+  const tariffPay = resolveStyle(toStyle(innerStyles?.tariffPay), "success");
+  const back = (backLabel && backLabel.trim()) || DEFAULT_BACK_LABEL;
+  const backSty = resolveStyle(toStyle(innerStyles?.back), "danger");
+  const tariffId = emojiIds?.tariff;
+  const rows: InlineButton[][] = [];
+  for (const cat of categories) {
+    const prefix = (cat.emoji && cat.emoji.trim()) ? `${cat.emoji} ` : "";
+    for (const t of cat.tariffs) {
+      const label = `${prefix}${t.name} — ${t.price} ${t.currency}`.slice(0, 64);
+      rows.push([btn(label, `gift_tariff:${t.id}`, tariffPay, tariffId)]);
+    }
+  }
+  rows.push([btn(back, "menu:gift", backSty, emojiIds?.back)]);
+  return { inline_keyboard: rows };
+}
+
+/** Кнопки подтверждения покупки подарочной подписки (баланс) */
+export function giftPaymentButtons(
+  tariffId: string,
+  balanceLabel: string,
+  backLabel?: string | null,
+  innerStyles?: InnerButtonStyles,
+  emojiIds?: InnerEmojiIds
+): InlineMarkup {
+  const back = (backLabel && backLabel.trim()) || DEFAULT_BACK_LABEL;
+  const backSty = resolveStyle(toStyle(innerStyles?.back), "danger");
+  const cardId = emojiIds?.card;
+  return {
+    inline_keyboard: [
+      [btn(balanceLabel, `gift_pay_balance:${tariffId}`, undefined, cardId)],
+      [btn(back, "gift:buy", backSty, emojiIds?.back)],
     ],
   };
 }

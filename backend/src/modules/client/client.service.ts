@@ -188,6 +188,10 @@ const SYSTEM_CONFIG_KEYS = [
   "nalog_enabled", "nalog_inn", "nalog_password", "nalog_device_id", "nalog_service_name",
   // Карта нод (Geo Map)
   "geo_map_enabled", "geo_cache_ttl", "maxmind_db_path",
+  // Дополнительные подписки и подарки
+  "gift_subscriptions_enabled", "gift_code_expiry_hours", "max_additional_subscriptions",
+  "gift_code_format_length", "gift_rate_limit_per_minute",
+  "gift_expiry_notification_days", "gift_referral_enabled", "gift_message_max_length",
 ];
 
 /** Продукт «Доп. трафик»: объём в ГБ, цена, валюта */
@@ -693,6 +697,14 @@ export async function getSystemConfig() {
     geoMapEnabled: map.geo_map_enabled === "true" || map.geo_map_enabled === "1",
     geoCacheTtl: parseInt(map.geo_cache_ttl || "60", 10) || 60,
     maxmindDbPath: (map.maxmind_db_path ?? "").trim() || null,
+    giftSubscriptionsEnabled: map.gift_subscriptions_enabled === "true" || map.gift_subscriptions_enabled === "1",
+    giftCodeExpiryHours: parseInt(map.gift_code_expiry_hours || "72", 10) || 72,
+    maxAdditionalSubscriptions: parseInt(map.max_additional_subscriptions || "5", 10) || 5,
+    giftCodeFormatLength: parseInt(map.gift_code_format_length || "12", 10) || 12,
+    giftRateLimitPerMinute: parseInt(map.gift_rate_limit_per_minute || "5", 10) || 5,
+    giftExpiryNotificationDays: parseInt(map.gift_expiry_notification_days || "3", 10) || 3,
+    giftReferralEnabled: map.gift_referral_enabled !== "false" && map.gift_referral_enabled !== "0",
+    giftMessageMaxLength: parseInt(map.gift_message_max_length || "200", 10) || 200,
   };
 }
 
@@ -1288,6 +1300,14 @@ export async function getPublicConfig() {
         showCta: l.landingShowCta !== false,
       };
     })(),
+    giftSubscriptionsEnabled: full.giftSubscriptionsEnabled ?? false,
+    giftCodeExpiryHours: full.giftCodeExpiryHours ?? 72,
+    maxAdditionalSubscriptions: full.maxAdditionalSubscriptions ?? 5,
+    giftCodeFormatLength: full.giftCodeFormatLength ?? 12,
+    giftRateLimitPerMinute: full.giftRateLimitPerMinute ?? 5,
+    giftExpiryNotificationDays: full.giftExpiryNotificationDays ?? 3,
+    giftReferralEnabled: full.giftReferralEnabled ?? true,
+    giftMessageMaxLength: full.giftMessageMaxLength ?? 200,
     proxyEnabled: full.proxyEnabled ?? false,
     proxyUrl: full.proxyUrl ?? null,
     proxyTelegram: full.proxyTelegram ?? false,

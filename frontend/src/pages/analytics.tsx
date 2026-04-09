@@ -75,7 +75,7 @@ function GlassCard({
 }) {
   return (
     <motion.div variants={cardVariants} initial="hidden" animate="visible" custom={animIndex} className={`h-full ${className}`}>
-      <Card className="group relative overflow-hidden !bg-white dark:!bg-[#262730] shadow-sm border !border-slate-200 dark:!border-[#3A3B42] hover:border-slate-300 dark:hover:border-[#4a4b52] transition-all duration-500 font-mono h-full flex flex-col">
+      <Card className="group relative overflow-hidden !bg-white/10 dark:!bg-white/10 !bg-gradient-to-br !from-white/10 !to-white/5 !backdrop-blur-md !border-white/20 dark:!border-white/20 !text-white shadow-sm hover:!border-white/40 transition-all duration-500 font-mono h-full flex flex-col">
          <div className="flex-1 flex flex-col relative z-10 pt-4">
            {children}
          </div>
@@ -473,15 +473,15 @@ export function AnalyticsPage() {
         <SectionHeader icon={Target} title="Источники трафика (UTM)" subtitle="Статистика по рекламным кампаниям" />
         {!data.campaignsStats?.length ? (
           <GlassCard animIndex={24}>
-            <CardContent className="py-8 text-center text-sm font-mono text-muted-foreground uppercase tracking-widest">[ НЕТ_ДАННЫХ_ПО_ИСТОЧНИКАМ ]</CardContent>
+            <CardContent className="py-8 text-center text-sm font-mono !text-white/60 uppercase tracking-widest"><span className="!text-white/30">[</span> НЕТ_ДАННЫХ_ПО_ИСТОЧНИКАМ <span className="!text-white/30">]</span></CardContent>
           </GlassCard>
         ) : (
           <GlassCard animIndex={24}>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm font-mono text-slate-800 dark:text-white/90">
+                <table className="w-full text-sm font-mono !text-white">
                   <thead>
-                    <tr className="border-b border-slate-200 dark:border-[#2a2b2e] bg-slate-50/50 dark:bg-transparent text-xs tracking-widest uppercase text-slate-500 dark:text-slate-400">
+                    <tr className="border-b !border-white/10 !bg-white/5 text-xs tracking-widest uppercase !text-white/70">
                       <th className="text-left px-4 py-3 font-medium">Источник</th>
                       <th className="text-left px-4 py-3 font-medium">Кампания</th>
                       <th className="text-right px-4 py-3 font-medium">Регистрации</th>
@@ -492,8 +492,8 @@ export function AnalyticsPage() {
                   </thead>
                   <tbody>
                     {data.campaignsStats.map((row, i) => (
-                      <tr key={i} className="border-b border-slate-100 dark:border-[#2a2b2e]/50 hover:bg-slate-50 dark:hover:bg-[#2a2b2e]/30 transition-colors">
-                        <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{row.source}</td>
+                      <tr key={i} className="border-b !border-white/5 hover:!bg-white/10 transition-colors">
+                        <td className="px-4 py-3 font-medium !text-white">{row.source}</td>
                         <td className="px-4 py-3 opacity-70">{row.campaign ?? "—"}</td>
                         <td className="px-4 py-3 text-right">{fmt(row.registrations)}</td>
                         <td className="px-4 py-3 text-right">{fmt(row.trials)}</td>
@@ -514,15 +514,15 @@ export function AnalyticsPage() {
         <SectionHeader icon={Award} title="Топ рефералов" subtitle="Самые активные партнеры" />
         {data.topReferrers.length === 0 ? (
           <GlassCard animIndex={25}>
-            <CardContent className="py-8 text-center text-sm font-mono text-muted-foreground uppercase tracking-widest">[ НЕТ_ДАННЫХ_ПО_РЕФЕРАЛАМ ]</CardContent>
+            <CardContent className="py-8 text-center text-sm font-mono !text-white/60 uppercase tracking-widest"><span className="!text-white/30">[</span> НЕТ_ДАННЫХ_ПО_РЕФЕРАЛАМ <span className="!text-white/30">]</span></CardContent>
           </GlassCard>
         ) : (
           <GlassCard animIndex={25}>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm font-mono text-slate-800 dark:text-white/90">
+                <table className="w-full text-sm font-mono !text-white">
                   <thead>
-                    <tr className="border-b border-slate-200 dark:border-[#2a2b2e] bg-slate-50/50 dark:bg-transparent text-xs tracking-widest uppercase text-slate-500 dark:text-slate-400">
+                    <tr className="border-b !border-white/10 !bg-white/5 text-xs tracking-widest uppercase !text-white/70">
                       <th className="text-left px-4 py-3 font-medium">#</th>
                       <th className="text-left px-4 py-3 font-medium">Реферер</th>
                       <th className="text-right px-4 py-3 font-medium">Рефералов</th>
@@ -535,9 +535,9 @@ export function AnalyticsPage() {
                   </thead>
                   <tbody>
                     {data.topReferrers.map((r, i) => (
-                      <tr key={r.id} className="border-b border-slate-100 dark:border-[#2a2b2e]/50 hover:bg-slate-50 dark:hover:bg-[#2a2b2e]/30 transition-colors">
+                      <tr key={r.id} className="border-b !border-white/5 hover:!bg-white/10 transition-colors">
                         <td className="px-4 py-3 opacity-50">{i + 1}</td>
-                        <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{r.name}</td>
+                        <td className="px-4 py-3 font-medium !text-white">{r.name}</td>
                         <td className="px-4 py-3 text-right">{r.referrals}</td>
                         <td className="px-4 py-3 text-right font-medium text-emerald-600 dark:text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]">{fmtDec(r.earnings)}</td>
                         <td className="px-4 py-3 text-right opacity-70">{fmtDec(r.l1)}</td>
@@ -567,18 +567,18 @@ export function AnalyticsPage() {
           {/* Промо-ссылки */}
           <GlassCard animIndex={29}>
             <CardHeader className="pb-2 relative pt-4 px-5">
-              <CardTitle className="text-sm font-mono tracking-widest uppercase text-slate-800 dark:text-slate-300">
-                <span className="text-slate-400 dark:text-[#4a4b4e]">[</span> Промо-ссылки (топ 10) <span className="text-slate-400 dark:text-[#4a4b4e]">]</span>
+              <CardTitle className="text-sm font-mono tracking-widest uppercase !text-white font-bold">
+                <span className="!text-white/30">[</span> Промо-ссылки (топ 10) <span className="!text-white/30">]</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {data.promoGroupStats.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8 font-mono tracking-widest uppercase opacity-50">[ НЕТ_ДАННЫХ ]</p>
+                <p className="text-sm !text-white/60 text-center py-8 font-mono tracking-widest uppercase opacity-50"><span className="!text-white/30">[</span> НЕТ_ДАННЫХ <span className="!text-white/30">]</span></p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm font-mono text-slate-800 dark:text-white/90">
+                  <table className="w-full text-sm font-mono !text-white">
                     <thead>
-                      <tr className="border-b border-slate-200 dark:border-[#2a2b2e] bg-slate-50/50 dark:bg-transparent text-xs tracking-widest uppercase text-slate-500 dark:text-slate-400">
+                      <tr className="border-b !border-white/10 !bg-white/5 text-xs tracking-widest uppercase !text-white/70">
                         <th className="text-left px-4 py-3 font-medium">Название</th>
                         <th className="text-left px-4 py-3 font-medium">Код</th>
                         <th className="text-right px-4 py-3 font-medium">Активаций</th>
@@ -587,8 +587,8 @@ export function AnalyticsPage() {
                     </thead>
                     <tbody>
                       {data.promoGroupStats.map((g) => (
-                        <tr key={g.code} className="border-b border-slate-100 dark:border-[#2a2b2e]/50 hover:bg-slate-50 dark:hover:bg-[#2a2b2e]/30 transition-colors">
-                          <td className="px-4 py-3 text-slate-900 dark:text-white font-medium">{g.name}</td>
+                        <tr key={g.code} className="border-b !border-white/5 hover:!bg-white/10 transition-colors">
+                          <td className="px-4 py-3 !text-white font-medium">{g.name}</td>
                           <td className="px-4 py-3 text-xs text-primary/80">{g.code}</td>
                           <td className="px-4 py-3 text-right font-medium">{g.activations}</td>
                           <td className="px-4 py-3 text-right opacity-50">{g.maxActivations || "∞"}</td>
@@ -604,18 +604,18 @@ export function AnalyticsPage() {
           {/* Промокоды */}
           <GlassCard animIndex={30}>
             <CardHeader className="pb-2 relative pt-4 px-5">
-              <CardTitle className="text-sm font-mono tracking-widest uppercase text-slate-800 dark:text-slate-300">
-                <span className="text-slate-400 dark:text-[#4a4b4e]">[</span> Промокоды (топ 10) <span className="text-slate-400 dark:text-[#4a4b4e]">]</span>
+              <CardTitle className="text-sm font-mono tracking-widest uppercase !text-white font-bold">
+                <span className="!text-white/30">[</span> Промокоды (топ 10) <span className="!text-white/30">]</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {data.promoCodeStats.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8 font-mono tracking-widest uppercase opacity-50">[ НЕТ_ДАННЫХ ]</p>
+                <p className="text-sm !text-white/60 text-center py-8 font-mono tracking-widest uppercase opacity-50"><span className="!text-white/30">[</span> НЕТ_ДАННЫХ <span className="!text-white/30">]</span></p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm font-mono text-slate-800 dark:text-white/90">
+                  <table className="w-full text-sm font-mono !text-white">
                     <thead>
-                      <tr className="border-b border-slate-200 dark:border-[#2a2b2e] bg-slate-50/50 dark:bg-transparent text-xs tracking-widest uppercase text-slate-500 dark:text-slate-400">
+                      <tr className="border-b !border-white/10 !bg-white/5 text-xs tracking-widest uppercase !text-white/70">
                         <th className="text-left px-4 py-3 font-medium">Код</th>
                         <th className="text-left px-4 py-3 font-medium">Тип</th>
                         <th className="text-right px-4 py-3 font-medium">Использований</th>
@@ -624,7 +624,7 @@ export function AnalyticsPage() {
                     </thead>
                     <tbody>
                       {data.promoCodeStats.map((c) => (
-                        <tr key={c.code} className="border-b border-slate-100 dark:border-[#2a2b2e]/50 hover:bg-slate-50 dark:hover:bg-[#2a2b2e]/30 transition-colors">
+                        <tr key={c.code} className="border-b !border-white/5 hover:!bg-white/10 transition-colors">
                           <td className="px-4 py-3 text-xs text-primary/80">{c.code}</td>
                           <td className="px-4 py-3">
                             <span className={`inline-flex items-center border px-2 py-0.5 text-[10px] tracking-widest uppercase font-bold ${
@@ -656,8 +656,8 @@ export function AnalyticsPage() {
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-white/90 dark:bg-slate-950/90 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 backdrop-blur-md px-3 py-2 rounded-lg shadow-xl text-xs font-mono z-50">
-        {label && <p className="font-bold mb-1.5 opacity-80 border-b border-slate-200 dark:border-white/10 pb-1">{label}</p>}
+      <div className="!bg-black/40 !backdrop-blur-md !text-white border !border-white/20 px-3 py-2 rounded-lg shadow-xl text-xs font-mono z-50">
+        {label && <p className="font-bold mb-1.5 opacity-80 border-b !border-white/20 pb-1">{label}</p>}
         {payload.map((entry: any, index: number) => (
           <div key={index} className="flex items-center justify-between gap-4 py-0.5">
             <div className="flex items-center gap-1.5">
@@ -696,14 +696,14 @@ function MetricCard({
   color?: string;
 }) {
   const theme = {
-    borderHover: "hover:border-slate-300 dark:hover:border-[#3a3b3e]",
-    shadowHover: "hover:shadow-md dark:hover:shadow-xl",
-    bracket: "text-slate-400 dark:text-[#4a4b4e]",
-    title: "text-slate-600 dark:text-slate-400",
-    iconBg: "bg-slate-100 dark:bg-[#2a2b2e]",
-    iconBorder: "border-slate-200 dark:border-[#3a3b3e]",
-    iconText: "text-slate-600 dark:text-slate-400",
-    subtitle: "text-slate-500 dark:text-slate-500",
+    borderHover: "hover:!border-white/40",
+    shadowHover: "hover:shadow-md",
+    bracket: "!text-white/30",
+    title: "!text-white",
+    iconBg: "!bg-white/10",
+    iconBorder: "!border-white/20",
+    iconText: "!text-white",
+    subtitle: "!text-white/60",
     valueGlow: "",
   };
 
@@ -714,11 +714,11 @@ function MetricCard({
         <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
           {parts.map((part, i) => (
             <Fragment key={i}>
-              <div className={`px-2 py-0.5 rounded bg-slate-100 dark:bg-[#2a2b2e] border border-slate-200 dark:border-[#3a3b3e] text-lg sm:text-xl font-black tracking-tight text-slate-900 dark:text-white ${theme.valueGlow}`}>
+              <div className={`px-2 py-0.5 rounded !bg-white/10 !border-white/20 text-lg sm:text-xl font-black tracking-tight !text-white border ${theme.valueGlow}`}>
                 {part}
               </div>
               {i < parts.length - 1 && (
-                <span className="text-slate-400 dark:text-slate-600 font-bold text-sm">/</span>
+                <span className="!text-white/50 font-bold text-sm">/</span>
               )}
             </Fragment>
           ))}
@@ -726,7 +726,7 @@ function MetricCard({
       );
     }
     return (
-      <div className={`text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white mb-1.5 ${theme.valueGlow}`}>
+      <div className={`text-2xl sm:text-3xl font-black tracking-tight !text-white mb-1.5 ${theme.valueGlow}`}>
         {value}
       </div>
     );
@@ -734,7 +734,7 @@ function MetricCard({
 
    return (
      <motion.div custom={index} variants={cardVariants} initial="hidden" animate="visible" className="h-full">
-       <Card className={`group relative h-full overflow-hidden !bg-white dark:!bg-[#262730] shadow-sm border !border-slate-200 dark:!border-[#3A3B42] hover:-translate-y-1 transition-all duration-500 font-mono flex flex-col ${theme.borderHover} ${theme.shadowHover}`}>
+       <Card className={`group relative h-full overflow-hidden !bg-white/10 dark:!bg-white/10 !bg-gradient-to-br !from-white/10 !to-white/5 !backdrop-blur-md !border-white/20 dark:!border-white/20 !text-white shadow-sm hover:-translate-y-1 transition-all duration-500 font-mono flex flex-col border ${theme.borderHover} ${theme.shadowHover}`}>
          
          <div className="p-4 sm:p-5 flex flex-col h-full justify-between relative z-10 min-h-[120px]">
           <div className="flex justify-between items-start w-full mb-4">
@@ -769,11 +769,11 @@ function ChartCard({ title, icon: Icon, children, index = 0 }: { title: string; 
   return (
     <GlassCard animIndex={index} className="flex flex-col">
       <CardHeader className="pb-2 relative pt-4 px-5">
-        <CardTitle className="flex items-center gap-2 text-sm font-mono tracking-widest uppercase text-slate-800 dark:text-slate-300">
-          <span className="text-slate-400 dark:text-[#4a4b4e]">[</span>
-          <Icon className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+        <CardTitle className="flex items-center gap-2 text-sm font-mono tracking-widest uppercase !text-white font-bold">
+          <span className="!text-white/30">[</span>
+          <Icon className="h-4 w-4 !text-white" />
           {title}
-          <span className="text-slate-400 dark:text-[#4a4b4e]">]</span>
+          <span className="!text-white/30">]</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-2 pb-5 px-5 relative flex-1">
@@ -784,7 +784,7 @@ function ChartCard({ title, icon: Icon, children, index = 0 }: { title: string; 
 }
 
 function NoData() {
-  return <p className="text-sm text-slate-500 dark:text-primary/60 py-8 text-center h-72 flex items-center justify-center tracking-widest uppercase font-mono">[ НЕТ_ДАННЫХ ]</p>;
+  return <p className="text-sm !text-white/60 py-8 text-center h-72 flex items-center justify-center tracking-widest uppercase font-mono"><span className="!text-white/30">[</span> НЕТ_ДАННЫХ <span className="!text-white/30">]</span></p>;
 }
 
 // ─── Утилиты ───

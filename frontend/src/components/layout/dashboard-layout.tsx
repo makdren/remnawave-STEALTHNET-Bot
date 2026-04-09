@@ -5,7 +5,7 @@ import {
   Shield, LayoutDashboard, Users, CreditCard, Settings, LogOut, KeyRound,
   Megaphone, Tag, BarChart3, FileText, ExternalLink, Sun, Moon, Monitor,
   Palette, Menu, X, Database, Target, UserCog, Send, CalendarClock, Globe, Server, MessageSquare, Trophy,
-  Network, ShieldAlert, Key, Map, Video, Languages,
+  Network, ShieldAlert, Key, Map, Video, Languages, Gift, Sparkles,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAdminLanguageSync } from "@/i18n/use-language-sync";
@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { api, type AdminNotificationCounters } from "@/lib/api";
 
-const PANEL_VERSION = "3.2.8";
+const PANEL_VERSION = "3.2.9";
 const GITHUB_URL = "https://github.com/systemmaster1200-eng/remnawave-STEALTHNET-Bot";
 
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; section: string; category: string };
@@ -48,10 +48,12 @@ function useNavSections(): NavItem[] {
     { to: "/admin/promo-codes", label: t("admin.nav.promo_codes"), icon: Tag, section: "promo-codes", category: "subscription" },
     { to: "/admin/marketing", label: t("admin.nav.marketing"), icon: Target, section: "marketing", category: "subscription" },
     { to: "/admin/referral-network", label: t("admin.nav.referral_network"), icon: Network, section: "clients", category: "subscription" },
+    { to: "/admin/secondary-subscriptions", label: "Доп. подписки", icon: Gift, section: "secondary-subscriptions", category: "subscription" },
     { to: "/admin/video-instructions", label: t("admin.nav.video_instructions"), icon: Video, section: "video-instructions", category: "tools" },
     { to: "/admin/broadcast", label: t("admin.nav.broadcast"), icon: Send, section: "broadcast", category: "tools" },
     { to: "/admin/auto-broadcast", label: t("admin.nav.auto_broadcast"), icon: CalendarClock, section: "auto-broadcast", category: "tools" },
     { to: "/admin/contests", label: t("admin.nav.contests"), icon: Trophy, section: "contests", category: "tools" },
+    { to: "/admin/tour-constructor", label: "Конструктор тура", icon: Sparkles, section: "tour-constructor", category: "tools" },
     { to: "/admin/settings", label: t("admin.nav.settings"), icon: Settings, section: "settings", category: "settings" },
     { to: "/admin/languages", label: t("admin.nav.languages"), icon: Languages, section: "settings", category: "settings" },
     { to: "/admin/admins", label: t("admin.nav.managers"), icon: UserCog, section: "admins", category: "settings" },

@@ -33,9 +33,11 @@ import { TrafficAbusePage } from "@/pages/traffic-abuse";
 import { ApiKeysPage } from "@/pages/api-keys";
 import { ApiDocsPage } from "@/pages/api-docs";
 import { GeoMapPage } from "@/pages/geo-map";
+import { AdminSecondarySubscriptionsPage } from "@/pages/admin-secondary-subscriptions";
 import { ProxyPage } from "@/pages/proxy";
 import { SingboxPage } from "@/pages/singbox";
 import LanguagesPage from "@/pages/languages";
+import { TourConstructorPage } from "@/pages/tour-constructor";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { CabinetLayout } from "@/pages/cabinet/cabinet-layout";
 import { ClientLoginPage } from "@/pages/cabinet/client-login";
@@ -54,6 +56,8 @@ import { ClientProxyPage } from "@/pages/cabinet/client-proxy";
 import { ClientSingboxPage } from "@/pages/cabinet/client-singbox";
 import { ClientTicketsPage } from "@/pages/cabinet/client-tickets";
 import { ClientCustomBuildPage } from "@/pages/cabinet/client-custom-build";
+import { ClientGiftsPage } from "@/pages/cabinet/client-gifts";
+import { GiftActivatePage } from "@/pages/gift-activate";
 import { LandingPage } from "@/pages/landing";
 import type { PublicConfig } from "@/lib/api";
 
@@ -92,7 +96,9 @@ function RequireClientAuth({ children }: { children: React.ReactNode }) {
   if (!state.token) {
     return <Navigate to="/cabinet/login" replace />;
   }
-  if (state.isNewTelegramUser && location.pathname !== "/cabinet/onboarding") {
+  // Проверяем серверный флаг onboardingCompleted ИЛИ эфемерный isNewTelegramUser
+  const needsOnboarding = state.client?.onboardingCompleted === false || state.isNewTelegramUser;
+  if (needsOnboarding && location.pathname !== "/cabinet/onboarding") {
     return <Navigate to="/cabinet/onboarding" replace />;
   }
   return <>{children}</>;
@@ -100,7 +106,8 @@ function RequireClientAuth({ children }: { children: React.ReactNode }) {
 
 function RequireOnboarding({ children }: { children: React.ReactNode }) {
   const { state } = useClientAuth();
-  if (!state.isNewTelegramUser) {
+  const needsOnboarding = state.client?.onboardingCompleted === false || state.isNewTelegramUser;
+  if (!needsOnboarding) {
     return <Navigate to="/cabinet/dashboard" replace />;
   }
   return <>{children}</>;
@@ -212,6 +219,8 @@ function AppRoutes() {
         <Route path="languages" element={<ForceChangePassword><LanguagesPage /></ForceChangePassword>} />
         <Route path="api-docs" element={<ForceChangePassword><ApiDocsPage /></ForceChangePassword>} />
         <Route path="geo-map" element={<ForceChangePassword><GeoMapPage /></ForceChangePassword>} />
+        <Route path="secondary-subscriptions" element={<ForceChangePassword><AdminSecondarySubscriptionsPage /></ForceChangePassword>} />
+        <Route path="tour-constructor" element={<ForceChangePassword><TourConstructorPage /></ForceChangePassword>} />
       </Route>
       {/* Онбординг — вне CabinetLayout (без навбара) */}
       <Route
@@ -223,6 +232,16 @@ function AppRoutes() {
                 <ClientOnboardingPage />
               </RequireOnboarding>
             </RequireClientAuth>
+          </ClientAuthProvider>
+        }
+      />
+
+      {/* Публичная страница подарка — без auth */}
+      <Route
+        path="/gift/:code"
+        element={
+          <ClientAuthProvider>
+            <GiftActivatePage />
           </ClientAuthProvider>
         }
       />
@@ -325,6 +344,14 @@ function AppRoutes() {
           element={
             <RequireClientAuth>
               <ClientSingboxPage />
+            </RequireClientAuth>
+          }
+        />
+        <Route
+          path="gifts"
+          element={
+            <RequireClientAuth>
+              <ClientGiftsPage />
             </RequireClientAuth>
           }
         />

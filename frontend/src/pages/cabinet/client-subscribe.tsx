@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Wifi,
@@ -195,6 +195,7 @@ export function ClientSubscribePage() {
   const token = state.token ?? null;
   const client = state.client;
   const locale = (client?.preferredLang ?? "ru").toLowerCase().slice(0, 2);
+  const [searchParams] = useSearchParams();
 
   const [subscription, setSubscription] = useState<unknown>(null);
   const [pageConfig, setPageConfig] = useState<SubscriptionPageConfig | null>(null);
@@ -218,8 +219,12 @@ export function ClientSubscribePage() {
   useEffect(() => {
     if (!token) return;
     setLoading(true);
+    const uuid = searchParams.get("uuid");
+    const subscriptionPromise = uuid
+      ? api.clientSubscriptionByUuid(token, uuid)
+      : api.clientSubscription(token);
     Promise.all([
-      api.clientSubscription(token),
+      subscriptionPromise,
       api.getPublicSubscriptionPageConfig(),
       api.getPublicConfig().then((c) => c?.publicAppUrl ?? null).catch(() => null),
     ])
@@ -230,7 +235,7 @@ export function ClientSubscribePage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [token, searchParams]);
 
   const copyLink = () => {
     if (subscriptionUrl) {

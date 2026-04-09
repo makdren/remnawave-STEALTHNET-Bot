@@ -200,7 +200,7 @@
     },
     "clients": {
       "title": "Клиенты",
-      "count_one": "{total} пользователь",
+      "count_one": "{{total}} пользователь",
       "count_few": "пользователя",
       "count_many": "пользователей",
       "loading": "Загрузка клиентов…",
@@ -284,7 +284,7 @@
       "selected_count": "Выбрано: {count}",
       "remove": "Убрать",
       "add": "+ Добавить",
-      "hwid_devices": "HWID устройства ({count})",
+      "hwid_devices": "HWID устройства",
       "hwid_limit": "/ лимит:",
       "loading_short": "Загрузка…",
       "no_registered_devices": "Нет зарегистрированных устройств",

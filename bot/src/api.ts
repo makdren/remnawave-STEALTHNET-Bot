@@ -144,6 +144,7 @@ export async function getPublicConfig(): Promise<{
   proxyUrl?: string | null;
   proxyTelegram?: boolean;
   proxyPayments?: boolean;
+  giftSubscriptionsEnabled?: boolean;
   defaultLanguage?: string;
   translations?: Record<string, Record<string, unknown>>;
 } | null> {
@@ -195,6 +196,14 @@ export async function getMe(token: string): Promise<{
 /** Подписка Remna (для ссылки VPN, статус, трафик) + отображаемое имя тарифа с сайта */
 export async function getSubscription(token: string): Promise<{ subscription: unknown; tariffDisplayName?: string | null; message?: string }> {
   return fetchJson("/api/client/subscription", { token });
+}
+
+/** Подписка по конкретному UUID (для secondary/gift подписок) */
+export async function getSubscriptionByUuid(
+  token: string,
+  uuid: string
+): Promise<{ subscription: unknown; tariffDisplayName?: string | null; message?: string }> {
+  return fetchJson("/api/client/subscription/by-uuid/" + encodeURIComponent(uuid), { token });
 }
 
 /** Список устройств (HWID) пользователя в Remna */
@@ -259,6 +268,7 @@ export async function createPlategaPayment(
     tariffId?: string;
     proxyTariffId?: string;
     singboxTariffId?: string;
+    promoCode?: string;
     extraOption?: { kind: "traffic" | "devices" | "servers"; productId: string };
   }
 ): Promise<{ paymentUrl: string; orderId: string; paymentId: string }> {
@@ -550,13 +560,15 @@ export async function postBotAdminBroadcast(
   telegramId: number,
   message: string,
   channel: "telegram" | "email" | "both",
-  photoFileId?: string
+  photoFileId?: string,
+  buttonText?: string,
+  buttonUrl?: string
 ): Promise<{ ok: boolean; sentTelegram: number; sentEmail: number; failedTelegram: number; failedEmail: number; errors: string[] }> {
   const botToken = process.env.BOT_TOKEN || "";
   const res = await fetch(`${API_URL}${BOT_ADMIN_BASE}/broadcast`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Telegram-Bot-Token": botToken },
-    body: JSON.stringify({ telegramId, message, channel, photoFileId: photoFileId ?? undefined }),
+    body: JSON.stringify({ telegramId, message, channel, photoFileId: photoFileId ?? undefined, buttonText: buttonText ?? undefined, buttonUrl: buttonUrl ?? undefined }),
   });
   const data = (await res.json().catch(() => ({}))) as {
     ok: boolean;
@@ -693,4 +705,76 @@ export async function postBotAdminClientRemnaSquadRemove(telegramId: number, cli
     throw new Error(msg);
   }
   return data as { ok: boolean; activeInternalSquads: string[] };
+}
+
+// ——— Gift / Secondary Subscriptions API ———
+
+/** Купить дополнительную подписку (оплата балансом) */
+export async function buyGiftSubscription(
+  token: string,
+  body: { tariffId: string }
+): Promise<{ message: string; secondarySubscriptionId: string; subscriptionIndex: number }> {
+  return fetchJson("/api/client/gift/buy", { method: "POST", body, token });
+}
+
+/** Список дополнительных подписок клиента */
+export async function getGiftSubscriptions(
+  token: string
+): Promise<{ subscriptions: { id: string; remnawaveUuid: string | null; subscriptionIndex: number | null; giftStatus: string | null; ownerId: string }[] }> {
+  return fetchJson("/api/client/gift/subscriptions", { token });
+}
+
+/** Создать подарочный код */
+export async function createGiftCode(
+  token: string,
+  body: { secondarySubscriptionId: string; giftMessage?: string }
+): Promise<{ message: string; code: string; expiresAt: string; tariffName: string | null }> {
+  return fetchJson("/api/client/gift/create-code", { method: "POST", body, token });
+}
+
+/** Активировать подарочный код */
+export async function redeemGiftCode(
+  token: string,
+  code: string
+): Promise<{ message: string; secondarySubscriptionId: string; subscriptionIndex: number; giftMessage: string | null; creatorTelegramId: string | null; tariffName: string | null }> {
+  return fetchJson("/api/client/gift/redeem", { method: "POST", body: { code }, token });
+}
+
+/** Отменить подарочный код */
+export async function cancelGiftCode(
+  token: string,
+  codeOrId: string
+): Promise<{ message: string }> {
+  return fetchJson("/api/client/gift/cancel/" + encodeURIComponent(codeOrId), { method: "DELETE", token });
+}
+
+/** Список подарочных кодов клиента */
+export async function getGiftCodes(
+  token: string
+): Promise<{ codes: { id: string; code: string; status: string; expiresAt: string; createdAt: string; redeemedAt: string | null; secondarySubscriptionId: string; giftMessage: string | null }[] }> {
+  return fetchJson("/api/client/gift/codes", { token });
+}
+
+/** Активировать подписку на себя (снять GIFT_RESERVED) */
+export async function activateGiftForSelf(
+  token: string,
+  subscriptionId: string
+): Promise<{ message: string; subscriptionId: string }> {
+  return fetchJson("/api/client/gift/activate-self", { method: "POST", body: { subscriptionId }, token });
+}
+
+/** Удалить дополнительную подписку */
+export async function deleteGiftSubscription(
+  token: string,
+  subscriptionId: string
+): Promise<{ message: string }> {
+  return fetchJson("/api/client/gift/subscription/" + encodeURIComponent(subscriptionId), { method: "DELETE", token });
+}
+
+/** URL подписки для вторичного аккаунта */
+export async function getGiftSubscriptionUrl(
+  token: string,
+  subscriptionId: string
+): Promise<{ uuid: string }> {
+  return fetchJson("/api/client/gift/subscription-url/" + encodeURIComponent(subscriptionId), { token });
 }
