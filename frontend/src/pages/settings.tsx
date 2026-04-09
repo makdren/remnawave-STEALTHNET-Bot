@@ -4448,7 +4448,14 @@ export function SettingsPage() {
               )}
 
               {message && <p className="text-sm text-muted-foreground">{message}</p>}
-              <Button type="submit" disabled={saving}>
+              <Button
+                type="button"
+                disabled={saving}
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleSubmit(e as unknown as React.FormEvent);
+                }}
+              >
                 {saving ? t("admin.settings.saving") : t("admin.settings.save")}
               </Button>
             </CardContent>
