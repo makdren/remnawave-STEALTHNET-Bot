@@ -316,7 +316,7 @@ export function ClientDashboardPage() {
         )}
 
         {/* 1. Статус, срок, тариф, трафик, устройства — с иконками */}
-        <section className="rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl p-5 shadow-sm overflow-hidden transition-all duration-300">
+        <section data-tour="subscription" className="rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl p-5 shadow-sm overflow-hidden transition-all duration-300">
           <h2 className="flex items-center gap-2 text-[13px] font-semibold uppercase tracking-wider text-muted-foreground/80 mb-5">
             <div className="p-1.5 bg-primary/20 rounded-lg">
               <Zap className="h-4 w-4 shrink-0 text-primary" />
@@ -573,7 +573,7 @@ export function ClientDashboardPage() {
         </section>
 
         {/* 3. Баланс */}
-        <section className="rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl p-5 shadow-sm overflow-hidden transition-all duration-300 flex flex-col gap-4">
+        <section data-tour="balance" className="rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl p-5 shadow-sm overflow-hidden transition-all duration-300 flex flex-col gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-primary/20 rounded-xl">
               <Wallet className="h-5 w-5 text-primary" />

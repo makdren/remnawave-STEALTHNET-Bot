@@ -429,6 +429,13 @@ function MobileCabinetShell() {
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const visibleItems = navItems.slice(0, MAX_VISIBLE_NAV);
   const hasMore = navItems.length > MAX_VISIBLE_NAV;
+
+  // Tour integration: open overflow menu programmatically
+  useEffect(() => {
+    const handler = () => setMoreMenuOpen(true);
+    window.addEventListener("tour:open-more-menu", handler);
+    return () => window.removeEventListener("tour:open-more-menu", handler);
+  }, []);
   const isMiniapp = useIsMiniapp();
 
   useEffect(() => { setLogoError(false); }, [config?.logo]);
@@ -522,6 +529,7 @@ function MobileCabinetShell() {
                 <Link
                   key={to}
                   to={to}
+                  data-tour={ROUTE_TOUR_MAP[to]}
                   onClick={() => setMoreMenuOpen(false)}
                   className={cn(
                     "flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-colors",
@@ -566,6 +574,13 @@ function CabinetShell() {
   const moreRef = useRef<HTMLDivElement>(null);
   const visibleNav = navItems.slice(0, MAX_VISIBLE_DESKTOP);
   const moreNav = navItems.slice(MAX_VISIBLE_DESKTOP);
+
+  // Tour integration: open overflow menu programmatically
+  useEffect(() => {
+    const handler = () => setMoreOpen(true);
+    window.addEventListener("tour:open-more-menu", handler);
+    return () => window.removeEventListener("tour:open-more-menu", handler);
+  }, []);
 
   useEffect(() => { setLogoError(false); }, [config?.logo]);
   useEffect(() => {
@@ -648,6 +663,7 @@ function CabinetShell() {
                         <Link
                           key={to}
                           to={to}
+                          data-tour={ROUTE_TOUR_MAP[to]}
                           onClick={() => setMoreOpen(false)}
                           className={cn(
                             "flex items-center gap-2 px-4 py-2.5 text-sm transition-colors",

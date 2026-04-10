@@ -52,8 +52,49 @@ export function ClientGiftsPage() {
   const client = state.client;
   const currency = (client?.preferredCurrency ?? "usd").toLowerCase();
 
+  // Tour mock subscriptions
+  type Subscription = { id: string; ownerId: string; remnawaveUuid: string | null; subscriptionIndex: number; tariffId: string | null; giftStatus: string | null; giftedToClientId: string | null; createdAt: string; updatedAt: string };
+  const [tourMockSubs, setTourMockSubs] = useState<Subscription[]>([]);
+
+  useEffect(() => {
+    const showMocks = () => {
+      setTourMockSubs([
+        {
+          id: "tour-mock-self",
+          ownerId: "tour",
+          remnawaveUuid: null,
+          subscriptionIndex: 1,
+          tariffId: null,
+          giftStatus: "ACTIVATED_SELF",
+          giftedToClientId: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        {
+          id: "tour-mock-gifted",
+          ownerId: "tour",
+          remnawaveUuid: null,
+          subscriptionIndex: 2,
+          tariffId: null,
+          giftStatus: "GIFTED",
+          giftedToClientId: null,
+          createdAt: new Date(Date.now() - 86400000).toISOString(),
+          updatedAt: new Date(Date.now() - 86400000).toISOString(),
+        },
+      ]);
+    };
+    const hideMocks = () => setTourMockSubs([]);
+
+    window.addEventListener("tour:show-gift-mocks", showMocks);
+    window.addEventListener("tour:hide-gift-mocks", hideMocks);
+    return () => {
+      window.removeEventListener("tour:show-gift-mocks", showMocks);
+      window.removeEventListener("tour:hide-gift-mocks", hideMocks);
+    };
+  }, []);
+
   // Data states
-  const [subscriptions, setSubscriptions] = useState<Array<{ id: string; ownerId: string; remnawaveUuid: string | null; subscriptionIndex: number; tariffId: string | null; giftStatus: string | null; giftedToClientId: string | null; createdAt: string; updatedAt: string }>>([]);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [codes, setCodes] = useState<Array<{ id: string; code: string; status: string; expiresAt: string; createdAt: string; redeemedAt: string | null; giftMessage: string | null; secondarySubscriptionId: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -291,7 +332,7 @@ export function ClientGiftsPage() {
             </p>
           </div>
           <div className="flex flex-col items-start sm:items-end gap-3 shrink-0 sm:min-w-[240px]">
-            <Button onClick={handleOpenBuy} disabled={!canBuyMore} className="w-full sm:w-auto h-14 px-8 rounded-2xl shadow-lg hover:shadow-primary/25 transition-all text-base font-bold gap-2">
+            <Button data-tour="gifts-buy-button" onClick={handleOpenBuy} disabled={!canBuyMore} className="w-full sm:w-auto h-14 px-8 rounded-2xl shadow-lg hover:shadow-primary/25 transition-all text-base font-bold gap-2">
               <Plus className="w-5 h-5" />
               Купить подписку
             </Button>
@@ -314,6 +355,7 @@ export function ClientGiftsPage() {
         <div className="lg:col-span-5 flex flex-col gap-6">
           {/* Card 1: Redeem Code */}
           <motion.div 
+            data-tour="gifts-redeem"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
@@ -402,6 +444,7 @@ export function ClientGiftsPage() {
 
         {/* Card 2: History Timeline */}
         <motion.div 
+          data-tour="gifts-history"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
@@ -527,12 +570,15 @@ export function ClientGiftsPage() {
       </div>
 
       {/* SECTION 3: SUBSCRIPTIONS */}
-      <div className="space-y-6">
+      {(() => {
+        const displaySubs = tourMockSubs.length > 0 ? tourMockSubs : subscriptions;
+        return (
+      <div data-tour="gifts-subscriptions" className="space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold tracking-tight">Мои подписки</h2>
         </div>
         
-        {subscriptions.length === 0 ? (
+        {displaySubs.length === 0 ? (
           <div className="p-8 sm:p-12 rounded-3xl border border-dashed border-border/50 flex flex-col items-center justify-center text-center gap-4 bg-muted/10">
             <Package className="w-10 h-10 text-muted-foreground/40" />
             <p className="text-muted-foreground">У вас пока нет дополнительных подписок.</p>
@@ -546,7 +592,7 @@ export function ClientGiftsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <AnimatePresence mode="popLayout">
-              {subscriptions.map((sub, i) => {
+              {displaySubs.map((sub, i) => {
                 const isGifted = sub.giftStatus === "GIFTED";
                 const isActivatedSelf = sub.giftStatus === "ACTIVATED_SELF";
                 const isReserved = sub.giftStatus === "GIFT_RESERVED";
@@ -634,6 +680,8 @@ export function ClientGiftsPage() {
           </div>
         )}
       </div>
+        );
+      })()}
 
       {/* SECTION 4: GIFT CODES */}
       {codes.length > 0 && (

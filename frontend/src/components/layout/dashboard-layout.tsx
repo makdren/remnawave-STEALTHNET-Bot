@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { api, type AdminNotificationCounters } from "@/lib/api";
 
-const PANEL_VERSION = "3.2.9";
+const PANEL_VERSION = "3.2.10";
 const GITHUB_URL = "https://github.com/systemmaster1200-eng/remnawave-STEALTHNET-Bot";
 
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; section: string; category: string };
