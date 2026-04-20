@@ -1065,6 +1065,20 @@ export const api = {
     });
   },
 
+  async clientRequestEmailCode(email: string): Promise<{ ok: boolean; message: string }> {
+    return request("/client/auth/login/email-code/request", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  async clientLoginByEmailCode(email: string, code: string): Promise<ClientAuthResponse | ClientAuthRequires2FA> {
+    return request("/client/auth/login/email-code", {
+      method: "POST",
+      body: JSON.stringify({ email, code }),
+    });
+  },
+
   async clientRegister(data: ClientRegisterPayload): Promise<ClientAuthResponse | ClientAuthRequires2FA | { message: string; requiresVerification: true }> {
     return request("/client/auth/register", {
       method: "POST",

@@ -124,6 +124,57 @@ export async function sendLinkEmailVerification(
   }
 }
 
+/**
+ * Письмо с одноразовым кодом входа в кабинет
+ */
+export async function sendLoginCodeEmail(
+  config: SmtpConfig,
+  to: string,
+  code: string,
+  serviceName: string
+): Promise<{ ok: boolean; error?: string }> {
+  if (!isSmtpConfigured(config)) {
+    return { ok: false, error: "SMTP not configured" };
+  }
+
+  const auth = config.user && config.password ? { user: config.user, pass: config.password } : undefined;
+  const transporter = nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    auth,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
+  });
+
+  const from = config.fromName
+    ? `"${config.fromName}" <${config.fromEmail}>`
+    : config.fromEmail!;
+
+  const subject = `Код входа — ${serviceName}`;
+  const html = `
+    <p>Здравствуйте!</p>
+    <p>Ваш одноразовый код для входа в ${serviceName}:</p>
+    <p style="font-size:24px; font-weight:700; letter-spacing:4px; margin:16px 0;">${code}</p>
+    <p>Код действует 10 минут.</p>
+    <p>Если вы не запрашивали вход, проигнорируйте это письмо.</p>
+  `;
+
+  try {
+    await transporter.sendMail({
+      from,
+      to,
+      subject,
+      html,
+    });
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message };
+  }
+}
+
 export type EmailAttachment = { filename: string; content: Buffer };
 
 /**
