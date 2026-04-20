@@ -1491,7 +1491,14 @@
       "subtitle": "Вход в личный кабинет",
       "email_required": "Email обязателен",
       "email_invalid": "Введите корректный email",
+      "mode_password": "По паролю",
+      "mode_email_code": "По коду из email",
       "password_label": "Пароль",
+      "code_label": "Код из письма",
+      "code_placeholder": "Введите 6 цифр",
+      "code_send": "Отправить код",
+      "code_send_loading": "Отправка кода…",
+      "code_sent": "Код отправлен на email",
       "submit_loading": "Вход…",
       "submit": "Войти",
       "or": "или",
@@ -1506,7 +1513,8 @@
       "error_google": "Ошибка Google",
       "error_apple": "Ошибка Apple",
       "error_telegram": "Ошибка авторизации через Telegram",
-      "error_timeout": "Время ожидания истекло. Попробуйте снова."
+      "error_timeout": "Время ожидания истекло. Попробуйте снова.",
+      "error_send_code": "Ошибка отправки кода"
     },
     "register": {
       "title": "Регистрация",

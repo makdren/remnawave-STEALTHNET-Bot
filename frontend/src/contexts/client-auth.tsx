@@ -20,6 +20,8 @@ type ClientAuthState = {
 type ClientAuthValue = {
   state: ClientAuthState;
   login: (email: string, password: string) => Promise<void>;
+  requestEmailCode: (email: string) => Promise<string>;
+  loginByEmailCode: (email: string, code: string) => Promise<void>;
   register: (data: { email: string; password: string; preferredLang?: string; preferredCurrency?: string; referralCode?: string; utm_source?: string; utm_medium?: string; utm_campaign?: string; utm_content?: string; utm_term?: string }) => Promise<{ requiresVerification: true } | void>;
   registerByTelegram: (data: { telegramId: string; telegramUsername?: string; preferredLang?: string; preferredCurrency?: string; referralCode?: string; utm_source?: string; utm_medium?: string; utm_campaign?: string; utm_content?: string; utm_term?: string }) => Promise<void>;
   loginByGoogle: (idToken: string) => Promise<void>;
@@ -110,6 +112,23 @@ export function ClientAuthProvider({ children }: { children: React.ReactNode }) 
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await api.clientLogin(email, password);
+    if ("requires2FA" in res && res.requires2FA) {
+      setState((prev) => ({ ...prev, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: res.tempToken }));
+      return;
+    }
+    if (isAuthResponse(res)) {
+      setState({ token: res.token, client: res.client, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: null, isNewTelegramUser: false });
+      saveState(res.token, res.client);
+    }
+  }, []);
+
+  const requestEmailCode = useCallback(async (email: string) => {
+    const res = await api.clientRequestEmailCode(email);
+    return res.message;
+  }, []);
+
+  const loginByEmailCode = useCallback(async (email: string, code: string) => {
+    const res = await api.clientLoginByEmailCode(email, code);
     if ("requires2FA" in res && res.requires2FA) {
       setState((prev) => ({ ...prev, miniappAuthLoading: false, miniappAuthAttempted: true, pending2FAToken: res.tempToken }));
       return;
@@ -259,6 +278,8 @@ export function ClientAuthProvider({ children }: { children: React.ReactNode }) 
   const value: ClientAuthValue = {
     state,
     login,
+    requestEmailCode,
+    loginByEmailCode,
     register,
     registerByTelegram,
     loginByGoogle,

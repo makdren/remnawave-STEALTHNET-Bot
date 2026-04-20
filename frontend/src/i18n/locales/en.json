@@ -1491,7 +1491,14 @@
       "subtitle": "Sign in to your account",
       "email_required": "Email is required",
       "email_invalid": "Enter a valid email",
+      "mode_password": "With password",
+      "mode_email_code": "With email code",
       "password_label": "Password",
+      "code_label": "Code from email",
+      "code_placeholder": "Enter 6 digits",
+      "code_send": "Send code",
+      "code_send_loading": "Sending code…",
+      "code_sent": "Code was sent to your email",
       "submit_loading": "Signing in…",
       "submit": "Sign In",
       "or": "or",
@@ -1506,7 +1513,8 @@
       "error_google": "Google error",
       "error_apple": "Apple error",
       "error_telegram": "Telegram authorization error",
-      "error_timeout": "Timeout expired. Please try again."
+      "error_timeout": "Timeout expired. Please try again.",
+      "error_send_code": "Failed to send code"
     },
     "register": {
       "title": "Sign Up",

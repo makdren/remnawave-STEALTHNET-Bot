@@ -1,4 +1,4 @@
-import { randomBytes, createHmac } from "crypto";
+import { randomBytes, createHmac, timingSafeEqual } from "crypto";
 import { randomUUID } from "crypto";
 import { generateSecret, generateURI, verify } from "otplib";
 import { env } from "../../config/index.js";
@@ -25,7 +25,7 @@ import {
 } from "../notification/telegram-notify.service.js";
 import { requireClientAuth } from "./client.middleware.js";
 import { remnaCreateUser, remnaUpdateUser, isRemnaConfigured, remnaGetUser, remnaGetUserByUsername, remnaGetUserByEmail, remnaGetUserByTelegramId, extractRemnaUuid, remnaUsernameFromClient, remnaGetUserHwidDevices, remnaDeleteUserHwidDevice } from "../remna/remna.client.js";
-import { sendVerificationEmail, sendLinkEmailVerification, isSmtpConfigured } from "../mail/mail.service.js";
+import { sendVerificationEmail, sendLinkEmailVerification, sendLoginCodeEmail, isSmtpConfigured } from "../mail/mail.service.js";
 import { createPlategaTransaction, isPlategaConfigured } from "../platega/platega.service.js";
 import { activateTariffForClient, activateTariffByPaymentId } from "../tariff/tariff-activation.service.js";
 import { createProxySlotsByPaymentId } from "../proxy/proxy-slots-activation.service.js";
@@ -351,6 +351,102 @@ clientAuthRouter.post("/verify-email", async (req, res) => {
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+});
+
+const emailCodeRequestSchema = z.object({
+  email: z.string().email(),
+});
+
+const emailCodeLoginSchema = z.object({
+  email: z.string().email(),
+  code: z.string().length(6).regex(/^\d+$/),
+});
+
+function hashEmailLoginCode(email: string, code: string): string {
+  return createHmac("sha256", env.JWT_SECRET)
+    .update(`${email.trim().toLowerCase()}:${code.trim()}`)
+    .digest("hex");
+}
+
+function generateEmailLoginCode(): string {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+clientAuthRouter.post("/login/email-code/request", async (req, res) => {
+  const body = emailCodeRequestSchema.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ message: "Invalid input" });
+
+  const email = body.data.email.trim().toLowerCase();
+  const client = await prisma.client.findUnique({
+    where: { email },
+    select: { id: true, isBlocked: true, email: true },
+  });
+  if (!client || client.isBlocked || !client.email) {
+    return res.status(404).json({ message: "Аккаунт с таким email не найден" });
+  }
+
+  const config = await getSystemConfig();
+  const smtpConfig = {
+    host: config.smtpHost || "",
+    port: config.smtpPort,
+    secure: config.smtpSecure,
+    user: config.smtpUser,
+    password: config.smtpPassword,
+    fromEmail: config.smtpFromEmail,
+    fromName: config.smtpFromName,
+  };
+  if (!isSmtpConfigured(smtpConfig)) {
+    return res.status(503).json({ message: "Отправка писем не настроена. Обратитесь к администратору." });
+  }
+
+  const code = generateEmailLoginCode();
+  const codeHash = hashEmailLoginCode(email, code);
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+  await prisma.pendingEmailLoginCode.deleteMany({ where: { clientId: client.id } });
+  await prisma.pendingEmailLoginCode.create({
+    data: { clientId: client.id, email, codeHash, expiresAt },
+  });
+
+  const sendResult = await sendLoginCodeEmail(smtpConfig, email, code, config.serviceName);
+  if (!sendResult.ok) {
+    await prisma.pendingEmailLoginCode.deleteMany({ where: { clientId: client.id } }).catch(() => {});
+    return res.status(500).json({ message: "Не удалось отправить код. Попробуйте позже." });
+  }
+
+  return res.json({ ok: true, message: "Код отправлен на email" });
+});
+
+clientAuthRouter.post("/login/email-code", async (req, res) => {
+  const body = emailCodeLoginSchema.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ message: "Invalid input" });
+
+  const email = body.data.email.trim().toLowerCase();
+  const pending = await prisma.pendingEmailLoginCode.findFirst({
+    where: { email },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!pending || pending.expiresAt < new Date()) {
+    if (pending) await prisma.pendingEmailLoginCode.deleteMany({ where: { email } }).catch(() => {});
+    return res.status(401).json({ message: "Код недействителен или истёк. Запросите новый." });
+  }
+
+  const receivedHash = Buffer.from(hashEmailLoginCode(email, body.data.code), "utf8");
+  const expectedHash = Buffer.from(pending.codeHash, "utf8");
+  if (receivedHash.length !== expectedHash.length || !timingSafeEqual(receivedHash, expectedHash)) {
+    return res.status(401).json({ message: "Неверный код" });
+  }
+
+  const full = await prisma.client.findUnique({
+    where: { id: pending.clientId },
+    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true, onboardingCompleted: true },
+  });
+  if (!full || full.isBlocked) return res.status(401).json({ message: "Аккаунт заблокирован или не найден" });
+
+  await prisma.pendingEmailLoginCode.deleteMany({ where: { email } }).catch(() => {});
+
+  const auth = buildAuthResponse(full);
+  return res.json(auth);
 });
 
 clientAuthRouter.post("/login", async (req, res) => {
@@ -3951,6 +4047,5 @@ publicConfigRouter.get("/singbox-tariffs", async (_req, res) => {
     return res.status(500).json({ message: "Ошибка загрузки тарифов Sing-box" });
   }
 });
-
 
 

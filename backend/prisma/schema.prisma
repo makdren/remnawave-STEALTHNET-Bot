@@ -115,6 +115,7 @@ model Client {
   ownedSubscriptions    SecondarySubscription[]   @relation("OwnerSubscriptions")
   receivedSubscriptions SecondarySubscription[]   @relation("ReceivedSubscriptions")
   giftHistory           GiftHistory[]
+  pendingEmailLoginCodes PendingEmailLoginCode[]
 
   @@index([telegramId])
   @@index([email])
@@ -201,6 +202,23 @@ model PendingEmailRegistration {
   @@index([verificationToken])
   @@index([email])
   @@map("pending_email_registrations")
+}
+
+// Одноразовый код входа в кабинет по email
+model PendingEmailLoginCode {
+  id        String   @id @default(cuid())
+  clientId  String   @map("client_id")
+  email     String
+  codeHash  String   @map("code_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([email])
+  @@index([expiresAt])
+  @@map("pending_email_login_codes")
 }
 
 model Payment {
