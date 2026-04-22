@@ -1065,6 +1065,34 @@ export const api = {
     });
   },
 
+  async clientRequestEmailCode(email: string): Promise<{ ok: boolean; message: string }> {
+    return request("/client/auth/login/email-code/request", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  async clientLoginByEmailCode(email: string, code: string): Promise<ClientAuthResponse | ClientAuthRequires2FA> {
+    return request("/client/auth/login/email-code", {
+      method: "POST",
+      body: JSON.stringify({ email, code }),
+    });
+  },
+
+  async clientPasswordResetRequest(email: string): Promise<{ message: string }> {
+    return request("/client/auth/password-reset/request", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  async clientPasswordResetConfirm(token: string, password: string): Promise<ClientAuthResponse | ClientAuthRequires2FA> {
+    return request("/client/auth/password-reset/confirm", {
+      method: "POST",
+      body: JSON.stringify({ token, password }),
+    });
+  },
+
   async clientRegister(data: ClientRegisterPayload): Promise<ClientAuthResponse | ClientAuthRequires2FA | { message: string; requiresVerification: true }> {
     return request("/client/auth/register", {
       method: "POST",
@@ -1700,6 +1728,7 @@ export type UpdateSettingsPayload = {
   smtpPassword?: string | null;
   smtpFromEmail?: string | null;
   smtpFromName?: string | null;
+  registrationEmailTemplate?: string | null;
   publicAppUrl?: string | null;
   telegramBotToken?: string | null;
   telegramBotUsername?: string | null;
@@ -1763,6 +1792,7 @@ export type UpdateSettingsPayload = {
   autoBroadcastCron?: string | null;
   adminFrontNotificationsEnabled?: boolean;
   skipEmailVerification?: boolean;
+  emailCodeLoginEnabled?: boolean;
   useRemnaSubscriptionPage?: boolean;
   aiChatEnabled?: boolean;
   customBuildEnabled?: boolean;
@@ -2032,6 +2062,7 @@ export interface AdminSettings {
   smtpPassword?: string | null;
   smtpFromEmail?: string | null;
   smtpFromName?: string | null;
+  registrationEmailTemplate?: string | null;
   publicAppUrl?: string | null;
   telegramBotToken?: string | null;
   defaultAutoRenewEnabled?: boolean;
@@ -2125,6 +2156,7 @@ export interface AdminSettings {
   adminFrontNotificationsEnabled?: boolean;
   /** Регистрация без подтверждения почты */
   skipEmailVerification?: boolean;
+  emailCodeLoginEnabled?: boolean;
   /** Кнопка VPN в боте ведёт на страницу подписки Remna */
   useRemnaSubscriptionPage?: boolean;
   /** AI-чат в кабинете включён */
@@ -3092,6 +3124,7 @@ export interface PublicConfig {
   googleAnalyticsId?: string | null;
   yandexMetrikaId?: string | null;
   skipEmailVerification?: boolean;
+  emailCodeLoginEnabled?: boolean;
   useRemnaSubscriptionPage?: boolean;
   aiChatEnabled?: boolean;
   customBuildConfig?: {

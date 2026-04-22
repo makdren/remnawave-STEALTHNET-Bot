@@ -1076,6 +1076,8 @@ const updateSettingsSchema = z.object({
   smtpPassword: z.string().max(500).nullable().optional(),
   smtpFromEmail: z.string().email().max(255).nullable().optional(),
   smtpFromName: z.string().max(200).nullable().optional(),
+  registrationEmailTemplate: z.string().max(20000).nullable().optional(),
+  emailCodeLoginEnabled: z.boolean().optional(),
   publicAppUrl: z.string().max(2000).nullable().optional(),
   telegramBotToken: z.string().max(500).nullable().optional(),
   telegramBotUsername: z.string().max(100).nullable().optional(),
@@ -1452,6 +1454,14 @@ adminRouter.patch("/settings", async (req, res) => {
   if (updates.smtpFromName !== undefined) {
     const val = updates.smtpFromName ?? "";
     await prisma.systemSetting.upsert({ where: { key: "smtp_from_name" }, create: { key: "smtp_from_name", value: val }, update: { value: val } });
+  }
+  if (updates.registrationEmailTemplate !== undefined) {
+    const val = updates.registrationEmailTemplate ?? "";
+    await prisma.systemSetting.upsert({ where: { key: "registration_email_template" }, create: { key: "registration_email_template", value: val }, update: { value: val } });
+  }
+  if (updates.emailCodeLoginEnabled !== undefined) {
+    const val = updates.emailCodeLoginEnabled ? "true" : "false";
+    await prisma.systemSetting.upsert({ where: { key: "email_code_login_enabled" }, create: { key: "email_code_login_enabled", value: val }, update: { value: val } });
   }
   if (updates.publicAppUrl !== undefined) {
     const val = updates.publicAppUrl ?? "";
