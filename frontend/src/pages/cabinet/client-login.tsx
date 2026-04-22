@@ -26,14 +26,19 @@ export function ClientLoginPage() {
   const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [emailCode, setEmailCode] = useState("");
+  const [authMode, setAuthMode] = useState<"password" | "email_code">("password");
   const [emailError, setEmailError] = useState("");
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
   const [brand, setBrand] = useState<{ serviceName: string; logo: string | null }>({
     serviceName: "",
     logo: null,
   });
   const [telegramBotUsername, setTelegramBotUsername] = useState<string | null>(null);
+  const [emailCodeLoginEnabled, setEmailCodeLoginEnabled] = useState(true);
   const [googleEnabled, setGoogleEnabled] = useState(false);
   const [googleClientId, setGoogleClientId] = useState<string | null>(null);
   const [publicAppUrl, setPublicAppUrl] = useState<string | null>(null);
@@ -44,7 +49,7 @@ export function ClientLoginPage() {
   const tgPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const tgFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [searchParams] = useSearchParams();
-  const { login, loginByGoogle, loginByApple, loginByTelegramDeepLink, registerByTelegram } = useClientAuth();
+  const { login, requestEmailCode, loginByEmailCode, loginByGoogle, loginByApple, loginByTelegramDeepLink, registerByTelegram } = useClientAuth();
   const navigate = useNavigate();
 
   function validateEmail(value: string): string {
@@ -94,12 +99,19 @@ export function ClientLoginPage() {
         setTelegramBotUsername(c.telegramBotUsername ?? null);
         setTelegramBotId(c.telegramBotId ?? null);
         setGoogleEnabled(!!c.googleLoginEnabled);
+        setEmailCodeLoginEnabled(c.emailCodeLoginEnabled !== false);
         setGoogleClientId(c.googleClientId ?? null);
         setPublicAppUrl(c.publicAppUrl ?? null);
         setAppleEnabled(!!c.appleLoginEnabled);
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!emailCodeLoginEnabled && authMode === "email_code") {
+      setAuthMode("password");
+    }
+  }, [emailCodeLoginEnabled, authMode]);
 
   useEffect(() => {
     return () => {
@@ -337,6 +349,7 @@ export function ClientLoginPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setSuccessMessage("");
     
     if (!validateAll()) {
       return;
@@ -344,12 +357,31 @@ export function ClientLoginPage() {
     
     setLoading(true);
     try {
-      await login(email, password);
+      if (authMode === "email_code") {
+        await loginByEmailCode(email, emailCode.trim());
+      } else {
+        await login(email, password);
+      }
       navigate("/cabinet", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : t("cabinet.login.error_login"));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSendCode() {
+    setError("");
+    setSuccessMessage("");
+    if (!validateAll()) return;
+    setSendingCode(true);
+    try {
+      const message = await requestEmailCode(email);
+      setSuccessMessage(message || t("cabinet.login.code_sent"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("cabinet.login.error_send_code"));
+    } finally {
+      setSendingCode(false);
     }
   }
 
@@ -404,6 +436,37 @@ export function ClientLoginPage() {
                   {error}
                 </div>
               )}
+              {successMessage && (
+                <div className="rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-sm p-3">
+                  {successMessage}
+                </div>
+              )}
+              {emailCodeLoginEnabled && (
+                <div className="grid grid-cols-2 gap-2 rounded-xl border border-white/10 p-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode("password");
+                      setError("");
+                      setSuccessMessage("");
+                    }}
+                    className={cn("h-9 rounded-lg text-sm transition-colors", authMode === "password" ? "bg-primary text-primary-foreground" : "hover:bg-muted")}
+                  >
+                    {t("cabinet.login.mode_password")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode("email_code");
+                      setError("");
+                      setSuccessMessage("");
+                    }}
+                    className={cn("h-9 rounded-lg text-sm transition-colors", authMode === "email_code" ? "bg-primary text-primary-foreground" : "hover:bg-muted")}
+                  >
+                    {t("cabinet.login.mode_email_code")}
+                  </button>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input id="email"
@@ -420,13 +483,38 @@ export function ClientLoginPage() {
                 />
                 {emailError && <p className="text-xs text-destructive">{emailError}</p>}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">{t("cabinet.login.password_label")}</Label>
-                <Input id="password" type="password" name="login_password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="off" data-form-type="other" className="h-12 rounded-xl bg-background/50 backdrop-blur-sm border-white/10 focus-visible:ring-primary/50 transition-all" />
-              </div>
+              {authMode === "password" ? (
+                <div className="space-y-2">
+                  <Label htmlFor="password">{t("cabinet.login.password_label")}</Label>
+                  <Input id="password" type="password" name="login_password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="off" data-form-type="other" className="h-12 rounded-xl bg-background/50 backdrop-blur-sm border-white/10 focus-visible:ring-primary/50 transition-all" />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="email_code">{t("cabinet.login.code_label")}</Label>
+                  <Input
+                    id="email_code"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder={t("cabinet.login.code_placeholder")}
+                    value={emailCode}
+                    onChange={(e) => setEmailCode(e.target.value.replace(/\D+/g, ""))}
+                    required
+                    className="h-12 rounded-xl bg-background/50 backdrop-blur-sm border-white/10 focus-visible:ring-primary/50 transition-all"
+                  />
+                  <Button type="button" variant="outline" className="w-full" onClick={handleSendCode} disabled={sendingCode || loading}>
+                    {sendingCode ? t("cabinet.login.code_send_loading") : t("cabinet.login.code_send")}
+                  </Button>
+                </div>
+              )}
               <Button type="submit" className="w-full h-14 rounded-2xl text-base font-bold shadow-xl hover:scale-[1.02] transition-all gap-2" disabled={loading}>
                 {loading ? t("cabinet.login.submit_loading") : t("cabinet.login.submit")}
               </Button>
+              <div className="text-right -mt-1">
+                <Link to="/cabinet/forgot-password" className="text-xs text-muted-foreground hover:text-primary hover:underline">
+                  {t("cabinet.login.forgot_password")}
+                </Link>
+              </div>
               {(telegramBotUsername || googleEnabled || appleEnabled) && (
                 <div className="space-y-3">
                   <div className="relative flex items-center gap-2">
