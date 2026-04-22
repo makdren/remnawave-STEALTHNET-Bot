@@ -33,6 +33,8 @@ export function ClientResetPasswordPage() {
     try {
       const res = await api.clientPasswordResetConfirm(token, password);
       if ("requires2FA" in res) {
+        loginByTelegramDeepLink({ requires2FA: true, tempToken: res.tempToken });
+        navigate("/cabinet", { replace: true });
         setError("Для аккаунта включена 2FA. Войдите через страницу входа.");
         return;
       }
