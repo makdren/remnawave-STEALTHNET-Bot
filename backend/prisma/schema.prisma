@@ -116,6 +116,7 @@ model Client {
   receivedSubscriptions SecondarySubscription[]   @relation("ReceivedSubscriptions")
   giftHistory           GiftHistory[]
   pendingEmailLoginCodes PendingEmailLoginCode[]
+  pendingPasswordResets PendingPasswordReset[]
 
   @@index([telegramId])
   @@index([email])
@@ -219,6 +220,20 @@ model PendingEmailLoginCode {
   @@index([email])
   @@index([expiresAt])
   @@map("pending_email_login_codes")
+}
+
+model PendingPasswordReset {
+  id        String   @id @default(cuid())
+  clientId  String   @map("client_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([expiresAt])
+  @@map("pending_password_resets")
 }
 
 model Payment {

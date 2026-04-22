@@ -25,6 +25,7 @@ import {
 } from "../notification/telegram-notify.service.js";
 import { requireClientAuth } from "./client.middleware.js";
 import { remnaCreateUser, remnaUpdateUser, isRemnaConfigured, remnaGetUser, remnaGetUserByUsername, remnaGetUserByEmail, remnaGetUserByTelegramId, extractRemnaUuid, remnaUsernameFromClient, remnaGetUserHwidDevices, remnaDeleteUserHwidDevice } from "../remna/remna.client.js";
+import { sendVerificationEmail, sendLinkEmailVerification, sendLoginCodeEmail, sendPasswordResetEmail, isSmtpConfigured } from "../mail/mail.service.js";
 import { sendVerificationEmail, sendLinkEmailVerification, sendLoginCodeEmail, isSmtpConfigured } from "../mail/mail.service.js";
 import { createPlategaTransaction, isPlategaConfigured } from "../platega/platega.service.js";
 import { activateTariffForClient, activateTariffByPaymentId } from "../tariff/tariff-activation.service.js";
@@ -186,7 +187,8 @@ clientAuthRouter.post("/register", async (req, res) => {
       smtpConfig,
       data.email!,
       verificationLink,
-      config.serviceName
+      config.serviceName,
+      config.registrationEmailTemplate
     );
     console.log(`[register] Email send result to ${data.email}:`, sendResult);
     if (!sendResult.ok) {
@@ -386,6 +388,9 @@ clientAuthRouter.post("/login/email-code/request", async (req, res) => {
   }
 
   const config = await getSystemConfig();
+  if (!config.emailCodeLoginEnabled) {
+    return res.status(403).json({ message: "Вход по коду из email отключён" });
+  }
   const smtpConfig = {
     host: config.smtpHost || "",
     port: config.smtpPort,
@@ -421,6 +426,11 @@ clientAuthRouter.post("/login/email-code", async (req, res) => {
   const body = emailCodeLoginSchema.safeParse(req.body);
   if (!body.success) return res.status(400).json({ message: "Invalid input" });
 
+  const config = await getSystemConfig();
+  if (!config.emailCodeLoginEnabled) {
+    return res.status(403).json({ message: "Вход по коду из email отключён" });
+  }
+
   const email = body.data.email.trim().toLowerCase();
   const pending = await prisma.pendingEmailLoginCode.findFirst({
     where: { email },
@@ -447,6 +457,69 @@ clientAuthRouter.post("/login/email-code", async (req, res) => {
 
   const auth = buildAuthResponse(full);
   return res.json(auth);
+});
+
+const passwordResetRequestSchema = z.object({ email: z.string().email() });
+clientAuthRouter.post("/password-reset/request", async (req, res) => {
+  const body = passwordResetRequestSchema.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ message: "Invalid input" });
+  const config = await getSystemConfig();
+  const smtpConfig = {
+    host: config.smtpHost || "",
+    port: config.smtpPort,
+    secure: config.smtpSecure,
+    user: config.smtpUser,
+    password: config.smtpPassword,
+    fromEmail: config.smtpFromEmail,
+    fromName: config.smtpFromName,
+  };
+  const genericResponse = { message: "Если аккаунт существует, ссылка для восстановления отправлена на email." };
+  if (!isSmtpConfigured(smtpConfig) || !(config.publicAppUrl || "").trim()) {
+    return res.json(genericResponse);
+  }
+
+  const email = body.data.email.trim().toLowerCase();
+  const client = await prisma.client.findUnique({ where: { email }, select: { id: true, isBlocked: true } });
+  if (!client || client.isBlocked) return res.json(genericResponse);
+
+  const resetToken = randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+  await prisma.pendingPasswordReset.deleteMany({ where: { clientId: client.id } }).catch(() => {});
+  await prisma.pendingPasswordReset.create({
+    data: { clientId: client.id, token: resetToken, expiresAt },
+  });
+  const appUrl = (config.publicAppUrl || "").replace(/\/$/, "");
+  const resetLink = `${appUrl}/cabinet/reset-password?token=${resetToken}`;
+  const sendResult = await sendPasswordResetEmail(smtpConfig, email, resetLink, config.serviceName);
+  if (!sendResult.ok) {
+    await prisma.pendingPasswordReset.deleteMany({ where: { clientId: client.id } }).catch(() => {});
+  }
+  return res.json(genericResponse);
+});
+
+const passwordResetConfirmSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(8, "Пароль минимум 8 символов"),
+});
+
+clientAuthRouter.post("/password-reset/confirm", async (req, res) => {
+  const body = passwordResetConfirmSchema.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ message: "Invalid input", errors: body.error.flatten() });
+
+  const pending = await prisma.pendingPasswordReset.findUnique({ where: { token: body.data.token } });
+  if (!pending || pending.expiresAt < new Date()) {
+    if (pending) await prisma.pendingPasswordReset.delete({ where: { id: pending.id } }).catch(() => {});
+    return res.status(400).json({ message: "Ссылка недействительна или истекла" });
+  }
+  const passwordHash = await hashPassword(body.data.password);
+  const updated = await prisma.client.update({
+    where: { id: pending.clientId },
+    data: { passwordHash, onboardingCompleted: true },
+    select: { id: true, email: true, telegramId: true, telegramUsername: true, preferredLang: true, preferredCurrency: true, balance: true, referralCode: true, referralPercent: true, remnawaveUuid: true, trialUsed: true, isBlocked: true, autoRenewEnabled: true, autoRenewTariffId: true, yoomoneyAccessToken: true, totpEnabled: true, createdAt: true, onboardingCompleted: true },
+  });
+  await prisma.pendingPasswordReset.deleteMany({ where: { clientId: pending.clientId } }).catch(() => {});
+  if (updated.isBlocked) return res.status(403).json({ message: "Account is blocked" });
+  return res.json(buildAuthResponse(updated));
 });
 
 clientAuthRouter.post("/login", async (req, res) => {

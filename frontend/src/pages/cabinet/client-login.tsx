@@ -38,6 +38,7 @@ export function ClientLoginPage() {
     logo: null,
   });
   const [telegramBotUsername, setTelegramBotUsername] = useState<string | null>(null);
+  const [emailCodeLoginEnabled, setEmailCodeLoginEnabled] = useState(true);
   const [googleEnabled, setGoogleEnabled] = useState(false);
   const [googleClientId, setGoogleClientId] = useState<string | null>(null);
   const [publicAppUrl, setPublicAppUrl] = useState<string | null>(null);
@@ -98,12 +99,19 @@ export function ClientLoginPage() {
         setTelegramBotUsername(c.telegramBotUsername ?? null);
         setTelegramBotId(c.telegramBotId ?? null);
         setGoogleEnabled(!!c.googleLoginEnabled);
+        setEmailCodeLoginEnabled(c.emailCodeLoginEnabled !== false);
         setGoogleClientId(c.googleClientId ?? null);
         setPublicAppUrl(c.publicAppUrl ?? null);
         setAppleEnabled(!!c.appleLoginEnabled);
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!emailCodeLoginEnabled && authMode === "email_code") {
+      setAuthMode("password");
+    }
+  }, [emailCodeLoginEnabled, authMode]);
 
   useEffect(() => {
     return () => {
@@ -433,6 +441,32 @@ export function ClientLoginPage() {
                   {successMessage}
                 </div>
               )}
+              {emailCodeLoginEnabled && (
+                <div className="grid grid-cols-2 gap-2 rounded-xl border border-white/10 p-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode("password");
+                      setError("");
+                      setSuccessMessage("");
+                    }}
+                    className={cn("h-9 rounded-lg text-sm transition-colors", authMode === "password" ? "bg-primary text-primary-foreground" : "hover:bg-muted")}
+                  >
+                    {t("cabinet.login.mode_password")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode("email_code");
+                      setError("");
+                      setSuccessMessage("");
+                    }}
+                    className={cn("h-9 rounded-lg text-sm transition-colors", authMode === "email_code" ? "bg-primary text-primary-foreground" : "hover:bg-muted")}
+                  >
+                    {t("cabinet.login.mode_email_code")}
+                  </button>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-2 rounded-xl border border-white/10 p-1">
                 <button
                   type="button"
@@ -500,6 +534,11 @@ export function ClientLoginPage() {
               <Button type="submit" className="w-full h-14 rounded-2xl text-base font-bold shadow-xl hover:scale-[1.02] transition-all gap-2" disabled={loading}>
                 {loading ? t("cabinet.login.submit_loading") : t("cabinet.login.submit")}
               </Button>
+              <div className="text-right -mt-1">
+                <Link to="/cabinet/forgot-password" className="text-xs text-muted-foreground hover:text-primary hover:underline">
+                  {t("cabinet.login.forgot_password")}
+                </Link>
+              </div>
               {(telegramBotUsername || googleEnabled || appleEnabled) && (
                 <div className="space-y-3">
                   <div className="relative flex items-center gap-2">

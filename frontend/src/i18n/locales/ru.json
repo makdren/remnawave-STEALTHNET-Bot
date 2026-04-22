@@ -1150,6 +1150,9 @@
       "telegram_admins": "Админы бота (Telegram ID)",
       "smtp_no_confirm_hint": "если включено — пользователь регистрируется сразу, письмо не отправляется",
       "smtp_service_name_placeholder": "Название сервиса",
+      "email_code_login_enabled": "Разрешить вход по коду из email",
+      "registration_email_template": "Шаблон письма подтверждения регистрации",
+      "registration_email_template_hint": "Поддерживаются плейсхолдеры: {{serviceName}} и {{verificationLink}}.",
       "telegram_bot_hint": "Бот для входа и регистрации через Telegram. Укажите username бота (без @) — кнопка «Войти через Telegram» появится на страницах входа и регистрации.",
       "telegram_admins_hint": "Пользователи с этими Telegram ID увидят в боте кнопку «Панель админа» (ссылка на веб-панель).",
       "telegram_delete": "Удалить",
@@ -1509,12 +1512,30 @@
       "telegram_fallback": "Не открылся Telegram? Войти через веб-версию",
       "no_account": "Нет аккаунта?",
       "register_link": "Зарегистрироваться",
+      "forgot_password": "Забыли пароль?",
       "error_login": "Ошибка входа",
       "error_google": "Ошибка Google",
       "error_apple": "Ошибка Apple",
       "error_telegram": "Ошибка авторизации через Telegram",
       "error_timeout": "Время ожидания истекло. Попробуйте снова.",
       "error_send_code": "Ошибка отправки кода"
+    },
+    "forgot_password": {
+      "title": "Восстановление пароля",
+      "subtitle": "Введите email, и мы отправим ссылку для сброса пароля.",
+      "email": "Email",
+      "submit": "Отправить ссылку",
+      "submit_loading": "Отправка…",
+      "back_to_login": "Назад ко входу"
+    },
+    "reset_password": {
+      "title": "Новый пароль",
+      "subtitle": "Введите новый пароль для входа в личный кабинет.",
+      "password": "Новый пароль",
+      "password_confirm": "Подтверждение пароля",
+      "submit": "Подтвердить",
+      "submit_loading": "Сохранение…",
+      "passwords_mismatch": "Пароли не совпадают"
     },
     "register": {
       "title": "Регистрация",

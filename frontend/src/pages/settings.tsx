@@ -517,7 +517,9 @@ export function SettingsPage() {
         smtpPassword: settings.smtpPassword && settings.smtpPassword !== "********" ? settings.smtpPassword : undefined,
         smtpFromEmail: settings.smtpFromEmail ?? null,
         smtpFromName: settings.smtpFromName ?? null,
+        registrationEmailTemplate: settings.registrationEmailTemplate ?? null,
         skipEmailVerification: settings.skipEmailVerification ?? false,
+        emailCodeLoginEnabled: settings.emailCodeLoginEnabled ?? true,
         defaultAutoRenewEnabled: settings.defaultAutoRenewEnabled ?? false,
         autoRenewDaysBeforeExpiry: settings.autoRenewDaysBeforeExpiry ?? 1,
         autoRenewNotifyDaysBefore: settings.autoRenewNotifyDaysBefore ?? 3,
@@ -2739,6 +2741,18 @@ export function SettingsPage() {
                     ({t("admin.settings.smtp_no_confirm_hint")})
                   </span>
                 </div>
+                <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/40">
+                  <input
+                    type="checkbox"
+                    id="emailCodeLoginEnabled"
+                    checked={settings.emailCodeLoginEnabled ?? true}
+                    onChange={(e) => setSettings((s) => (s ? { ...s, emailCodeLoginEnabled: e.target.checked } : s))}
+                    className="rounded border"
+                  />
+                  <Label htmlFor="emailCodeLoginEnabled" className="cursor-pointer">
+                    {t("admin.settings.email_code_login_enabled")}
+                  </Label>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>{t("admin.settings.smtp_host")}</Label>
@@ -2806,6 +2820,16 @@ export function SettingsPage() {
                       placeholder={t("admin.settings.smtp_service_name_placeholder")}
                     />
                   </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("admin.settings.registration_email_template")}</Label>
+                  <Textarea
+                    rows={8}
+                    value={settings.registrationEmailTemplate ?? ""}
+                    onChange={(e) => setSettings((s) => (s ? { ...s, registrationEmailTemplate: e.target.value || null } : s))}
+                    placeholder={"Здравствуйте!\nДля завершения регистрации в {{serviceName}} перейдите по ссылке:\n{{verificationLink}}"}
+                  />
+                  <p className="text-xs text-muted-foreground">{t("admin.settings.registration_email_template_hint")}</p>
                 </div>
               </CardContent>
             </Card>

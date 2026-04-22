@@ -1150,6 +1150,9 @@
       "telegram_admins": "Bot admins (Telegram ID)",
       "smtp_no_confirm_hint": "if enabled — the user registers immediately, no email is sent",
       "smtp_service_name_placeholder": "Service name",
+      "email_code_login_enabled": "Allow email code login",
+      "registration_email_template": "Registration email template",
+      "registration_email_template_hint": "Supported placeholders: {{serviceName}} and {{verificationLink}}.",
       "telegram_bot_hint": "Bot for login and registration via Telegram. Enter bot username (without @) — the \"Login via Telegram\" button will appear on login and registration pages.",
       "telegram_admins_hint": "Users with these Telegram IDs will see an \"Admin Panel\" button in the bot (link to web panel).",
       "telegram_delete": "Delete",
@@ -1509,12 +1512,30 @@
       "telegram_fallback": "Telegram didn't open? Sign in via web",
       "no_account": "Don't have an account?",
       "register_link": "Sign Up",
+      "forgot_password": "Forgot password?",
       "error_login": "Sign in error",
       "error_google": "Google error",
       "error_apple": "Apple error",
       "error_telegram": "Telegram authorization error",
       "error_timeout": "Timeout expired. Please try again.",
       "error_send_code": "Failed to send code"
+    },
+    "forgot_password": {
+      "title": "Password recovery",
+      "subtitle": "Enter your email and we'll send you a reset link.",
+      "email": "Email",
+      "submit": "Send link",
+      "submit_loading": "Sending…",
+      "back_to_login": "Back to login"
+    },
+    "reset_password": {
+      "title": "New password",
+      "subtitle": "Set a new password for your cabinet account.",
+      "password": "New password",
+      "password_confirm": "Confirm password",
+      "submit": "Confirm",
+      "submit_loading": "Saving…",
+      "passwords_mismatch": "Passwords do not match"
     },
     "register": {
       "title": "Sign Up",
