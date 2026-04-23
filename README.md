@@ -1,3 +1,20 @@
+<div align="center">
+  <img src="https://cdn.jsdelivr.net/gh/hampusborgos/country-flags@main/svg/us.svg" alt="EN" width="20" /> EN
+  <a title="Russian" style="text-decoration: none;" href="docs/ru/README.md">
+    <img src="https://cdn.jsdelivr.net/gh/hampusborgos/country-flags@main/svg/ru.svg" alt="RU" width="20" /> RU
+  </a>
+  <a title="Chinese" style="text-decoration: none;" href="docs/cn/README.md">
+    <img src="https://cdn.jsdelivr.net/gh/hampusborgos/country-flags@main/svg/cn.svg" alt="CN" width="20" /> CN
+  </a>
+  <a title="Persian" style="text-decoration: none;" href="docs/fa/README.md">
+    <img src="https://cdn.jsdelivr.net/gh/hampusborgos/country-flags@main/svg/ir.svg" alt="FA" width="20" /> IR
+  </a>
+</div>
+
+---
+
+<h1 align="center">STEALTHNET 3.0</h1>
+
 <p align="center">
   <img src="https://img.shields.io/badge/STEALTHNET-3.0-blueviolet?style=for-the-badge&logoColor=white" alt="STEALTHNET 3.0" />
   <img src="https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
@@ -7,45 +24,43 @@
   <img src="https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
 </p>
 
-<h1 align="center">STEALTHNET 3.0</h1>
-
 <p align="center">
-  <b>Полноценная платформа для продажи VPN-подписок</b><br/>
-  Telegram-бот &bull; Mini App &bull; Клиентский кабинет &bull; Админ-панель<br/>
-  <i>Всё в одной коробке. Один скрипт — и работает.</i>
+  <b>Full-featured platform for selling VPN subscriptions</b><br/>
+  Telegram bot &bull; Mini App &bull; Client dashboard &bull; Admin panel<br/>
+  <i>Everything in one box. One script — and it works.</i>
 </p>
 
 <p align="center">
-  <a href="https://t.me/stealthnet_admin_panel"><img src="https://img.shields.io/badge/Telegram-канал-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram" /></a>
+  <a href="https://t.me/stealthnet_admin_panel"><img src="https://img.shields.io/badge/Telegram-channel-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram" /></a>
 </p>
 
-
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/ecd37b8e-68ef-4616-92da-550f8bd9cdb5" width="830" alt="STEALTHNET скриншот 1" />
+  <img src="https://github.com/user-attachments/assets/ecd37b8e-68ef-4616-92da-550f8bd9cdb5" width="830" alt="STEALTHNET screenshot 1" />
 </p>
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/5c504c46-0b00-47d1-b767-7afed7f36983" width="830" alt="STEALTHNET скриншот 2" />
+  <img src="https://github.com/user-attachments/assets/5c504c46-0b00-47d1-b767-7afed7f36983" width="830" alt="STEALTHNET screenshot 2" />
 </p>
 
 
 <p align="center">
-  <a href="#быстрый-старт">Быстрый старт</a> &bull;
-  <a href="#архитектура">Архитектура</a> &bull;
-  <a href="#возможности">Возможности</a> &bull;
-  <a href="#telegram-бот">Telegram-бот</a> &bull;
-  <a href="#веб-панель">Веб-панель</a> &bull;
-  <a href="#api">API</a> &bull;
-  <a href="#настройка">Настройка</a> &bull;
-  <a href="#миграция">Миграция</a> &bull;
-  <a href="#требования-к-серверу">Требования</a>
+  <a href="#-quick-start">Quick start</a> &bull;
+  <a href="#-server-requirements">Requirements</a>
+  <a href="#-architecture">Architecture</a> &bull;
+  <a href="#-features">Features</a> &bull;
+  <a href="#-telegram-bot">Telegram bot</a> &bull;
+  <a href="#-web-panel">Web panel</a> &bull;
+  <a href="#-api">API</a> &bull;
+  <a href="#-docker-services">Docker Services</a> &bull;
+  <a href="#-configuration">Configuration</a> &bull;
+  <a href="#-migration">Migration</a> &bull;
 </p>
 
 ---
 
-## Быстрый старт
+## 🚀 Quick Start
 
 > [!CAUTION]
-> Во избежании каких-либо конфликтов, настоятельно рекомендуется устанавливать данный стек **на отдельный сервер**!
+> To avoid any conflicts, it is strongly recommended to install this stack on a **separate server**!
 
 ```bash
 apt install git -y
@@ -57,375 +72,374 @@ bash install.sh
 ```
 
 > [!WARNING]
-> Если после запуска у вас **падает API** сервис, бот отвечает «**❌ fetch failed**», а в логах «docker compose logs -f api» видим ошибку «**Error: P1000: Authentication failed**» и если у вас на этом сервере не крутится ничего другого важного (других проектов), их можно и нужно удалить, чтобы освободить место следующей командой:
+> If after launch your **API service crashes**, the bot replies "**❌ fetch failed**", and in the logs (`docker compose logs -f api`) you see the error "**Error: P1000: Authentication failed**", and if you don't have any other important projects running on this server, you can and should delete them to free up space with the following command:
 > 
 > docker system prune -a --volumes
 
-Интерактивный установщик за 2 минуты настроит всё:
+The interactive installer will configure everything in 2 minutes:
 
-- Домен и SSL-сертификаты (Let's Encrypt)
-- PostgreSQL, JWT-секреты, данные администратора
-- Подключение к Remnawave API
-- Telegram-бот
-- Nginx (встроенный с авто-SSL или свой reverse proxy)
-
----
-
-## Требования к серверу
-
-Ориентировочные конфигурации для работы всех сервисов (API, фронтенд, бот, Nginx, PostgreSQL) в Docker:
-
-| Уровень | CPU | RAM | Диск | Назначение |
-|--------|-----|-----|------|------------|
-| **Минимальная** | 1 vCPU | 1.5–2 GB | 20 GB | Тест, демо, до ~50 активных пользователей |
-| **Средняя** | 2 vCPU | 4 GB | 40 GB SSD | Небольшой прод, до ~500 пользователей, стабильная работа |
-| **Рекомендуемая** | 4 vCPU | 8 GB | 80 GB SSD | Продакшен с запасом, тысячи пользователей, быстрый отклик |
-
-**Общее:**
-
-- ОС: Linux (Debian 13, Ubuntu 24.04 LTS или аналог), Docker и Docker Compose v2+.
-- Открытые порты: **80** (HTTP), **443** (HTTPS); при установке через `install.sh` — только они.
-- Для среднего и рекомендуемого уровня желательно SSD и отдельный бэкап БД.
+- Domain and SSL certificates (Let's Encrypt)
+- PostgreSQL, JWT secrets, administrator credentials
+- Remnawave API connection
+- Telegram bot
+- Nginx (built-in with auto-SSL or your own reverse proxy)
 
 ---
 
-## Архитектура
+## 🖥️ Server Requirements
+
+Estimated configurations for running all services (API, frontend, bot, Nginx, PostgreSQL) in Docker:
+
+| Level           | CPU    | RAM      | Disk      | Purpose                                                    |
+| --------------- | ------ | -------- | --------- | ---------------------------------------------------------- |
+| **Minimum**     | 1 vCPU | 1.5–2 GB | 20 GB     | Testing, demo, up to ~50 active users                      |
+| **Medium**      | 2 vCPU | 4 GB     | 40 GB SSD | Small production, up to ~500 users, stable operation       |
+| **Recommended** | 4 vCPU | 8 GB     | 80 GB SSD | Production with reserve, thousands of users, fast response |
+
+**General:**
+
+- OS: Linux (Debian 13, Ubuntu 24.04 LTS or equivalent), Docker and Docker Compose v2+.
+- Open ports: **80** (HTTP), **443** (HTTPS); when installed via `install.sh` — only these are needed.
+- For medium and recommended levels, an SSD and separate DB backups are desirable.
+
+---
+
+## 🧱 Architecture
 
 ```
 ┌──────────────────────────────────────────────────────────┐
 │                      STEALTHNET 3.0                      │
 ├──────────────┬──────────────┬──────────────┬─────────────┤
-│  Telegram    │  Mini App    │  Клиентский  │  Админ-     │
-│  Бот         │  (WebApp)    │  кабинет     │  панель     │
+│  Telegram    │  Mini App    │  Client      │  Admin      │
+│  Bot         │  (WebApp)    │  dashboard   │  panel      │
 │  Grammy      │  React       │  React       │  React      │
 ├──────────────┴──────────────┴──────────────┴─────────────┤
-│                   Backend API (Express)                   │
+│                   Backend API (Express)                  │
 │            JWT Auth  ·  Prisma ORM  ·  Webhooks          │
 ├──────────────────────────────────────────────────────────┤
-│          PostgreSQL          │       Remnawave API        │
-│          (данные)            │       (VPN-ядро)           │
+│          PostgreSQL          │       Remnawave API       │
+│          (Data)              │       (VPN core)          │
 ├──────────────────────────────┴───────────────────────────┤
 │         Nginx + Let's Encrypt  ·  Docker Compose         │
 └──────────────────────────────────────────────────────────┘
 ```
 
-| Сервис | Технологии | Назначение |
-|--------|-----------|------------|
-| **backend** | Node.js, Express, Prisma, PostgreSQL | REST API: авторизация, клиенты, тарифы, платежи, рефералы, промо, аналитика |
-| **frontend** | React 18, Vite, Tailwind CSS, shadcn/ui, Framer Motion | Админ-панель + клиентский кабинет + Telegram Mini App |
-| **bot** | Grammy (TypeScript) | Полноценный Telegram-бот с кабинетом клиента |
-| **nginx** | Nginx + Certbot | Reverse proxy, SSL, статика, gzip |
-| **postgres** | PostgreSQL 16 | Хранение всех данных |
+| Service      | Technologies                                           | Purpose                                                                 |
+| ------------ | ------------------------------------------------------ | ----------------------------------------------------------------------- |
+| **backend**  | Node.js, Express, Prisma, PostgreSQL                   | REST API: auth, clients, tariffs, payments, referrals, promo, analytics |
+| **frontend** | React 18, Vite, Tailwind CSS, shadcn/ui, Framer Motion | Admin panel + client dashboard + Telegram Mini App                      |
+| **bot**      | Grammy (TypeScript)                                    | Full Telegram bot with client dashboard                                 |
+| **nginx**    | Nginx + Certbot                                        | Reverse proxy, SSL, static, gzip                                        |
+| **postgres** | PostgreSQL 16                                          | Data storage                                                            |
 
 ---
 
-## Возможности
+## ✨ Features
 
-### Платежи и подписки
+### 💳 Payments and Subscriptions
 
-- **Platega.io** — приём платежей (карты, СПБ, криптовалюта и др.); callback URL копируется в админке
-- **ЮMoney** — пополнение баланса и оплата тарифов картой (форма перевода, HTTP-уведомления); URL вебхука с кнопкой «Копировать» в настройках
-- **ЮKassa** — приём платежей картой и СБП через API (только RUB); чеки 54-ФЗ; вебхук на `payment.succeeded`; URL вебхука копируется в админке
-- **Оплата балансом** — пополнение и списание с внутреннего баланса
-- **Автоактивация** — после оплаты тариф активируется мгновенно через webhook (Platega, ЮMoney, ЮKassa)
-- **Описание платежа** — во всех платёжках (Platega, ЮMoney, ЮKassa) в описании подставляется **название сервиса** из настроек админки (Общие → Название сервиса)
-- **Гибкие тарифы** — категории, сроки, лимиты трафика и устройств, привязка к Remnawave-сквадам
-- **Мультивалютность** — поддержка нескольких валют (USD, RUB и др.)
+- **Platega.io** — payment acceptance (cards, SBP, crypto, etc.); callback URL is copied in the admin panel
+- **YooMoney** — balance top-up and tariff payment via card (transfer form, HTTP notifications); webhook URL with a "Copy" button in settings
+- **YooKassa** — card and SBP payments via API (RUB only); 54-FZ receipts; webhook on `payment.succeeded`; webhook URL is copied in the admin panel
+- **Balance payment** — internal balance top-up and deduction
+- **Auto-activation** — after payment, the tariff is activated instantly via webhook (Platega, YooMoney, YooKassa)
+- **Payment description** — for all payment systems (Platega, YooMoney, YooKassa), the **service name** from admin settings is added to the description (General → Service Name)
+- **Flexible tariffs** — categories, durations, traffic and device limits, binding to Remnawave squads
+- **Multi-currency** — support for multiple currencies (USD, RUB, etc.)
 
-### Реферальная программа
+### 🤝 Referral Program
 
-- **3 уровня рефералов** — заработок с приглашённых и их рефералов
-- **Настраиваемые проценты** — отдельно для каждого уровня
-- **Автоматическое начисление** — бонусы зачисляются на баланс при каждой оплате реферала
-- **Реферальные ссылки** — для бота и для сайта
+- **3-level referrals** — earn from invited users and their referrals
+- **Customizable percentages** — separately for each level
+- **Automatic accrual** — bonuses are credited to the balance with every referral payment
+- **Referral links** — for the bot and the website
 
-### Промо-система
+### 🎟️ Promo System
 
-- **Промо-группы** — бесплатная подписка по ссылке (`/start promo_CODE`), с лимитом активаций
-- **Промокоды** — скидки (% или фиксированная сумма) и бесплатные дни
-- **Лимиты использования** — общий лимит и лимит на клиента, срок действия
-- **Статистика активаций** — сколько раз использован, кем, когда
+- **Promo groups** — free subscription via link (`/start promo_CODE`), with activation limits
+- **Promo codes** — discounts (% or fixed amount) and free days
+- **Usage limits** — total limit and limit per client, expiration date
+- **Activation statistics** — how many times it was used, by whom, when
 
-### Пробный период (триал)
+### 🧪 Trial Period
 
-- **Бесплатный триал** — настраиваемая длительность, лимиты трафика и устройств
-- **Одноразовая активация** — один триал на клиента
-- **Привязка к сквадам** — отдельный сквад для триальных пользователей
+- **Free trial** — customizable duration, traffic and device limits
+- **One-time activation** — one trial per client
+- **Squad binding** — separate squad for trial users
 
-### Remnawave-интеграция
+### 🔗 Remnawave Integration
 
-- **Управление пользователями** — создание, удаление, блокировка в Remnawave
-- **Подписки** — активация, продление, проверка статуса
-- **Ноды** — мониторинг, включение/отключение, перезапуск
-- **Сквады** — распределение пользователей по серверам
-- **Синхронизация** — двусторонняя синхронизация данных (Remnawave <-> STEALTHNET)
-- **Вебхуки** — автоматическая обработка событий от Remnawave
+- **User management** — creation, deletion, blocking in Remnawave
+- **Subscriptions** — activation, extension, status check
+- **Nodes** — monitoring, enable/disable, restart
+- **Squads** — distribution of users across servers
+- **Synchronization** — two-way data sync (Remnawave <-> STEALTHNET)
+- **Webhooks** — automatic handling of Remnawave events
 
-### Мобильная версия и Mini App
+### 📱 Mobile Version and Mini App
 
-- **Сворачиваемые категории тарифов** — при нескольких категориях на узком экране и в Mini App категории показываются аккордеоном: по умолчанию открыта первая, остальные раскрываются по нажатию
-- **Компактные карточки тарифов** — в мобильном виде тарифы в одну колонку, длинные тонкие строки (название и параметры слева, цена и «Оплатить» справа)
-- **Единый мобильный интерфейс** — нижняя навигация, компактный хедер, тот же стиль в браузере на телефоне и в Telegram WebApp
+- **Collapsible tariff categories** — with multiple categories on narrow screens and in the Mini App, categories are shown as an accordion: the first is open by default, others open on click
+- **Compact tariff cards** — in mobile view, tariffs are in one column, long thin rows (name and parameters on the left, price and "Pay" on the right)
+- **Unified mobile interface** — bottom navigation, compact header, same style in mobile browser and Telegram WebApp
 
-### Аналитика и отчёты
+### 📊 Analytics and Reports
 
-- **Дашборд** — ключевые метрики в реальном времени
-- **Графики выручки** — ежедневно за 90 дней
-- **Рост клиентской базы** — динамика регистраций
-- **Топ тарифов** — самые продаваемые планы
-- **Реферальная статистика** — заработок по уровням
-- **Конверсия** — триал -> платная подписка
-- **Отчёт по продажам** — фильтрация по дате и платёжному провайдеру
+- **Dashboard** — key metrics in real-time
+- **Revenue charts** — daily for 90 days
+- **Client base growth** — registration dynamics
+- **Top tariffs** — best-selling plans
+- **Referral stats** — earnings by level
+- **Conversion** — trial -> paid subscription
+- **Sales report** — filtering by date and payment provider
 
-### Безопасность
+### 🔐 Security
 
-- **JWT-аутентификация** — access + refresh токены
-- **Принудительная смена пароля** — при первом входе администратора
-- **Верификация email** — подтверждение по ссылке из письма
-- **Блокировка клиентов** — с указанием причины
-- **SSL/TLS** — автоматические сертификаты Let's Encrypt
+- **JWT authentication** — access + refresh tokens
+- **Forced password change** — on the first admin login
+- **Email verification** — confirmation via link in email
+- **Client blocking** — with reason specification
+- **SSL/TLS** — automatic Let's Encrypt certificates
 
 ---
 
-## Telegram-бот
+## 🤖 Telegram Bot
 
-Полноценный клиентский кабинет прямо в Telegram:
+A full client dashboard right in Telegram:
 
-| Команда / Кнопка | Что делает |
+| Command / Button | Action |
 |-------------------|------------|
-| `/start` | Регистрация и главное меню |
-| `/start ref_CODE` | Регистрация по реферальной ссылке |
-| `/start promo_CODE` | Активация промо-группы |
-| **Главное меню** | Статус подписки, баланс, дни до истечения, трафик, лимит устройств |
-| **Тарифы** | Просмотр категорий и тарифов, покупка |
-| **Пополнение** | Пополнение баланса (пресеты и произвольная сумма) |
-| **Профиль** | Выбор языка и валюты |
-| **Рефералы** | Статистика и реферальная ссылка |
-| **Триал** | Активация бесплатного пробного периода |
-| **VPN** | Страница подписки (Mini App) |
-| **Промокод** | Ввод промокода для скидки или бесплатных дней |
-| **Поддержка** | Ссылки на поддержку, соглашение, оферту, инструкции |
+| `/start` | Registration and main menu |
+| `/start ref_CODE` | Registration via referral link |
+| `/start promo_CODE` | Promo group activation |
+| **Main Menu** | Subscription status, balance, days left, traffic, device limit |
+| **Tariffs** | View categories and tariffs, purchase |
+| **Top-up** | Balance top-up (presets and custom amount) |
+| **Profile** | Language and currency selection |
+| **Referrals** | Statistics and referral link |
+| **Trial** | Free trial activation |
+| **VPN** | Subscription page (Mini App) |
+| **Promo code** | Enter promo code for discount or free days |
+| **Support** | Links to support, agreement, offer, instructions |
 
-**Фишки бота:**
-- Кастомные эмодзи (Premium Emoji)
-- Цветные кнопки (primary / success / danger)
-- Прогресс-бар использования трафика
-- Интеграция с Telegram Mini App (WebApp)
-- Настраиваемые тексты и логотип
+**Bot Features:**
+- Custom emojis (Premium Emoji)
+- Colored buttons (primary / success / danger)
+- Traffic usage progress bar
+- Telegram Mini App (WebApp) integration
+- Customizable texts and logo
 
 ---
 
-## Веб-панель
+## 🌐 Web Panel
 
-### Админ-панель (`/admin`)
+### 🛠️ Admin Panel (`/admin`)
 
-| Раздел | Описание |
-|--------|----------|
-| **Дашборд** | Статистика, состояние нод, быстрые действия |
-| **Клиенты** | Список клиентов, поиск, фильтры, блокировка/разблокировка, сброс пароля |
-| **Тарифы** | Управление категориями и тарифами (CRUD) |
-| **Промо-группы** | Создание и управление промо-ссылками |
-| **Промокоды** | Создание скидочных и бесплатных промокодов |
-| **Аналитика** | Графики выручки, клиентов, рефералов, конверсии |
-| **Отчёт по продажам** | Детализация продаж с фильтрами |
-| **Настройки** | Брендинг (название сервиса, логотип), SMTP, **Platega / ЮMoney / ЮKassa** (URL вебхуков с кнопкой «Копировать»), бот, Remnawave, реферальная система |
+| Section          | Description                                                                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Dashboard**    | Statistics, node status, quick actions                                                                                                      |
+| **Clients**      | Client list, search, filters, block/unblock, password reset                                                                                 |
+| **Tariffs**      | Category and tariff management (CRUD)                                                                                                       |
+| **Promo groups** | Promo links creation and management                                                                                                         |
+| **Promo codes**  | Discount and free days promo codes creation                                                                                                 |
+| **Analytics**    | Revenue, clients, referrals, conversion charts                                                                                              |
+| **Sales Report** | Detailed sales with filters                                                                                                                 |
+| **Settings**     | Branding (service name, logo), SMTP, **Platega / YooMoney / YooKassa** (webhook URLs with a "Copy" button), bot, Remnawave, referral system |
 
-### Клиентский кабинет (`/cabinet`)
+### 👤 Client Dashboard (`/cabinet`)
 
-| Раздел | Описание |
-|--------|----------|
-| **Авторизация** | Email + пароль или Telegram-виджет |
-| **Регистрация** | С подтверждением email |
-| **Дашборд** | Статус подписки, баланс, история платежей, триал |
-| **Тарифы** | Просмотр и покупка тарифов |
-| **Подписка** | Страница VPN: приложения по платформам, deep links |
-| **Рефералы** | Статистика и ссылка для приглашения |
-| **Профиль** | Язык, валюта, смена пароля |
+| Section           | Description                                          |
+| ----------------- | ---------------------------------------------------- |
+| **Authorization** | Email + password or Telegram widget                  |
+| **Registration**  | With email confirmation                              |
+| **Dashboard**     | Subscription status, balance, payment history, trial |
+| **Tariffs**       | View and purchase tariffs                            |
+| **Subscription**  | VPN page: apps by platform, deep links               |
+| **Referrals**     | Statistics and invitation link                       |
+| **Profile**       | Language, currency, password change                  |
 
-**Технологии фронтенда:**
+**Frontend Technologies:**
 - React 18 + TypeScript + Vite
 - Tailwind CSS + shadcn/ui
-- Framer Motion (анимации)
-- Recharts (графики)
-- Тёмная / светлая тема
-- Адаптивный дизайн (мобильные + десктоп)
+- Framer Motion (animations)
+- Recharts (charts)
+- Dark / light theme
+- Responsive design (mobile + desktop)
 - PWA (Service Worker)
 - Telegram Mini App
 
 ---
 
-## API
+## 🔌 API
 
-### Клиентские эндпоинты (`/api/client`)
-
-```
-POST   /auth/register          — Регистрация (email + пароль)
-POST   /auth/login             — Авторизация
-POST   /auth/telegram-miniapp  — Вход через Telegram Mini App
-GET    /auth/me                — Текущий пользователь
-
-GET    /subscription           — Статус подписки
-GET    /tariffs                — Доступные тарифы
-
-POST   /payments/platega       — Создать платёж (Platega)
-POST   /payments/balance       — Оплата балансом
-POST   /yookassa/create-payment — Создать платёж ЮKassa (карта/СБП, RUB), редирект на страницу оплаты
-GET    /yoomoney/auth-url      — URL авторизации ЮMoney (OAuth)
-POST   /yoomoney/request-topup — Запрос пополнения через кошелёк ЮMoney
-POST   /yoomoney/create-form-payment — Форма ЮMoney (оплата картой), возврат paymentUrl
-
-POST   /trial                  — Активировать триал
-POST   /promo/activate         — Активировать промо-группу
-POST   /promo-code/check       — Проверить промокод
-POST   /promo-code/activate    — Применить промокод
-
-GET    /referral-stats          — Статистика рефералов
-```
-
-### Админские эндпоинты (`/api/admin`)
+### 👥 Client Endpoints (`/api/client`)
 
 ```
-GET    /dashboard/stats        — Статистика дашборда
-GET    /clients                — Список клиентов (пагинация, поиск)
-GET    /clients/:id            — Детали клиента
-PATCH  /clients/:id            — Обновить клиента
+POST   /auth/register                — Registration (email + password)
+POST   /auth/login                   — Login
+POST   /auth/telegram-miniapp        — Telegram Mini App login
+GET    /auth/me                      — Current user
 
-CRUD   /tariff-categories      — Категории тарифов
-CRUD   /tariffs                — Тарифы
-CRUD   /promo-groups           — Промо-группы
-CRUD   /promo-codes            — Промокоды
+GET    /subscription                 — Subscription status
+GET    /tariffs                      — Available tariffs
 
-GET    /analytics              — Аналитика
-GET    /sales-report           — Отчёт по продажам
-GET/PATCH /settings            — Системные настройки
+POST   /payments/platega             — Create payment (Platega)
+POST   /payments/balance             — Balance payment
+POST   /yookassa/create-payment      — Create YooKassa payment (card/SBP, RUB), redirect to payment page
+GET    /yoomoney/auth-url            — YooMoney authorization URL (OAuth)
+POST   /yoomoney/request-topup       — Request YooMoney wallet top-up
+POST   /yoomoney/create-form-payment — YooMoney form (card payment), returns paymentUrl
 
-GET    /remna/*                — Проксирование запросов к Remnawave
-POST   /sync/from-remna        — Синхронизация из Remnawave
-POST   /sync/to-remna          — Синхронизация в Remnawave
+POST   /trial                        — Activate trial
+POST   /promo/activate               — Activate promo group
+POST   /promo-code/check             — Check promo code
+POST   /promo-code/activate          — Apply promo code
+
+GET    /referral-stats               — Referral statistics
 ```
 
-### Публичные эндпоинты (`/api/public`)
+### 🛡️ Admin Endpoints (`/api/admin`)
 
 ```
-GET    /config                 — Публичная конфигурация
-GET    /tariffs                — Список тарифов
-GET    /subscription-page      — Конфиг страницы подписки
-GET    /deeplink               — Deep link для VPN-приложений
+GET    /dashboard/stats              — Dashboard stats
+GET    /clients                      — Client list (pagination, search)
+GET    /clients/:id                  — Client details
+PATCH  /clients/:id                  — Update client
+
+CRUD   /tariff-categories            — Tariff categories
+CRUD   /tariffs                      — Tariffs
+CRUD   /promo-groups                 — Promo groups
+CRUD   /promo-codes                  — Promo codes
+
+GET    /analytics                    — Analytics
+GET    /sales-report                 — Sales report
+GET/PATCH /settings                  — System settings
+
+GET    /remna/*                      — Proxy requests to Remnawave
+POST   /sync/from-remna              — Sync from Remnawave
+POST   /sync/to-remna                — Sync to Remnawave
 ```
 
-### Вебхуки
+### 🌍 Public Endpoints (`/api/public`)
 
 ```
-POST   /webhooks/remna         — События от Remnawave
-POST   /webhooks/platega       — Callback от Platega (автоактивация)
-POST   /webhooks/yoomoney      — HTTP-уведомления ЮMoney (пополнение, оплата тарифа)
-POST   /webhooks/yookassa      — События ЮKassa (payment.succeeded → зачисление/активация тарифа)
+GET    /config                       — Public configuration
+GET    /tariffs                      — Tariff list
+GET    /subscription-page            — Subscription page config
+GET    /deeplink                     — Deep link for VPN apps
+```
+
+### 📡 Webhooks
+
+```
+POST   /webhooks/remna               — Remnawave events
+POST   /webhooks/platega             — Platega callback (auto-activation)
+POST   /webhooks/yoomoney            — YooMoney HTTP notifications (top-up, tariff payment)
+POST   /webhooks/yookassa            — YooKassa events (payment.succeeded → top-up/tariff activation)
 ```
 
 ---
 
-## Docker-сервисы
+## 🐳 Docker Services
 
 ```bash
 docker compose ps
 ```
 
-| Контейнер | Порт | Описание |
-|-----------|------|----------|
-| `stealthnet-postgres` | 5432 (внутр.) | PostgreSQL 16 — база данных |
-| `stealthnet-api` | 5000 | Backend API |
-| `stealthnet-bot` | — | Telegram-бот |
-| `stealthnet-nginx` | 80, 443 | Nginx + SSL (встроенный режим) |
-| `stealthnet-certbot` | — | Автообновление SSL-сертификатов |
+| Container             | Port        | Description                  |
+| --------------------- | ----------- | ---------------------------- |
+| `stealthnet-postgres` | 5432 (int.) | PostgreSQL 16 — database     |
+| `stealthnet-api`      | 5000        | Backend API                  |
+| `stealthnet-bot`      | —           | Telegram bot                 |
+| `stealthnet-nginx`    | 80, 443     | Nginx + SSL (built-in mode)  |
+| `stealthnet-certbot`  | —           | SSL certificate auto-renewal |
 
 ---
 
-## Полезные команды
+## 🧰 Useful Commands
 
 ```bash
-# Обновление до последнего коммита (до последней мастер ветки, не всегда стабильно)
+# Update to the latest commit (latest main branch, not always stable)
 git pull origin main
 
-
-# Обновление до конкретной версии (более стабильно, релиз версии):
+# Update to a specific version (more stable, release version):
 git fetch --tags
 git checkout v3.1.3
 
-# Статус сервисов
+# Services status
 docker compose ps
 
-# Логи в реальном времени
+# Real-time logs
 docker compose logs -f api
 docker compose logs -f bot
 docker compose logs -f nginx
 
-# Перезапуск API и бота
+# Restart API and bot
 docker compose restart api bot
 
-# Полная остановка
+# Full shutdown
 docker compose down
 
-# Запуск (без встроенного nginx)
+# Start (without built-in nginx)
 docker compose up -d
 
-# Запуск (со встроенным nginx + SSL)
+# Start (with built-in nginx + SSL)
 docker compose --profile builtin-nginx up -d
 
-# Остановка (со встроенным nginx + SSL)
+# Shutdown (with built-in nginx + SSL)
 docker compose --profile builtin-nginx down
 
-# Пересборка после обновления кода
+# Rebuild after code update
 docker compose build api bot
-docker compose up frontend        # пересобрать фронтенд
+docker compose up frontend        # rebuild frontend
 docker compose restart api bot
 ```
 
-### Обновление из Git (git pull)
+### 🔄 Updating from Git (git pull)
 
-- **`nginx/nginx.conf`** — в `.gitignore` (файл генерируется install.sh под домен). Если Git всё ещё его обновляет при pull, один раз выполните:  
+- **`nginx/nginx.conf`** — is in `.gitignore` (file generated by install.sh for the domain). If Git still updates it on pull, run once:  
   `git rm --cached nginx/nginx.conf && git commit -m "Stop tracking nginx.conf"`
-- **Исходный код** (`backend/...`, `nginx/nginx.conf.template` и т.д.) в игнор не добавлять. Перед `git pull` либо закоммитьте изменения, либо спрячьте:  
+- **Source code** (`backend/...`, `nginx/nginx.conf.template`, etc.) should not be added to ignore. Before `git pull`, either commit changes or stash them:  
   `git stash && git pull && git stash pop`
 
 ---
 
 
-## Настройка
+## ⚙️ Configuration
 
-### Переменные окружения
+### 🔑 Environment Variables
 
-Все переменные описаны в `.env.example`:
+All variables are described in `.env.example`:
 
-| Переменная | Обязательная | Описание |
-|------------|:---:|----------|
-| `DOMAIN` | да | Домен панели (например `vpn.example.com`) |
-| `POSTGRES_DB` | да | Имя базы данных |
-| `POSTGRES_USER` | да | Пользователь PostgreSQL |
-| `POSTGRES_PASSWORD` | да | Пароль PostgreSQL |
-| `JWT_SECRET` | да | Секрет для JWT-токенов (мин. 32 символа) |
-| `JWT_ACCESS_EXPIRES_IN` | нет | Время жизни access-токена (по умолчанию `15m`) |
-| `JWT_REFRESH_EXPIRES_IN` | нет | Время жизни refresh-токена (по умолчанию `7d`) |
-| `INIT_ADMIN_EMAIL` | да | Email первого администратора |
-| `INIT_ADMIN_PASSWORD` | да | Пароль первого администратора |
-| `REMNA_API_URL` | да | URL панели Remnawave |
-| `REMNA_ADMIN_TOKEN` | да | API-токен Remnawave |
-| `BOT_TOKEN` | нет | Токен Telegram-бота |
-| `USE_BUILTIN_NGINX` | нет | `true` для встроенного nginx |
-| `CERTBOT_EMAIL` | нет | Email для Let's Encrypt |
+| Variable                 | Required | Description                            |
+| ------------------------ | :------: | -------------------------------------- |
+| `DOMAIN`                 |   yes    | Panel domain (e.g., `vpn.example.com`) |
+| `POSTGRES_DB`            |   yes    | Database name                          |
+| `POSTGRES_USER`          |   yes    | PostgreSQL user                        |
+| `POSTGRES_PASSWORD`      |   yes    | PostgreSQL password                    |
+| `JWT_SECRET`             |   yes    | JWT token secret (min. 32 chars)       |
+| `JWT_ACCESS_EXPIRES_IN`  |    no    | Access token lifetime (default `15m`)  |
+| `JWT_REFRESH_EXPIRES_IN` |    no    | Refresh token lifetime (default `7d`)  |
+| `INIT_ADMIN_EMAIL`       |   yes    | First admin email                      |
+| `INIT_ADMIN_PASSWORD`    |   yes    | First admin password                   |
+| `REMNA_API_URL`          |   yes    | Remnawave panel URL                    |
+| `REMNA_ADMIN_TOKEN`      |   yes    | Remnawave API token                    |
+| `BOT_TOKEN`              |    no    | Telegram bot token                     |
+| `USE_BUILTIN_NGINX`      |    no    | `true` for built-in nginx              |
+| `CERTBOT_EMAIL`          |    no    | Email for Let's Encrypt                |
 
-### Свой Nginx (вместо встроенного)
+### 🌐 Custom Nginx (instead of built-in)
 
-Если при установке выбран внешний nginx:
+If external nginx was chosen during installation:
 
-1. Пример конфига: `nginx/external.conf.example`
-2. API проксируется на `http://127.0.0.1:5000`
-3. Статика фронтенда: `/var/www/stealthnet/` или `frontend/dist/`
+1. Config example: `nginx/external.conf.example`
+2. API proxied to `http://127.0.0.1:5000`
+3. Frontend static files: `/var/www/stealthnet/` or `frontend/dist/`
 
 ```bash
-# Получить SSL
+# Get SSL
 sudo certbot --nginx -d your-domain.com
 
-# Подключить конфиг
+# Link config
 sudo cp nginx/external.conf.example /etc/nginx/sites-available/stealthnet.conf
 sudo ln -s /etc/nginx/sites-available/stealthnet.conf /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
@@ -433,97 +447,98 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ---
 
-## Структура проекта
+## 🗂️ Project Structure
 
 ```
 remnawave-STEALTHNET-Bot/
 ├── backend/                  # Backend API
 │   ├── src/
-│   │   ├── index.ts          # Точка входа
+│   │   ├── index.ts          # Entry point
 │   │   ├── modules/
-│   │   │   ├── auth/         # JWT-аутентификация
-│   │   │   ├── admin/        # Админские маршруты и контроллеры
-│   │   │   └── client/       # Клиентские маршруты и контроллеры
+│   │   │   ├── auth/         # JWT authentication
+│   │   │   ├── admin/        # Admin routes and controllers
+│   │   │   └── client/       # Client routes and controllers
 │   │   └── ...
 │   └── prisma/
-│       └── schema.prisma     # Схема базы данных
-├── bot/                      # Telegram-бот
+│       └── schema.prisma     # Database schema
+├── bot/                      # Telegram bot
 │   ├── src/
-│   │   ├── index.ts          # Логика бота
-│   │   ├── api.ts            # Клиент к Backend API
-│   │   └── keyboard.ts       # Клавиатуры и кнопки
+│   │   ├── index.ts          # Bot logic
+│   │   ├── api.ts            # Client for Backend API
+│   │   └── keyboard.ts       # Keyboards and buttons
 │   └── ...
 ├── frontend/                 # React SPA
 │   ├── src/
-│   │   ├── pages/            # Страницы (admin + cabinet)
-│   │   ├── components/       # Переиспользуемые компоненты
+│   │   ├── pages/            # Pages (admin + cabinet)
+│   │   ├── components/       # Reusable components
 │   │   └── ...
 │   └── ...
-├── nginx/                    # Конфиги Nginx
-│   ├── nginx.conf.template   # Шаблон для встроенного nginx
-│   ├── nginx-initial.conf    # Начальный конфиг для certbot
-│   └── external.conf.example # Пример для внешнего nginx
-├── scripts/                  # Вспомогательные скрипты
-├── docker-compose.yml        # Оркестрация всех сервисов
-├── install.sh                # Интерактивный установщик
-├── .env.example              # Шаблон переменных окружения
-└── README.md                 # Этот файл
+├── nginx/                    # Nginx configs
+│   ├── nginx.conf.template   # Template for built-in nginx
+│   ├── nginx-initial.conf    # Initial config for certbot
+│   └── external.conf.example # Example for external nginx
+├── scripts/                  # Helper scripts
+├── docker-compose.yml        # Orchestration of all services
+├── install.sh                # Interactive installer
+├── .env.example              # Env variables template
+└── README.md                 # This file
 ```
 
 ---
 
-## Миграция
+## 🔁 Migration
 
-Переходите с другой панели? Поддерживается миграция из двух источников:
+Migrating from another panel? Migration is supported from two sources:
 
-| Источник | Скрипт | Документация |
-|---|---|---|
-| **Старая панель STEALTHNET (Flask)** | `scripts/migrate-from-old-panel.js` | [Подробная инструкция](MIGRATION.md#вариант-1-миграция-из-старой-панели-flask) |
-| **Бедолага Бот** | `scripts/migrate-from-bedolaga.js` | [Подробная инструкция](MIGRATION.md#вариант-2-миграция-из-бедолага-бот) |
+| Source                           | Script                              | Documentation                                                                        |
+| -------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------ |
+| **Old STEALTHNET panel (Flask)** | `scripts/migrate-from-old-panel.js` | [Detailed instructions](docs/MIGRATION.md#option-1-migration-from-the-old-panel-flask) |
+| **Bedolaga Bot**                 | `scripts/migrate-from-bedolaga.js`  | [Detailed instructions](docs/MIGRATION.md#option-2-migration-from-bedolaga-bot)        |
 
-### Быстрый старт миграции
+### 🧬 Quick Migration Start
 
 ```bash
-# 1. Установить зависимости скриптов (один раз)
+# 1. Install script dependencies (once)
 cd scripts && npm install && cd ..
 
-# 2a. Миграция из старой Flask-панели
+# 2a. Migration from old Flask panel
 OLD_DB_HOST=localhost OLD_DB_NAME=stealthnet_old \
 NEW_DB_HOST=localhost NEW_DB_NAME=stealthnet \
 node scripts/migrate-from-old-panel.js
 
-# 2b. Миграция из Бедолаги (путь к бэкапу)
+# 2b. Migration from Bedolaga (path to backup)
 node scripts/migrate-from-bedolaga.js ./backup_20260126_000000.tar.gz
 ```
 
-> Валюта определяется автоматически из настроек системы (`default_currency`).  
-> Скрипты идемпотентные — можно запускать повторно без риска дублей.  
-> Полная документация, переменные, FAQ — в **[MIGRATION.md](MIGRATION.md)**.
+> The currency is determined automatically from system settings (`default_currency`).  
+> Scripts are idempotent — they can be run repeatedly without the risk of duplicates.  
+> Full documentation, variables, FAQ — in **[MIGRATION.md](docs/MIGRATION.md)**.
 
 ---
 
-## Поддержка и сообщество
+## 💬 Support and Community
 
-Вопросы, предложения, баг-репорты — всё сюда:
+Questions, suggestions, bug reports — all here:
 
 <p align="center">
-  <a href="https://t.me/stealthnet_admin_panel"><img src="https://img.shields.io/badge/Telegram-@stealthnet__admin__panel-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram канал" /></a>
+  <a href="https://t.me/stealthnet_admin_panel"><img src="https://img.shields.io/badge/Telegram-@stealthnet__admin__panel-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Channel" /></a>
 </p>
 
 ---
 
-## Лицензия
+## 📜 License
 
-Проект распространяется под лицензией **GNU AGPL-3.0**.
+This project is licensed under the **GNU AGPL-3.0** License.
 
-[![AGPL-3.0](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+<p align="center">
+  <a href="https://www.gnu.org/licenses/agpl-3.0"><img src="https://img.shields.io/badge/License-AGPL%20v3-blue.svg" alt="License-AGPL" /></a>
+</p>
 
-Полный текст лицензии — в файле [LICENSE](LICENSE). При использовании, модификации и распространении кода необходимо соблюдать условия AGPL-3.0 (в т.ч. раскрытие исходного кода производных работ при использовании в сетевом сервисе).
+The full text of the license is in the [LICENSE](LICENSE) file. When using, modifying, and distributing the code, you must comply with the conditions of AGPL-3.0 (including source code disclosure of derivative works when used as a network service).
 
 ---
 
 <p align="center">
-  <b>STEALTHNET 3.0</b> — продавай VPN красиво.<br/>
+  <b>STEALTHNET 3.0</b> — sell VPN beautifully.<br/>
   <sub>Built with TypeScript, React, Grammy, Prisma, Docker</sub><br/><br/>
-  <a href="https://t.me/stealthnet_admin_panel">Telegram-канал</a>
 </p>
