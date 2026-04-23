@@ -380,8 +380,8 @@ remnawave-STEALTHNET-Bot/
 
 | سورس                  | اسکریپت                             | مستندات                                                                      |
 | --------------------- | ----------------------------------- | ------------------------------------------------------------------------------ |
-| **پنل قدیمی (Flask)** | `scripts/migrate-from-old-panel.js` | [گزینه 1: مهاجرت از پنل قدیمی (Flask)](#گزینه-1-مهاجرت-از-پنل-قدیمی-flask) |
-| **ربات Bedolaga**     | `scripts/migrate-from-bedolaga.js`  | [گزینه 2: مهاجرت از ربات Bedolaga](#گزینه-2-مهاجرت-از-ربات-bedolaga)        |
+| **پنل قدیمی (Flask)** | `scripts/migrate-from-old-panel.js` | [گزینه 1: مهاجرت از پنل قدیمی (Flask)](MIGRATION.md#%DA%AF%D8%B2%DB%8C%D9%86%D9%87-1-%D9%85%D9%87%D8%A7%D8%AC%D8%B1%D8%AA-%D8%A7%D8%B2-%D9%BE%D9%86%D9%84-%D9%82%D8%AF%DB%8C%D9%85%DB%8C-flask) |
+| **ربات Bedolaga**     | `scripts/migrate-from-bedolaga.js`  | [گزینه 2: مهاجرت از ربات Bedolaga](MIGRATION.md#%DA%AF%D8%B2%DB%8C%D9%86%D9%87-2-%D9%85%D9%87%D8%A7%D8%AC%D8%B1%D8%AA-%D8%A7%D8%B2-%D8%B1%D8%A8%D8%A7%D8%AA-bedolaga)        |
 
 ### 🧬 شروع سریع مهاجرت
 
