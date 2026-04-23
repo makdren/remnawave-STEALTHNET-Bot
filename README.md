@@ -392,6 +392,15 @@ docker compose --profile builtin-nginx down
 docker compose build api bot
 docker compose up frontend        # rebuild frontend
 docker compose restart api bot
+
+# Rebuild after code update (with external nginx)
+chmod +x ./scripts/update-front-with-external-nginx.sh
+./scripts/update-front-with-external-nginx.sh
+
+# For cleaning old images (if disk space too small)
+docker compose down
+docker system prune -a
+docker compose up -d --build && docker compose logs -f -t
 ```
 
 ### 🔄 Updating from Git (git pull)
