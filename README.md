@@ -394,6 +394,7 @@ docker compose up frontend        # rebuild frontend
 docker compose restart api bot
 
 # Rebuild after code update (with external nginx)
+chmod +x ./scripts/update-front-with-external-nginx.sh
 ./scripts/update-front-with-external-nginx.sh
 
 # For cleaning old images (if disk space too small)
