@@ -42,16 +42,16 @@
 </p>
 
 <p align="center">
-  <a href="#-شروع سریع">شروع سریع</a> &bull;
-  <a href="#-پیش‌نیازهای سرور">پیش‌نیازهای سرور</a>
-  <a href="#-معماری">معماری</a> &bull;
-  <a href="#-امکانات">امکانات</a> &bull;
-  <a href="#-ربات تلگرام">ربات تلگرام</a> &bull;
-  <a href="#-پنل وب">پنل وب</a> &bull;
+  <a href="#-%D8%B4%D8%B1%D9%88%D8%B9-%D8%B3%D8%B1%DB%8C%D8%B9">شروع سریع</a> &bull;
+  <a href="#%EF%B8%8F-%D9%BE%DB%8C%D8%B4%E2%80%8C%D9%86%DB%8C%D8%A7%D8%B2%D9%87%D8%A7%DB%8C-%D8%B3%D8%B1%D9%88%D8%B1">پیش‌نیازهای سرور</a> &bull;
+  <a href="#-%D9%85%D8%B9%D9%85%D8%A7%D8%B1%DB%8C">معماری</a> &bull;
+  <a href="#-%D8%A7%D9%85%DA%A9%D8%A7%D9%86%D8%A7%D8%AA">امکانات</a> &bull;
+  <a href="#-%D8%B1%D8%A8%D8%A7%D8%AA-%D8%AA%D9%84%DA%AF%D8%B1%D8%A7%D9%85">ربات تلگرام</a> &bull;
+  <a href="#-%D9%BE%D9%86%D9%84-%D9%88%D8%A8">پنل وب</a> &bull;
   <a href="#-api">API</a> &bull;
   <a href="#-docker">Docker</a> &bull;
-  <a href="#-پیکربندی">پیکربندی</a> &bull;
-  <a href="#-مهاجرت">مهاجرت</a> &bull;
+  <a href="#%EF%B8%8F-%D9%BE%DB%8C%DA%A9%D8%B1%D8%A8%D9%86%D8%AF%DB%8C">پیکربندی</a> &bull;
+  <a href="#-%D9%85%D9%87%D8%A7%D8%AC%D8%B1%D8%AA-1">مهاجرت</a>
 </p>
 
 ---

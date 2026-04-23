@@ -43,15 +43,15 @@
 
 <p align="center">
   <a href="#-快速开始">快速开始</a> &bull;
-  <a href="#-服务器要求">服务器要求</a>
+  <a href="#%EF%B8%8F-服务器要求">服务器要求</a> &bull;
   <a href="#-架构">架构</a> &bull;
   <a href="#-功能特性">功能特性</a> &bull;
   <a href="#-telegram-机器人">Telegram 机器人</a> &bull;
   <a href="#-web-面板">Web 面板</a> &bull;
   <a href="#-api">API</a> &bull;
   <a href="#-docker">Docker</a> &bull;
-  <a href="#-配置">配置</a> &bull;
-  <a href="#-迁移">迁移</a> &bull;
+  <a href="#%EF%B8%8F-配置">配置</a> &bull;
+  <a href="#-迁移">迁移</a>
 </p>
 
 ---

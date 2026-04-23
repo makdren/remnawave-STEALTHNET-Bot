@@ -44,15 +44,15 @@
 
 <p align="center">
   <a href="#-quick-start">Quick start</a> &bull;
-  <a href="#-server-requirements">Requirements</a>
+  <a href="#%EF%B8%8F-server-requirements">Requirements</a> &bull;
   <a href="#-architecture">Architecture</a> &bull;
   <a href="#-features">Features</a> &bull;
   <a href="#-telegram-bot">Telegram bot</a> &bull;
   <a href="#-web-panel">Web panel</a> &bull;
   <a href="#-api">API</a> &bull;
   <a href="#-docker-services">Docker Services</a> &bull;
-  <a href="#-configuration">Configuration</a> &bull;
-  <a href="#-migration">Migration</a> &bull;
+  <a href="#%EF%B8%8F-configuration">Configuration</a> &bull;
+  <a href="#-migration">Migration</a>
 </p>
 
 ---
