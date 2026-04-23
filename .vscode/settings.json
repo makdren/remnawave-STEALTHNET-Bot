@@ -42,5 +42,6 @@
     "фронтенд",
     "фронтенда",
     "эндпоинты"
-  ]
+  ],
+  "commentTranslate.multiLineMerge": true
 }
