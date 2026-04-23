@@ -61,8 +61,6 @@ bash install.sh
 > 
 > docker system prune -a --volumes
 
-> **Если при запуске появляется ошибка** вида `invalid option nameet: pipefail` — у скрипта могли сохраниться переводы строк в формате Windows (CRLF). Исправление: `sed -i 's/\r$//' install.sh`, затем снова `bash install.sh`.
-
 Интерактивный установщик за 2 минуты настроит всё:
 
 - Домен и SSL-сертификаты (Let's Encrypt)
