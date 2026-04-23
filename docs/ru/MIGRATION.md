@@ -46,11 +46,10 @@ docker compose exec postgres pg_dump -U stealthnet stealthnet > backup_before_mi
 
 Оба скрипта миграции **автоматически определяют системную валюту** из настроек новой панели (таблица `system_settings`, ключ `default_currency`).
 
-| Системная валюта | Что происходит |
-|---|---|
-| `rub` | Балансы, цены, платежи переносятся в **рублях** |
-| `usd` | Всё конвертируется в **доллары** |
-| `uah` | Всё в **гривнах** |
+| Системная валюта | Что происходит                                  |
+| ---------------- | ----------------------------------------------- |
+| `rub`            | Балансы, цены, платежи переносятся в **рублях** |
+| `usd`            | Всё конвертируется в **доллары**                |
 
 Валюту можно задать через настройки в админ-панели (Настройки → Валюта по умолчанию) **до** запуска миграции, или переопределить через ENV:
 
@@ -67,19 +66,19 @@ DEFAULT_CURRENCY=rub node scripts/migrate-from-old-panel.js
 
 ### Что переносится
 
-| Старая панель (Flask) | STEALTHNET 3.0 | Детали |
-|---|---|---|
-| `User` | `Client` | email, telegram_id, баланс, referral_code, remnawave_uuid, trial_used |
-| `TariffLevel` / поле `tier` | `TariffCategory` | basic → «Базовый», pro → «Премиум», elite → «Элитный» |
-| `Tariff` | `Tariff` | Цена берётся из колонки системной валюты (`price_rub` / `price_usd` / `price_uah`) |
-| `Payment` | `Payment` | Вся история платежей с провайдерами |
-| `PromoCode` | `PromoCode` | PERCENT → DISCOUNT, DAYS → FREE_DAYS |
-| `referrer_id` связи | `referrerId` | Реферальные цепочки |
-| `SystemSetting` | `SystemSettings` | Язык, валюта, активные языки/валюты |
-| `BotConfig` | `SystemSettings` | Имя сервиса, поддержка, дни триала |
-| `BrandingSetting` | `SystemSettings` | Логотип, favicon, название |
-| `ReferralSetting` | `SystemSettings` | Проценты рефералов, сквад триала |
-| `TrialSettings` | `SystemSettings` | Дни, устройства, трафик |
+| Старая панель (Flask)       | STEALTHNET 3.0   | Детали                                                                             |
+| --------------------------- | ---------------- | ---------------------------------------------------------------------------------- |
+| `User`                      | `Client`         | email, telegram_id, баланс, referral_code, remnawave_uuid, trial_used              |
+| `TariffLevel` / поле `tier` | `TariffCategory` | basic → «Базовый», pro → «Премиум», elite → «Элитный»                              |
+| `Tariff`                    | `Tariff`         | Цена берётся из колонки системной валюты (`price_rub` / `price_usd` / `price_uah`) |
+| `Payment`                   | `Payment`        | Вся история платежей с провайдерами                                                |
+| `PromoCode`                 | `PromoCode`      | PERCENT → DISCOUNT, DAYS → FREE_DAYS                                               |
+| `referrer_id` связи         | `referrerId`     | Реферальные цепочки                                                                |
+| `SystemSetting`             | `SystemSettings` | Язык, валюта, активные языки/валюты                                                |
+| `BotConfig`                 | `SystemSettings` | Имя сервиса, поддержка, дни триала                                                 |
+| `BrandingSetting`           | `SystemSettings` | Логотип, favicon, название                                                         |
+| `ReferralSetting`           | `SystemSettings` | Проценты рефералов, сквад триала                                                   |
+| `TrialSettings`             | `SystemSettings` | Дни, устройства, трафик                                                            |
 
 ### Запуск
 
@@ -103,19 +102,19 @@ node scripts/migrate-from-old-panel.js
 
 ### Все переменные
 
-| Переменная | По умолчанию | Описание |
-|---|---|---|
-| `OLD_DB_HOST` | `localhost` | Хост старой PostgreSQL |
-| `OLD_DB_PORT` | `5432` | Порт старой БД |
-| `OLD_DB_NAME` | `stealthnet` | Имя старой БД |
-| `OLD_DB_USER` | `stealthnet` | Пользователь старой БД |
-| `OLD_DB_PASSWORD` | `stealthnet_password_change_me` | Пароль старой БД |
-| `NEW_DB_HOST` | `localhost` | Хост новой PostgreSQL |
-| `NEW_DB_PORT` | `5432` | Порт новой БД |
-| `NEW_DB_NAME` | `stealthnet` | Имя новой БД |
-| `NEW_DB_USER` | `stealthnet` | Пользователь новой БД |
-| `NEW_DB_PASSWORD` | `stealthnet_change_me` | Пароль новой БД |
-| `DEFAULT_CURRENCY` | *(из system_settings)* | Переопределить валюту (`rub`, `usd`, `uah`) |
+| Переменная         | По умолчанию                    | Описание                                    |
+| ------------------ | ------------------------------- | ------------------------------------------- |
+| `OLD_DB_HOST`      | `localhost`                     | Хост старой PostgreSQL                      |
+| `OLD_DB_PORT`      | `5432`                          | Порт старой БД                              |
+| `OLD_DB_NAME`      | `stealthnet`                    | Имя старой БД                               |
+| `OLD_DB_USER`      | `stealthnet`                    | Пользователь старой БД                      |
+| `OLD_DB_PASSWORD`  | `stealthnet_password_change_me` | Пароль старой БД                            |
+| `NEW_DB_HOST`      | `localhost`                     | Хост новой PostgreSQL                       |
+| `NEW_DB_PORT`      | `5432`                          | Порт новой БД                               |
+| `NEW_DB_NAME`      | `stealthnet`                    | Имя новой БД                                |
+| `NEW_DB_USER`      | `stealthnet`                    | Пользователь новой БД                       |
+| `NEW_DB_PASSWORD`  | `stealthnet_change_me`          | Пароль новой БД                             |
+| `DEFAULT_CURRENCY` | *(из system_settings)*          | Переопределить валюту (`rub`, `usd`, `uah`) |
 
 ### Пример вывода
 
@@ -134,13 +133,13 @@ node scripts/migrate-from-old-panel.js
 ║                    МИГРАЦИЯ ЗАВЕРШЕНА                        ║
 ╠══════════════════════════════════════════════════════════════╣
 ║                                                              ║
-║  Клиенты:       42 создано      0 пропущено    0 ошибок     ║
-║  Категории:      3 создано      0 пропущено                 ║
-║  Тарифы:         9 создано      0 пропущено    0 ошибок     ║
-║  Платежи:      156 создано      0 пропущено    0 ошибок     ║
-║  Промокоды:      5 создано      0 пропущено    0 ошибок     ║
-║  Рефералы:      18 связано                     0 ошибок     ║
-║  Настройки:     12 перенесено                               ║
+║  Клиенты:       42 создано      0 пропущено    0 ошибок      ║
+║  Категории:      3 создано      0 пропущено                  ║
+║  Тарифы:         9 создано      0 пропущено    0 ошибок      ║
+║  Платежи:      156 создано      0 пропущено    0 ошибок      ║
+║  Промокоды:      5 создано      0 пропущено    0 ошибок      ║
+║  Рефералы:      18 связано                     0 ошибок      ║
+║  Настройки:     12 перенесено                                ║
 ║                                                              ║
 ╚══════════════════════════════════════════════════════════════╝
 ```
@@ -161,24 +160,23 @@ node scripts/migrate-from-old-panel.js
 
 ### Что переносится
 
-| Бедолага Бот | STEALTHNET 3.0 | Детали |
-|---|---|---|
-| `users` | `clients` | telegram_id, username, имя, баланс, remnawave_uuid, referral_code |
-| `subscriptions` | обновление `trial_used` | Данные подписок уже в Remnawave — подтянутся через Sync |
-| `transactions` | `payments` | Все транзакции: пополнения, покупки, бонусы |
-| `referred_by_id` | `referrerId` | Реферальные цепочки |
-| `referral_earnings` | `referral_credits` | Начисления рефералам |
-| `system_settings` | `system_settings` | Общие настройки (секреты/токены пропускаются) |
+| Бедолага Бот        | STEALTHNET 3.0          | Детали                                                            |
+| ------------------- | ----------------------- | ----------------------------------------------------------------- |
+| `users`             | `clients`               | telegram_id, username, имя, баланс, remnawave_uuid, referral_code |
+| `subscriptions`     | обновление `trial_used` | Данные подписок уже в Remnawave — подтянутся через Sync           |
+| `transactions`      | `payments`              | Все транзакции: пополнения, покупки, бонусы                       |
+| `referred_by_id`    | `referrerId`            | Реферальные цепочки                                               |
+| `referral_earnings` | `referral_credits`      | Начисления рефералам                                              |
+| `system_settings`   | `system_settings`       | Общие настройки (секреты/токены пропускаются)                     |
 
 ### Конвертация валюты (копейки)
 
 Бедолага хранит суммы в **копейках**. Скрипт конвертирует автоматически:
 
-| Системная валюта | Формула | Пример: 30000 копеек |
-|---|---|---|
-| `rub` | копейки ÷ 100 | **300 ₽** |
-| `uah` | копейки ÷ 100 | **300 ₴** |
-| `usd` | копейки × курс `KOPEKS_TO_USD` | **3.00 $** (при курсе 0.0001) |
+| Системная валюта | Формула                        | Пример: 30000 копеек          |
+| ---------------- | ------------------------------ | ----------------------------- |
+| `rub`            | копейки ÷ 100                  | **300 ₽**                     |
+| `usd`            | копейки × курс `KOPEKS_TO_USD` | **3.00 $** (при курсе 0.0001) |
 
 ### Запуск
 
@@ -203,15 +201,15 @@ node scripts/migrate-from-bedolaga.js ./backup.tar.gz
 
 ### Все переменные
 
-| Переменная | По умолчанию | Описание |
-|---|---|---|
-| `NEW_DB_HOST` | `localhost` | Хост новой PostgreSQL |
-| `NEW_DB_PORT` | `5432` | Порт |
-| `NEW_DB_NAME` | `stealthnet` | Имя БД |
-| `NEW_DB_USER` | `stealthnet` | Пользователь |
-| `NEW_DB_PASSWORD` | `stealthnet_change_me` | Пароль |
-| `DEFAULT_CURRENCY` | *(из system_settings)* | Переопределить валюту |
-| `KOPEKS_TO_USD` | `0.0001` | Курс для USD (1 копейка = X USD). Только при `usd` |
+| Переменная         | По умолчанию           | Описание                                           |
+| ------------------ | ---------------------- | -------------------------------------------------- |
+| `NEW_DB_HOST`      | `localhost`            | Хост новой PostgreSQL                              |
+| `NEW_DB_PORT`      | `5432`                 | Порт                                               |
+| `NEW_DB_NAME`      | `stealthnet`           | Имя БД                                             |
+| `NEW_DB_USER`      | `stealthnet`           | Пользователь                                       |
+| `NEW_DB_PASSWORD`  | `stealthnet_change_me` | Пароль                                             |
+| `DEFAULT_CURRENCY` | *(из system_settings)* | Переопределить валюту                              |
+| `KOPEKS_TO_USD`    | `0.0001`               | Курс для USD (1 копейка = X USD). Только при `usd` |
 
 ### Пример вывода
 
@@ -220,15 +218,15 @@ node scripts/migrate-from-bedolaga.js ./backup.tar.gz
       Копейки → рубли (÷100)
 
 ╔══════════════════════════════════════════════════════════════╗
-║               МИГРАЦИЯ ИЗ БЕДОЛАГИ ЗАВЕРШЕНА                ║
+║               МИГРАЦИЯ ИЗ БЕДОЛАГИ ЗАВЕРШЕНА                 ║
 ╠══════════════════════════════════════════════════════════════╣
 ║                                                              ║
-║  Клиенты:        17 создано     0 пропущено    0 ошибок     ║
-║  Подписки:        6 обновл.     0 пропущено                 ║
-║  Платежи:        11 создано     0 пропущено    0 ошибок     ║
-║  Рефералы:        2 связано                    0 ошибок     ║
-║  Реф.бонусы:      1 создано                    0 ошибок     ║
-║  Настройки:       4 перенесено                              ║
+║  Клиенты:        17 создано     0 пропущено    0 ошибок      ║
+║  Подписки:        6 обновл.     0 пропущено                  ║
+║  Платежи:        11 создано     0 пропущено    0 ошибок      ║
+║  Рефералы:        2 связано                    0 ошибок      ║
+║  Реф.бонусы:      1 создано                    0 ошибок      ║
+║  Настройки:       4 перенесено                               ║
 ║                                                              ║
 ╚══════════════════════════════════════════════════════════════╝
 ```
