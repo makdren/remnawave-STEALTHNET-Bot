@@ -18,13 +18,15 @@ import {
   Send,
   CheckCircle,
   TrendingUp,
+  RefreshCw,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import type { DashboardStats, RemnaNode, RemnaNodesResponse, ServerStats, GiftAnalytics } from "@/lib/api";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/auth";
+import { cn } from "@/lib/utils";
 import {
   AreaChart,
   Area,
@@ -38,18 +40,17 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-/* ── Animation variants — God-Tier Entrance ── */
+/* ── Animation variants ── */
 
 const cardVariants = {
-  hidden: { opacity: 0, y: 30, scale: 0.95, filter: "blur(10px)" },
+  hidden: { opacity: 0, y: 16, scale: 0.98 },
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
     scale: 1,
-    filter: "blur(0px)",
     transition: {
-      delay: i * 0.08,
-      duration: 0.85,
+      delay: i * 0.05,
+      duration: 0.5,
       ease: [0.22, 1, 0.36, 1],
     },
   }),
@@ -57,12 +58,10 @@ const cardVariants = {
 
 const staggerContainer = {
   hidden: {},
-  visible: { transition: { staggerChildren: 0.1 } },
+  visible: { transition: { staggerChildren: 0.06 } },
 };
 
-
-
-/* ── Utility functions (preserved) ── */
+/* ── Utilities ── */
 
 function formatMoney(amount: number, currency = "USD") {
   return new Intl.NumberFormat(undefined, {
@@ -84,10 +83,8 @@ function formatBytes(bytes: number | null | undefined): string {
 function formatNodeCpuRam(node: { cpuCount?: number | null; totalRam?: string | null; system?: { info?: { cpus?: number; memoryTotal?: number } | null } | null }): string {
   const cpuCores = node.system?.info?.cpus ?? node.cpuCount;
   const cpu = cpuCores != null ? `${cpuCores} cores` : "—";
-
   const memTotal = node.system?.info?.memoryTotal;
   const ram = memTotal != null ? formatBytes(memTotal) : (node.totalRam?.trim() || "—");
-
   return `${cpu} / ${ram}`;
 }
 
@@ -104,17 +101,14 @@ function formatGb(bytes: number): string {
   return (bytes / 1024 ** 3).toFixed(1) + " GB";
 }
 
-
-
 function canAccessRemnaNodes(role: string, allowedSections: string[] | undefined): boolean {
   if (role === "ADMIN") return true;
   return Array.isArray(allowedSections) && allowedSections.includes("remna-nodes");
 }
 
+/* ── CountUp Hook & Components ── */
 
-/* ── CountUp Hook ── */
-
-function useCountUp(target: number, duration = 1500): number {
+function useCountUp(target: number, duration = 1200): number {
   const [value, setValue] = useState(0);
   const rafRef = useRef<number>(0);
   const startRef = useRef<number | null>(null);
@@ -124,20 +118,17 @@ function useCountUp(target: number, duration = 1500): number {
       setValue(0);
       return;
     }
-
     startRef.current = null;
     const animate = (timestamp: number) => {
       if (startRef.current === null) startRef.current = timestamp;
       const elapsed = timestamp - startRef.current;
       const progress = Math.min(elapsed / duration, 1);
-      // ease-out cubic
       const eased = 1 - Math.pow(1 - progress, 3);
       setValue(Math.round(target * eased));
       if (progress < 1) {
         rafRef.current = requestAnimationFrame(animate);
       }
     };
-
     rafRef.current = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(rafRef.current);
   }, [target, duration]);
@@ -145,35 +136,23 @@ function useCountUp(target: number, duration = 1500): number {
   return value;
 }
 
-/* ── CountUp component for formatted money ── */
-
 function CountUpMoney({ value, currency, className }: { value: number; currency: string; className?: string }) {
   const animated = useCountUp(value);
-  return (
-    <span className={className || "text-inherit drop-shadow-sm dark:drop-shadow-none"}>
-      {formatMoney(animated, currency)}
-    </span>
-  );
+  return <span className={className}>{formatMoney(animated, currency)}</span>;
 }
 
 function CountUpNumber({ value, className }: { value: number; className?: string }) {
   const animated = useCountUp(value);
-  return (
-    <span className={className || "text-inherit drop-shadow-sm dark:drop-shadow-none"}>
-      {animated.toLocaleString()}
-    </span>
-  );
+  return <span className={className}>{animated.toLocaleString()}</span>;
 }
 
-
-
-/* ── Sparkline Mini Chart with Enhanced Glow ── */
+/* ── Sparkline ── */
 
 function Sparkline({
   data,
   color,
-  height = 48,
-  width = 120,
+  height = 40,
+  width = 100,
 }: {
   data: { v: number }[];
   color: string;
@@ -181,44 +160,31 @@ function Sparkline({
   width?: number;
 }) {
   const gradientId = `spark-${color.replace("#", "")}`;
-  const glowFilterId = `spark-glow-${color.replace("#", "")}`;
   return (
     <ResponsiveContainer width={width} height={height}>
       <AreaChart data={data} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity={0.5} />
-            <stop offset="50%" stopColor={color} stopOpacity={0.15} />
+            <stop offset="0%" stopColor={color} stopOpacity={0.4} />
             <stop offset="100%" stopColor={color} stopOpacity={0} />
           </linearGradient>
-          {/* Enhanced drop-shadow glow for sparkline stroke */}
-          <filter id={glowFilterId} x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur" />
-            <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0.8 0" result="coloredBlur" />
-            <feMerge>
-              <feMergeNode in="coloredBlur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
         </defs>
         <Area
           type="monotone"
           dataKey="v"
           stroke={color}
-          strokeWidth={2.5}
+          strokeWidth={2}
           fill={`url(#${gradientId})`}
           dot={false}
-          isAnimationActive={true}
-          animationDuration={1400}
-          style={{ filter: `url(#${glowFilterId})` }}
+          isAnimationActive
+          animationDuration={1000}
         />
       </AreaChart>
     </ResponsiveContainer>
   );
 }
 
-
-/* ── Section Header — Terminal Style ── */
+/* ── Section Header (glass) ── */
 
 function SectionHeader({
   icon: Icon,
@@ -231,29 +197,34 @@ function SectionHeader({
 }) {
   return (
     <motion.div
-      className="flex items-center gap-4 mb-6 font-mono"
-      initial={{ opacity: 0, x: -12 }}
+      className="flex items-center gap-3 mb-5"
+      initial={{ opacity: 0, x: -8 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
     >
-      <motion.div
-        className={`relative flex items-center justify-center h-10 w-10 border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/5 shadow-[0_0_15px_hsl(var(--primary)/0.15)]`}
-        whileHover={{ scale: 1.1, rotate: 5 }}
-        transition={{ type: "spring", stiffness: 400, damping: 15 }}
-      >
-        <Icon className="h-5 w-5 text-slate-800 dark:text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
-      </motion.div>
+      <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/20 border border-white/10 flex items-center justify-center shadow-inner shrink-0">
+        <Icon className="h-5 w-5 text-primary" />
+      </div>
       <div>
-        <h2 className="text-lg font-bold tracking-widest uppercase text-slate-800 dark:text-white dark:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)] flex items-center gap-2">
-          <span className="text-primary/50 hidden sm:inline">&gt;</span> {title}
+        <h2 className="text-lg font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
+          {title}
         </h2>
-        <p className="text-xs text-slate-500 dark:text-primary/60 uppercase tracking-widest">{subtitle}</p>
+        <p className="text-xs text-muted-foreground">{subtitle}</p>
       </div>
     </motion.div>
   );
 }
 
-/* ── Stat Card — God-Tier Glassmorphism + 3D Levitating Hover + Border Beam ── */
+/* ── Stat Card (glass) ── */
+
+const ACCENT_MAP = {
+  primary: { iconText: "text-primary", spark: "hsl(var(--primary))", glow: "hsl(var(--primary)/0.35)", iconBg: "from-primary/25 to-primary/5", bar: "from-primary to-primary/40" },
+  emerald: { iconText: "text-emerald-500 dark:text-emerald-400", spark: "#10b981", glow: "rgba(16,185,129,0.35)", iconBg: "from-emerald-500/25 to-emerald-500/5", bar: "from-emerald-500 to-emerald-500/40" },
+  amber: { iconText: "text-amber-500 dark:text-amber-400", spark: "#f59e0b", glow: "rgba(245,158,11,0.35)", iconBg: "from-amber-500/25 to-amber-500/5", bar: "from-amber-500 to-amber-500/40" },
+  red: { iconText: "text-red-500 dark:text-red-400", spark: "#ef4444", glow: "rgba(239,68,68,0.35)", iconBg: "from-red-500/25 to-red-500/5", bar: "from-red-500 to-red-500/40" },
+  violet: { iconText: "text-violet-500 dark:text-violet-400", spark: "#a78bfa", glow: "rgba(167,139,250,0.35)", iconBg: "from-violet-500/25 to-violet-500/5", bar: "from-violet-500 to-violet-500/40" },
+  cyan: { iconText: "text-cyan-500 dark:text-cyan-400", spark: "#22d3ee", glow: "rgba(34,211,238,0.35)", iconBg: "from-cyan-500/25 to-cyan-500/5", bar: "from-cyan-500 to-cyan-500/40" },
+} as const;
 
 function StatCard({
   index,
@@ -262,7 +233,6 @@ function StatCard({
   value,
   subtitle,
   sparkData,
-  sparkColor,
   accentColor = "primary",
 }: {
   index: number;
@@ -271,348 +241,316 @@ function StatCard({
   value: React.ReactNode;
   subtitle: string;
   sparkData?: { v: number }[];
-  sparkColor?: string;
-  accentColor?: "primary" | "emerald" | "amber" | "red" | "violet" | "cyan";
+  accentColor?: keyof typeof ACCENT_MAP;
 }) {
-  const colorMap = {
-    primary: {
-      borderHover: "hover:border-primary/50",
-      shadowHover: "hover:shadow-primary/10",
-      gradient: "from-transparent via-primary/50 to-transparent",
-      bracket: "text-primary/50",
-      title: "text-slate-900 dark:text-white",
-      iconBg: "dark:bg-primary/30",
-      iconBorder: "dark:border-white/10",
-      iconShadow: "shadow-[0_0_10px_hsl(var(--primary)/0.15)]",
-      iconText: "text-slate-800 dark:text-primary drop-shadow-[0_0_8px_hsl(var(--primary)/0.8)]",
-      subtitle: "text-primary/70 dark:text-primary",
-      valueGlow: "text-slate-900 dark:text-white dark:drop-shadow-[0_0_12px_rgba(255,255,255,0.4)]",
-    },
-    emerald: {
-      borderHover: "hover:border-primary/50",
-      shadowHover: "hover:shadow-primary/10",
-      gradient: "from-transparent via-primary/50 to-transparent",
-      bracket: "text-emerald-500/50",
-      title: "text-slate-900 dark:text-white",
-      iconBg: "dark:bg-primary/30",
-      iconBorder: "dark:border-white/10",
-      iconShadow: "shadow-[0_0_10px_rgba(16,185,129,0.1)]",
-      iconText: "text-emerald-600 dark:text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.6)]",
-      subtitle: "text-primary/70 dark:text-primary",
-      valueGlow: "text-slate-900 dark:text-white dark:drop-shadow-[0_0_12px_rgba(255,255,255,0.4)]",
-    },
-    amber: {
-      borderHover: "hover:border-primary/50",
-      shadowHover: "hover:shadow-primary/10",
-      gradient: "from-transparent via-primary/50 to-transparent",
-      bracket: "text-amber-500/50",
-      title: "text-slate-900 dark:text-white",
-      iconBg: "dark:bg-primary/30",
-      iconBorder: "dark:border-white/10",
-      iconShadow: "shadow-[0_0_10px_rgba(245,158,11,0.1)]",
-      iconText: "text-amber-600 dark:text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]",
-      subtitle: "text-primary/70 dark:text-primary",
-      valueGlow: "text-slate-900 dark:text-white dark:drop-shadow-[0_0_12px_rgba(255,255,255,0.4)]",
-    },
-    red: {
-      borderHover: "hover:border-primary/50",
-      shadowHover: "hover:shadow-primary/10",
-      gradient: "from-transparent via-primary/50 to-transparent",
-      bracket: "text-red-500/50",
-      title: "text-slate-900 dark:text-white",
-      iconBg: "dark:bg-primary/30",
-      iconBorder: "dark:border-white/10",
-      iconShadow: "shadow-[0_0_10px_rgba(239,68,68,0.1)]",
-      iconText: "text-red-600 dark:text-red-400 drop-shadow-[0_0_8px_rgba(239,68,68,0.6)]",
-      subtitle: "text-primary/70 dark:text-primary",
-      valueGlow: "text-slate-900 dark:text-white dark:drop-shadow-[0_0_12px_rgba(255,255,255,0.4)]",
-    },
-    violet: {
-      borderHover: "hover:border-primary/50",
-      shadowHover: "hover:shadow-primary/10",
-      gradient: "from-transparent via-primary/50 to-transparent",
-      bracket: "text-violet-500/50",
-      title: "text-slate-900 dark:text-white",
-      iconBg: "dark:bg-primary/30",
-      iconBorder: "dark:border-white/10",
-      iconShadow: "shadow-[0_0_10px_rgba(139,92,246,0.1)]",
-      iconText: "text-violet-600 dark:text-violet-400 drop-shadow-[0_0_8px_rgba(139,92,246,0.6)]",
-      subtitle: "text-primary/70 dark:text-primary",
-      valueGlow: "text-slate-900 dark:text-white dark:drop-shadow-[0_0_12px_rgba(255,255,255,0.4)]",
-    },
-    cyan: {
-      borderHover: "hover:border-primary/50",
-      shadowHover: "hover:shadow-primary/10",
-      gradient: "from-transparent via-primary/50 to-transparent",
-      bracket: "text-cyan-500/50",
-      title: "text-slate-900 dark:text-white",
-      iconBg: "dark:bg-primary/30",
-      iconBorder: "dark:border-white/10",
-      iconShadow: "shadow-[0_0_10px_rgba(6,182,212,0.1)]",
-      iconText: "text-cyan-600 dark:text-cyan-400 drop-shadow-[0_0_8px_rgba(6,182,212,0.6)]",
-      subtitle: "text-primary/70 dark:text-primary",
-      valueGlow: "text-slate-900 dark:text-white dark:drop-shadow-[0_0_12px_rgba(255,255,255,0.4)]",
-    },
-  };
-  const theme = colorMap[accentColor];
-
+  const accent = ACCENT_MAP[accentColor];
   return (
-    <motion.div custom={index} variants={cardVariants} initial="hidden" animate="visible">
-      <Card className={`group relative overflow-hidden bg-white/5 dark:bg-white/5 bg-gradient-to-br from-white/5 to-transparent dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] shadow-[inset_0_1px_0_rgba(255,255,255,0.4)] backdrop-blur-md border border-white/10 dark:border-white/10 hover:-translate-y-1 transition-all duration-500 font-mono ${theme.borderHover} ${theme.shadowHover}`}>
-        {/* Scanlines / Matrix background */}
-        <div 
-          className="absolute inset-0 opacity-[0.06] dark:opacity-[0.10] pointer-events-none"
-          style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='24' height='40' viewBox='0 0 24 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 40L12 20L0 0M24 40L12 20L24 0' stroke='var(--primary)' stroke-width='1' fill='none' fill-rule='evenodd'/%3E%3C/svg%3E")`,
-          }}
+    <motion.div
+      custom={index}
+      variants={cardVariants}
+      initial="hidden"
+      animate="visible"
+      whileHover={{ y: -2 }}
+      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+    >
+      <Card
+        className="group relative overflow-hidden bg-background/60 backdrop-blur-3xl border-white/10 rounded-[2rem] p-5 shadow-xl hover:shadow-2xl hover:border-white/20 transition-all duration-300"
+        style={{ ["--card-glow" as string]: accent.glow }}
+      >
+        {/* Accent gradient orb in top-right */}
+        <div
+          className="pointer-events-none absolute -top-12 -right-12 h-32 w-32 rounded-full opacity-0 group-hover:opacity-60 blur-3xl transition-opacity duration-500"
+          style={{ background: `radial-gradient(circle, ${accent.glow}, transparent 70%)` }}
         />
-        {/* Terminal Header Bar */}
-        <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${theme.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
-        
-        <CardHeader className="relative flex flex-row items-center justify-between space-y-0 pb-2 pt-4">
-          <div className="flex items-center gap-2">
-            <span className={`${theme.bracket} text-xs hidden sm:inline`}>[</span>
-            <CardTitle className={`text-xs font-bold tracking-widest uppercase ${theme.title}`}>{title}</CardTitle>
-            <span className={`${theme.bracket} text-xs hidden sm:inline`}>]</span>
-          </div>
-          <motion.div
-            className={`relative flex items-center justify-center h-8 w-8 rounded-none border border-white/20 bg-white/10 ${theme.iconBg} ${theme.iconBorder} ${theme.iconShadow}`}
-            whileHover={{ scale: 1.1, rotate: 90 }}
-            transition={{ type: "spring", stiffness: 400, damping: 15 }}
-          >
-            <Icon className={`h-4 w-4 ${theme.iconText}`} />
-          </motion.div>
-        </CardHeader>
-        <CardContent className="relative pb-4">
-          <div className="flex items-end justify-between gap-2 mt-2">
-            <div>
-              <div className={`text-2xl font-bold tracking-widest tabular-nums ${theme.valueGlow}`}>
-                {value}
-              </div>
-              <p className={`text-[10px] mt-1 tracking-widest uppercase text-slate-500 ${theme.subtitle}`}>
-                &gt; {subtitle}
-              </p>
+        {/* Left accent bar */}
+        <div className={cn("absolute left-0 top-1/4 h-1/2 w-[3px] rounded-r-full bg-gradient-to-b opacity-70", accent.bar)} />
+        <div className="relative flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-muted-foreground">{title}</p>
+            <div className="mt-2 text-2xl font-bold tracking-tight tabular-nums text-foreground">
+              {value}
             </div>
-            {sparkData && sparkColor && (
-              <div className="opacity-60 group-hover:opacity-100 transition-opacity duration-500">
-                <Sparkline data={sparkData} color={sparkColor} height={36} width={70} />
-              </div>
-            )}
+            <p className="mt-1 text-[11px] text-muted-foreground/80">{subtitle}</p>
           </div>
-        </CardContent>
+          <div className={cn(
+            "h-10 w-10 rounded-2xl bg-gradient-to-br border border-white/10 flex items-center justify-center shadow-inner shrink-0 transition-transform group-hover:scale-110 group-hover:rotate-3",
+            accent.iconBg,
+          )}>
+            <Icon className={cn("h-5 w-5", accent.iconText)} />
+          </div>
+        </div>
+        {sparkData && sparkData.length > 0 && (
+          <div className="relative mt-3 -mx-1 opacity-80 group-hover:opacity-100 transition-opacity">
+            <Sparkline data={sparkData} color={accent.spark} height={36} width={120} />
+          </div>
+        )}
       </Card>
     </motion.div>
   );
 }
 
+/* ── Smooth Progress Bar ── */
 
-/* ── Build sparkline dataset from 4 data points ── */
-
-
-/* ── Terminal Container wrapper for major sections ── */
-
-function GlassCard({
-  children,
-  animIndex = 0,
+function ProgressBar({
+  percent,
+  label,
+  value,
+  tone = "primary",
 }: {
-  children: React.ReactNode;
-  animIndex?: number;
+  percent: number;
+  label: string;
+  value: string;
+  tone?: "primary" | "emerald" | "amber" | "red" | "violet";
 }) {
-  return (
-    <motion.div variants={cardVariants} initial="hidden" animate="visible" custom={animIndex}>
-      <Card className="group relative overflow-hidden bg-white/5 dark:bg-white/5 bg-gradient-to-br from-white/5 to-transparent backdrop-blur-md border border-white/10 dark:border-white/10 hover:border-white/20 dark:hover:border-primary/50 transition-all duration-500 shadow-lg dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_0_20px_hsl(var(--primary)/0.15)] font-mono">
-        {/* Matrix background */}
-        <div 
-          className="absolute inset-0 opacity-[0.06] dark:opacity-[0.10] pointer-events-none"
-          style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='24' height='40' viewBox='0 0 24 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 40L12 20L0 0M24 40L12 20L24 0' stroke='var(--primary)' stroke-width='1' fill='none' fill-rule='evenodd'/%3E%3C/svg%3E")`,
-          }}
-        />
-        {/* Inner scanline sweep */}
-        <motion.div 
-          className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/[0.05] to-transparent h-[10%] w-full pointer-events-none"
-          animate={{ y: ["-100%", "1000%"] }}
-          transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
-        />
-        {children}
-      </Card>
-    </motion.div>
-  );
-}
-
-/* ── Terminal / Command Center Components ── */
-
-function DataBarSegmented({ percent, label, value, colorClass }: { percent: number, label: string, value: string, colorClass: "cyan" | "emerald" | "amber" | "red" | "violet" }) {
-  const segments = 30;
-  const activeSegments = Math.round((percent / 100) * segments);
-  
-  const bgMap = {
-    cyan: "bg-primary",
-    emerald: "bg-emerald-500",
-    amber: "bg-amber-500",
-    red: "bg-red-500",
-    violet: "bg-violet-500"
-  };
-  const textMap = {
-    cyan: "text-primary/80 dark:text-primary",
-    emerald: "text-emerald-600 dark:text-emerald-400",
-    amber: "text-amber-600 dark:text-amber-400",
-    red: "text-red-600 dark:text-red-400",
-    violet: "text-violet-600 dark:text-violet-400"
-  };
-  const shadowMap = {
-    cyan: "dark:shadow-[0_0_10px_hsl(var(--primary)/0.8)] shadow-[0_0_10px_hsl(var(--primary)/0.3)]",
-    emerald: "dark:shadow-[0_0_10px_rgba(16,185,129,0.8)] shadow-[0_0_10px_rgba(16,185,129,0.3)]",
-    amber: "dark:shadow-[0_0_10px_rgba(245,158,11,0.8)] shadow-[0_0_10px_rgba(245,158,11,0.3)]",
-    red: "dark:shadow-[0_0_10px_rgba(239,68,68,0.8)] shadow-[0_0_10px_rgba(239,68,68,0.3)]",
-    violet: "dark:shadow-[0_0_10px_rgba(139,92,246,0.8)] shadow-[0_0_10px_rgba(139,92,246,0.3)]"
-  };
+  const toneClass = {
+    primary: "from-primary/80 to-primary",
+    emerald: "from-emerald-500/80 to-emerald-400",
+    amber: "from-amber-500/80 to-amber-400",
+    red: "from-red-500/80 to-red-400",
+    violet: "from-violet-500/80 to-violet-400",
+  }[tone];
 
   return (
-    <div className="space-y-1.5 font-mono">
+    <div className="space-y-1.5">
       <div className="flex justify-between items-end text-xs">
-        <span className={`${textMap[colorClass]} uppercase tracking-widest`}>{label}</span>
-        <span className={`font-bold ${textMap[colorClass]}`}>{value} <span className="opacity-50 text-[10px] ml-1 text-foreground/50">[{percent.toFixed(1)}%]</span></span>
+        <span className="text-muted-foreground">{label}</span>
+        <span className="font-semibold tabular-nums text-foreground">
+          {value}
+          <span className="ml-2 text-[10px] text-muted-foreground/70">{percent.toFixed(1)}%</span>
+        </span>
       </div>
-      <div className="flex gap-0.5 h-3">
-        {Array.from({ length: segments }).map((_, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, scaleY: 0.2 }}
-            animate={{ opacity: i < activeSegments ? 1 : 0.15, scaleY: 1 }}
-            transition={{ delay: i * 0.03, duration: 0.3 }}
-            className={`flex-1 rounded-[1px] ${i < activeSegments ? bgMap[colorClass] + ' ' + shadowMap[colorClass] : 'bg-slate-300 dark:bg-white/5'}`}
-          />
-        ))}
+      <div className="h-2 bg-foreground/[0.06] dark:bg-white/5 border border-white/5 rounded-full overflow-hidden">
+        <motion.div
+          className={cn("h-full bg-gradient-to-r rounded-full", toneClass)}
+          initial={{ width: 0 }}
+          animate={{ width: `${Math.min(percent, 100)}%` }}
+          transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+        />
       </div>
     </div>
   );
 }
 
-function ServerCommandCenter({ serverStats }: { serverStats: ServerStats }) {
+/* ── Server Stats Card ── */
+
+function ServerStatsCard({ serverStats }: { serverStats: ServerStats }) {
+  const pickTone = (p: number): "primary" | "emerald" | "amber" | "red" | "violet" =>
+    p > 80 ? "red" : p > 60 ? "amber" : "primary";
+
   return (
-    <Card className="relative overflow-hidden bg-white/40 dark:bg-white/5 bg-gradient-to-br from-white/5 to-transparent backdrop-blur-md border border-white/20 dark:border-white/10 shadow-xl dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_0_30px_hsl(var(--primary)/0.15)] font-mono text-slate-900 dark:text-white group transition-colors duration-500">
-      {/* Hex Background Pattern */}
-      <div 
-        className="absolute inset-0 opacity-[0.06] dark:opacity-[0.10] pointer-events-none"
-        style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='24' height='40' viewBox='0 0 24 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 40L12 20L0 0M24 40L12 20L24 0' stroke='var(--primary)' stroke-width='1' fill='none' fill-rule='evenodd'/%3E%3C/svg%3E")`,
-        }}
-      />
-      
-      {/* Top Bar / Terminal Header */}
-      <div className="border-b border-white/30 dark:border-primary/20 bg-white/50 dark:bg-white/5 px-4 py-2 flex items-center justify-between text-xs transition-colors duration-500">
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-red-500/80 shadow-[0_0_8px_#ef4444]"></span>
-            <span className="h-2.5 w-2.5 rounded-full bg-amber-500/80 shadow-[0_0_8px_#f59e0b]"></span>
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/80 shadow-[0_0_8px_#10b981]"></span>
+    <Card className="relative overflow-hidden bg-background/60 backdrop-blur-3xl border-white/10 rounded-[2rem] p-6 shadow-xl">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Resources */}
+        <div className="xl:col-span-2 space-y-4">
+          <ProgressBar
+            label={`CPU · ${serverStats.cpu.cores} cores`}
+            percent={serverStats.cpu.usagePercent}
+            value={`${serverStats.cpu.usagePercent.toFixed(1)}%`}
+            tone={pickTone(serverStats.cpu.usagePercent)}
+          />
+          <ProgressBar
+            label="Память"
+            percent={serverStats.memory.usagePercent}
+            value={`${formatGb(serverStats.memory.usedBytes)} / ${formatGb(serverStats.memory.totalBytes)}`}
+            tone={pickTone(serverStats.memory.usagePercent) === "primary" ? "violet" : pickTone(serverStats.memory.usagePercent)}
+          />
+          {serverStats.disk && (
+            <ProgressBar
+              label="Диск"
+              percent={serverStats.disk.usagePercent}
+              value={`${formatGb(serverStats.disk.usedBytes)} / ${formatGb(serverStats.disk.totalBytes)}`}
+              tone={pickTone(serverStats.disk.usagePercent) === "primary" ? "emerald" : pickTone(serverStats.disk.usagePercent)}
+            />
+          )}
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <div className="rounded-2xl border border-white/5 bg-foreground/[0.03] dark:bg-white/[0.02] p-3">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Hostname</p>
+              <p className="mt-1 font-semibold text-sm truncate">{serverStats.hostname}</p>
+            </div>
+            <div className="rounded-2xl border border-white/5 bg-foreground/[0.03] dark:bg-white/[0.02] p-3">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Платформа</p>
+              <p className="mt-1 font-semibold text-sm truncate">{serverStats.platform} · {serverStats.arch}</p>
+            </div>
+            <div className="rounded-2xl border border-white/5 bg-foreground/[0.03] dark:bg-white/[0.02] p-3 col-span-2">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Load average</p>
+              <p className="mt-1 font-semibold text-sm tabular-nums">
+                {serverStats.loadAvg.map((l) => l.toFixed(2)).join(" / ")}
+              </p>
+            </div>
           </div>
-          <span className="ml-2 text-slate-600 dark:text-white/70 tracking-widest uppercase text-[10px]">root@{serverStats.hostname} ~ /sys/core</span>
         </div>
-        <div className="flex items-center gap-3 text-slate-500 dark:text-primary/50">
-          <span className="hidden sm:inline">ARCH: {serverStats.arch}</span>
-          <span className="hidden sm:inline">OS: {serverStats.platform}</span>
-          <motion.div 
-            animate={{ opacity: [1, 0, 1] }} 
-            transition={{ duration: 1.5, repeat: Infinity }}
-            className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold"
-          >
-            <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.5)] dark:shadow-[0_0_8px_#34d399]" />
-            SYS_ONLINE
-          </motion.div>
+
+        {/* Uptime */}
+        <div className="flex flex-col gap-3">
+          <div className="relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-gradient-to-br from-primary/10 via-purple-500/5 to-transparent p-5 flex flex-col items-center justify-center text-center shadow-inner h-full min-h-[180px]">
+            <motion.div
+              animate={{ opacity: [0.25, 0.5, 0.25] }}
+              transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute inset-0 bg-[radial-gradient(circle_at_center,hsl(var(--primary)/0.2)_0%,transparent_60%)] pointer-events-none"
+            />
+            <p className="text-[11px] uppercase tracking-widest text-muted-foreground mb-2">Аптайм</p>
+            <p className="text-2xl sm:text-3xl font-extrabold tabular-nums tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
+              {formatUptime(serverStats.uptimeSeconds)}
+            </p>
+            <div className="mt-4 flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 dark:text-emerald-400 px-3 py-1 text-[10px] font-medium">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#10b981]" />
+                Online
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-white/5 border border-white/10 text-muted-foreground px-2.5 py-1 text-[10px]">
+                <Zap className="h-3 w-3" /> сеть
+              </span>
+            </div>
+          </div>
         </div>
       </div>
-
-      <CardContent className="p-4 sm:p-5 relative">
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6">
-          
-          {/* Left Col: Main Resources */}
-          <div className="xl:col-span-2 space-y-4">
-            <DataBarSegmented 
-              label={`CPU [${serverStats.cpu.cores} CORES]`}
-              percent={serverStats.cpu.usagePercent}
-              value={`${serverStats.cpu.usagePercent.toFixed(1)}%`}
-              colorClass={serverStats.cpu.usagePercent > 80 ? "red" : serverStats.cpu.usagePercent > 60 ? "amber" : "cyan"}
-            />
-            
-            <DataBarSegmented 
-              label="MEM [RAM_ALLOC]"
-              percent={serverStats.memory.usagePercent}
-              value={`${formatGb(serverStats.memory.usedBytes)} / ${formatGb(serverStats.memory.totalBytes)}`}
-              colorClass={serverStats.memory.usagePercent > 80 ? "red" : serverStats.memory.usagePercent > 60 ? "amber" : "violet"}
-            />
-
-            {serverStats.disk && (
-              <DataBarSegmented 
-                label="DSK [STORAGE]"
-                percent={serverStats.disk.usagePercent}
-                value={`${formatGb(serverStats.disk.usedBytes)} / ${formatGb(serverStats.disk.totalBytes)}`}
-                colorClass={serverStats.disk.usagePercent > 80 ? "red" : serverStats.disk.usagePercent > 60 ? "amber" : "emerald"}
-              />
-            )}
-            
-            {/* Hex Dump / Mini Logs */}
-            <div className="mt-4 p-3 bg-white/60 dark:bg-white/5 border border-white/40 dark:border-primary/10 rounded overflow-hidden h-24 relative text-[10px] sm:text-xs text-slate-700 dark:text-primary/60 font-mono leading-tight shadow-inner transition-colors duration-500">
-              <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.5 }}
-                className="absolute inset-x-3 bottom-3"
-              >
-                <div className="flex gap-4"><span className="opacity-50">0x0000</span><span className="text-white font-medium">48 65 6C 6C 6F 20 57 6F 72 6C 64 21 0A</span></div>
-                <div className="flex gap-4"><span className="opacity-50">0x0010</span><span className="text-white font-medium">53 79 73 74 65 6D 20 4F 6E 6C 69 6E 65</span></div>
-                <div className="flex gap-4"><span className="opacity-50">0x0020</span><span className="text-white font-medium">{serverStats.loadAvg.map(l => l.toFixed(2)).join(' ')} CPU_LOAD</span></div>
-                <div className="flex gap-4"><span className="opacity-50">0x0030</span><span className="text-slate-900 dark:text-white font-medium">WAITING FOR COMMANDS_</span><motion.span animate={{opacity:[0,1]}} transition={{repeat:Infinity, duration:0.8}}>█</motion.span></div>
-              </motion.div>
-            </div>
-          </div>
-
-          {/* Right Col: Digital Uptime & Status */}
-          <div className="flex flex-col gap-3">
-            <div className="border border-white/40 dark:border-primary/20 bg-white/50 dark:bg-white/5 p-4 rounded-lg flex flex-col items-center justify-center relative overflow-hidden flex-1 hover:border-white/60 dark:group-hover:border-primary/40 transition-colors duration-500 shadow-sm">
-               {/* Soft pulsing ambient glow in background */}
-              <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                <motion.div
-                  animate={{ opacity: [0.3, 0.6, 0.3], scale: [1, 1.1, 1] }}
-                  transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-                  className="absolute -top-[50%] -right-[50%] w-[200%] h-[200%] bg-[radial-gradient(ellipse_at_center,hsl(var(--primary)/0.15)_0%,transparent_50%)]"
-                />
-                <motion.div
-                  animate={{ opacity: [0.2, 0.5, 0.2], scale: [1, 1.15, 1] }}
-                  transition={{ duration: 8, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                  className="absolute -bottom-[50%] -left-[50%] w-[200%] h-[200%] bg-[radial-gradient(ellipse_at_center,hsl(var(--primary)/0.15)_0%,transparent_50%)]"
-                />
-              </div>
-
-              <span className="text-slate-500 dark:text-white/60 text-xs tracking-[0.2em] mb-2 z-10 font-semibold">[ SYS_UPTIME ]</span>
-              
-              <div className="text-2xl sm:text-3xl font-bold tracking-widest text-slate-800 dark:text-white dark:drop-shadow-[0_0_15px_rgba(255,255,255,0.8)] text-center z-10">
-                {formatUptime(serverStats.uptimeSeconds).toUpperCase()}
-              </div>
-
-              <div className="mt-6 flex flex-col gap-2 w-full z-10 text-slate-600 dark:text-white font-medium">
-                <div className="flex justify-between text-xs border-b border-white/30 dark:border-primary/20 pb-1">
-                  <span className="opacity-70 dark:opacity-50">LOAD_AVG</span>
-                  <span className="text-slate-900 dark:text-white">{serverStats.loadAvg.map(l => l.toFixed(2)).join(' / ')}</span>
-                </div>
-                <div className="flex justify-between text-xs border-b border-white/30 dark:border-primary/20 pb-1">
-                  <span className="opacity-70 dark:opacity-50">NETWORK</span>
-                  <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                    ESTABLISHED <Zap className="h-3 w-3" />
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </CardContent>
     </Card>
   );
 }
 
-/* ══════════════════════════════════════════════════════════════════ *//* ══════════════════════════════════════════════════════════════════ */
+/* ── Node Card ── */
+
+function NodeCard({
+  index,
+  node,
+  isBusy,
+  onAction,
+  t,
+}: {
+  index: number;
+  node: RemnaNode;
+  isBusy: boolean;
+  onAction: (uuid: string, action: "enable" | "disable" | "restart") => void;
+  t: (key: string) => string;
+}) {
+  const statusLabel = node.isDisabled
+    ? t("admin.dashboard.node_disabled")
+    : node.isConnecting
+      ? t("admin.dashboard.node_connecting")
+      : node.isConnected
+        ? t("admin.dashboard.node_online")
+        : t("admin.dashboard.node_offline");
+
+  const statusBadge = node.isDisabled
+    ? "bg-gray-500/10 text-gray-400 border-gray-500/20"
+    : node.isConnecting
+      ? "bg-amber-500/10 text-amber-500 dark:text-amber-400 border-amber-500/20"
+      : node.isConnected
+        ? "bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border-emerald-500/20"
+        : "bg-red-500/10 text-red-500 dark:text-red-400 border-red-500/20";
+
+  const dotColor = node.isDisabled
+    ? "bg-gray-400"
+    : node.isConnecting
+      ? "bg-amber-400 shadow-[0_0_6px_#fbbf24]"
+      : node.isConnected
+        ? "bg-emerald-400 shadow-[0_0_6px_#10b981]"
+        : "bg-red-400 shadow-[0_0_6px_#f87171]";
+
+  const limit = node.trafficLimitBytes ?? 0;
+  const usedVal = node.trafficUsedBytes ?? 0;
+  const percent = limit > 0 ? Math.min((usedVal / limit) * 100, 100) : 0;
+  const tone: "primary" | "amber" | "red" = percent >= 90 ? "red" : percent >= 70 ? "amber" : "primary";
+  const valueStr = limit > 0 ? `${formatBytes(usedVal)} / ${formatBytes(limit)}` : `${formatBytes(usedVal)}`;
+
+  return (
+    <motion.div custom={index} variants={cardVariants}>
+      <Card className="relative overflow-hidden bg-background/60 backdrop-blur-3xl border-white/10 rounded-[2rem] p-5 shadow-xl hover:border-white/20 transition-all">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-primary/15 to-purple-500/10 border border-white/10 flex items-center justify-center shadow-inner shrink-0">
+              <Server className="h-5 w-5 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold truncate">{node.name || node.uuid.substring(0, 8)}</p>
+              <p className="text-xs text-muted-foreground truncate">
+                {node.address}
+                {node.port != null ? `:${node.port}` : ""}
+              </p>
+            </div>
+          </div>
+          <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium backdrop-blur-md shrink-0", statusBadge)}>
+            <span className={cn("h-1.5 w-1.5 rounded-full", dotColor)} />
+            {statusLabel}
+          </span>
+        </div>
+
+        {/* Bandwidth */}
+        <div className="mb-4">
+          <ProgressBar label="Трафик" percent={percent} value={valueStr} tone={tone} />
+        </div>
+
+        {/* Stats grid */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="rounded-2xl border border-white/5 bg-foreground/[0.03] dark:bg-white/[0.02] p-3">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Cpu className="h-3 w-3" /> CPU / RAM
+            </span>
+            <p className="mt-1 font-semibold text-sm tabular-nums">{formatNodeCpuRam(node)}</p>
+          </div>
+          <div className="rounded-2xl border border-white/5 bg-foreground/[0.03] dark:bg-white/[0.02] p-3">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Wifi className="h-3 w-3" /> Подключено
+            </span>
+            <p className="mt-1 font-semibold text-sm flex items-center gap-2 tabular-nums">
+              {node.usersOnline != null ? (
+                <>
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_#10b981]" />
+                  {node.usersOnline} онлайн
+                </>
+              ) : (
+                <>
+                  <span className="h-2 w-2 rounded-full bg-slate-500/50" />
+                  Нет данных
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-wrap gap-2">
+          {node.isDisabled ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 gap-2 border-emerald-500/30 text-emerald-500 dark:text-emerald-400 hover:bg-emerald-500/10 hover:border-emerald-500/50 bg-white/[0.02]"
+              disabled={isBusy}
+              onClick={() => onAction(node.uuid, "enable")}
+            >
+              {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Power className="h-4 w-4" />}
+              Включить
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 gap-2 border-red-500/30 text-red-500 dark:text-red-400 hover:bg-red-500/10 hover:border-red-500/50 bg-white/[0.02]"
+              disabled={isBusy}
+              onClick={() => onAction(node.uuid, "disable")}
+            >
+              {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PowerOff className="h-4 w-4" />}
+              Отключить
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1 gap-2 border-primary/30 text-primary hover:bg-primary/10 hover:border-primary/50 bg-white/[0.02]"
+            disabled={isBusy}
+            onClick={() => onAction(node.uuid, "restart")}
+          >
+            <RotateCw className="h-4 w-4" />
+            Рестарт
+          </Button>
+        </div>
+      </Card>
+    </motion.div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════ */
 /*                       MAIN COMPONENT                              */
 /* ══════════════════════════════════════════════════════════════════ */
 
@@ -634,6 +572,7 @@ export function DashboardPage() {
   const [giftAnalytics, setGiftAnalytics] = useState<GiftAnalytics | null>(null);
   const [defaultCurrency, setDefaultCurrency] = useState<string>("USD");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nodeActionUuid, setNodeActionUuid] = useState<string | null>(null);
 
@@ -658,35 +597,27 @@ export function DashboardPage() {
         setNodeActionUuid(null);
       }
     },
-    [token, hasRemnaNodesAccess, refetchNodes]
+    [token, hasRemnaNodesAccess, refetchNodes, t]
   );
 
-  useEffect(() => {
-    if (!token) return;
-
-    let cancelled = false;
-
-    async function load() {
-      setLoading(true);
+  const loadAll = useCallback(
+    async (silent = false) => {
+      if (!token) return;
+      if (silent) setRefreshing(true);
+      else setLoading(true);
       setError(null);
       try {
-        const statsP = api.getDashboardStats(token!);
+        const statsP = api.getDashboardStats(token);
         const nodesP = hasRemnaNodesAccess
-          ? api.getRemnaNodes(token!).catch(() => ({ response: [] }))
+          ? api.getRemnaNodes(token).catch(() => ({ response: [] }))
           : Promise.resolve(null);
-        const settingsP = api.getSettings(token!).catch(() => null);
-        const serverP = api.getServerStats(token!).catch(() => null);
-        const analyticsP = api.getAnalytics(token!).catch(() => null);
-        const giftAnalyticsP = api.getGiftAnalytics(token!).catch(() => null);
+        const settingsP = api.getSettings(token).catch(() => null);
+        const serverP = api.getServerStats(token).catch(() => null);
+        const analyticsP = api.getAnalytics(token).catch(() => null);
+        const giftAnalyticsP = api.getGiftAnalytics(token).catch(() => null);
         const [statsRes, nodesRes, settingsRes, serverRes, analyticsRes, giftAnalyticsRes] = await Promise.all([
-          statsP,
-          nodesP,
-          settingsP,
-          serverP,
-          analyticsP,
-          giftAnalyticsP,
+          statsP, nodesP, settingsP, serverP, analyticsP, giftAnalyticsP,
         ]);
-        if (cancelled) return;
         setStats(statsRes);
         setServerStats(serverRes);
         setAnalyticsData(analyticsRes);
@@ -700,18 +631,22 @@ export function DashboardPage() {
         const curr = settingsRes?.defaultCurrency;
         setDefaultCurrency(curr ? String(curr).toUpperCase() : "USD");
       } catch (e) {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : t("admin.dashboard.loading_error"));
-        }
+        setError(e instanceof Error ? e.message : t("admin.dashboard.loading_error"));
       } finally {
-        if (!cancelled) setLoading(false);
+        setLoading(false);
+        setRefreshing(false);
       }
-    }
+    },
+    [token, hasRemnaNodesAccess, t]
+  );
 
-    load();
+  useEffect(() => {
+    let cancelled = false;
+    if (!cancelled) loadAll(false);
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, hasRemnaNodesAccess]);
 
   const chartData = useMemo(() => {
@@ -745,23 +680,12 @@ export function DashboardPage() {
   const sales90d = analyticsData?.revenueSeries?.reduce((acc: any, curr: any) => acc + curr.value, 0) || 0;
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
-  /* ── Loading state ── */
+  /* ── Loading ── */
   if (loading && !stats) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] font-mono gap-4">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-        >
-          <RotateCw className="h-8 w-8 text-primary" />
-        </motion.div>
-        <motion.div
-          animate={{ opacity: [0, 1, 0] }}
-          transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-          className="text-primary tracking-widest text-xs font-bold"
-        >
-          {t("admin.dashboard.initializing")}
-        </motion.div>
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <Loader2 className="h-8 w-8 text-primary animate-spin" />
+        <p className="text-sm text-muted-foreground">{t("admin.dashboard.initializing")}</p>
       </div>
     );
   }
@@ -771,38 +695,55 @@ export function DashboardPage() {
   const nodesTotal = nodes.length;
 
   return (
-    <div className="w-full space-y-8 px-4 sm:px-6 md:px-8 pt-6 sm:pt-10 md:pt-14 pb-8">
-      {/* Page header — Terminal Style */}
+    <div className="w-full space-y-6 px-4 sm:px-6 md:px-8 pt-6 pb-10 relative">
+      {/* Background ambient orbs */}
+      <div className="fixed -z-10 bg-primary/15 blur-[120px] top-[-50px] left-[-50px] w-[300px] h-[300px] rounded-full pointer-events-none" />
+      <div className="fixed -z-10 bg-purple-500/10 blur-[100px] top-[20%] right-[-50px] w-[250px] h-[250px] rounded-full pointer-events-none" />
+
+      {/* Page header */}
       <motion.div
-        initial={{ opacity: 0, y: -16, filter: "blur(8px)" }}
-        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        className="font-mono"
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between bg-background/40 backdrop-blur-3xl border border-white/10 p-6 rounded-[2rem] shadow-2xl"
       >
-        <h1
-          className="text-2xl font-bold tracking-widest uppercase text-slate-900 dark:text-white flex items-center gap-3"
-          style={{ textShadow: "0 0 20px hsl(var(--primary)/0.3)" }}
-        >
-          <span className="text-primary/50">~/</span> {t("admin.dashboard.title")} <motion.span animate={{opacity:[0,1]}} transition={{repeat:Infinity, duration:0.8}} className="w-4 h-6 bg-primary inline-block"></motion.span>
-        </h1>
-        <p className="text-slate-500 dark:text-primary/60 mt-2 text-xs tracking-widest uppercase">{t("admin.dashboard.subtitle")}</p>
-        {/* Animated header underline */}
-        <motion.div
-          className="h-[1px] mt-4"
-          style={{
-            background: "linear-gradient(90deg, hsl(var(--primary)/0.8), transparent)",
-          }}
-          initial={{ width: 0, opacity: 0 }}
-          animate={{ width: "100%", opacity: 1 }}
-          transition={{ delay: 0.4, duration: 1, ease: "easeOut" }}
-        />
+        <div className="flex items-center gap-4">
+          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center shadow-inner border border-white/10">
+            <Activity className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground via-primary/80 to-foreground/60">
+              {t("admin.dashboard.title")}
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">{t("admin.dashboard.subtitle")}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 dark:text-emerald-400 px-3 py-1 text-[11px] font-medium backdrop-blur-md">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_#10b981]" />
+            </span>
+            Live
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => loadAll(true)}
+            disabled={loading || refreshing}
+            className="h-9 w-9 rounded-full hover:bg-white/10"
+            title="Обновить"
+          >
+            <RefreshCw className={cn("h-4 w-4 text-muted-foreground", refreshing && "animate-spin text-primary")} />
+          </Button>
+        </div>
       </motion.div>
 
       {/* Manager warning */}
       {admin?.role === "MANAGER" && (!admin.allowedSections || admin.allowedSections.length === 0) && (
         <motion.div
-          className="rounded-none border border-amber-500/50 bg-amber-500/10 backdrop-blur-md px-4 py-3 text-xs tracking-widest uppercase font-mono text-amber-600 dark:text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.2)]"
-          initial={{ opacity: 0, y: 8 }}
+          className="rounded-2xl border border-amber-500/30 bg-amber-500/10 backdrop-blur-md px-4 py-3 text-sm text-amber-500 dark:text-amber-400"
+          initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
         >
           {t("admin.dashboard.no_access_warning")}
@@ -812,15 +753,15 @@ export function DashboardPage() {
       {/* Error display */}
       {error && (
         <motion.div
-          className="rounded-none border border-red-500/50 bg-red-500/10 backdrop-blur-md px-4 py-3 text-xs tracking-widest uppercase font-mono text-red-600 dark:text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.2)]"
-          initial={{ opacity: 0, x: -8 }}
-          animate={{ opacity: 1, x: 0 }}
+          className="rounded-2xl border border-red-500/30 bg-red-500/10 backdrop-blur-md px-4 py-3 text-sm text-red-500 dark:text-red-400"
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
         >
-          [ERROR]: {error}
+          {error}
         </motion.div>
       )}
 
-      {/* ═══ Users Section ═══ */}
+      {/* Users Section */}
       <section>
         <SectionHeader icon={Users} title={t("admin.dashboard.users_title")} subtitle={t("admin.dashboard.users_subtitle")} />
         <motion.div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3" variants={staggerContainer} initial="hidden" animate="visible">
@@ -851,139 +792,128 @@ export function DashboardPage() {
         </motion.div>
       </section>
 
-      {/* ═══ Analytics Section ═══ */}
+      {/* Analytics Section */}
       <section>
         <SectionHeader icon={Activity} title={t("admin.dashboard.micro_analytics")} subtitle={t("admin.dashboard.key_metrics")} />
-        <GlassCard animIndex={5}>
-          <CardContent className="relative pt-6">
-            <div className="flex flex-col gap-6">
-              {/* Sales Stats Grid */}
-              <div className="grid gap-6 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-                <div className="space-y-1">
-                  <p className="text-[10px] tracking-widest uppercase text-slate-500 dark:text-primary/60">&gt; {t("admin.dashboard.total")}</p>
-                  <p className="text-xl font-bold tabular-nums tracking-widest text-slate-900 dark:text-white">
-                    {stats ? <CountUpMoney value={stats.sales.totalAmount} currency={defaultCurrency} /> : "—"}
+        <motion.div variants={cardVariants} initial="hidden" animate="visible" custom={0}>
+          <Card className="relative overflow-hidden bg-background/60 backdrop-blur-3xl border-white/10 rounded-[2rem] p-6 shadow-xl">
+            <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+              {[
+                { label: t("admin.dashboard.total"), amount: stats?.sales.totalAmount ?? 0, count: stats?.sales.totalCount ?? 0, gradient: "from-primary/15 to-primary/5", textColor: "text-primary" },
+                { label: t("admin.dashboard.today"), amount: stats?.sales.todayAmount ?? 0, count: stats?.sales.todayCount ?? 0, gradient: "from-emerald-500/15 to-emerald-500/5", textColor: "text-emerald-500 dark:text-emerald-400" },
+                { label: t("admin.dashboard.7_days"), amount: stats?.sales.last7DaysAmount ?? 0, count: stats?.sales.last7DaysCount ?? 0, gradient: "from-cyan-500/15 to-cyan-500/5", textColor: "text-cyan-500 dark:text-cyan-400" },
+                { label: t("admin.dashboard.30_days"), amount: stats?.sales.last30DaysAmount ?? 0, count: stats?.sales.last30DaysCount ?? 0, gradient: "from-violet-500/15 to-violet-500/5", textColor: "text-violet-500 dark:text-violet-400" },
+                { label: t("admin.dashboard.90_days"), amount: sales90d as number, count: 0, isLast90: true, gradient: "from-amber-500/15 to-amber-500/5", textColor: "text-amber-500 dark:text-amber-400" },
+              ].map((item, i) => (
+                <motion.div
+                  key={i}
+                  whileHover={{ y: -2, scale: 1.02 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                  className={cn("relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br p-3 shadow-sm", item.gradient)}
+                >
+                  <p className={cn("text-[11px] font-medium", item.textColor)}>{item.label}</p>
+                  <p className="mt-1.5 text-lg font-extrabold tabular-nums tracking-tight text-foreground">
+                    {stats || analyticsData ? <CountUpMoney value={item.amount} currency={defaultCurrency} /> : "—"}
                   </p>
-                  <p className="text-[10px] tracking-widest text-slate-400 dark:text-primary/50 uppercase">{stats?.sales.totalCount ?? 0} PAYMENTS</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] tracking-widest uppercase text-slate-500 dark:text-primary/60">&gt; {t("admin.dashboard.today")}</p>
-                  <p className="text-xl font-bold tabular-nums tracking-widest text-slate-900 dark:text-white">
-                    {stats ? <CountUpMoney value={stats.sales.todayAmount} currency={defaultCurrency} /> : "—"}
+                  <p className="text-[10px] text-muted-foreground/80 mt-0.5">
+                    {item.isLast90 ? "90 days" : `${item.count} платежей`}
                   </p>
-                  <p className="text-[10px] tracking-widest text-slate-400 dark:text-primary/50 uppercase">{stats?.sales.todayCount ?? 0} PAYMENTS</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] tracking-widest uppercase text-slate-500 dark:text-primary/60">&gt; {t("admin.dashboard.7_days")}</p>
-                  <p className="text-xl font-bold tabular-nums tracking-widest text-slate-900 dark:text-white">
-                    {stats ? <CountUpMoney value={stats.sales.last7DaysAmount} currency={defaultCurrency} /> : "—"}
-                  </p>
-                  <p className="text-[10px] tracking-widest text-slate-400 dark:text-primary/50 uppercase">{stats?.sales.last7DaysCount ?? 0} PAYMENTS</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] tracking-widest uppercase text-slate-500 dark:text-primary/60">&gt; {t("admin.dashboard.30_days")}</p>
-                  <p className="text-xl font-bold tabular-nums tracking-widest text-slate-900 dark:text-white">
-                    {stats ? <CountUpMoney value={stats.sales.last30DaysAmount} currency={defaultCurrency} /> : "—"}
-                  </p>
-                  <p className="text-[10px] tracking-widest text-slate-400 dark:text-primary/50 uppercase">{stats?.sales.last30DaysCount ?? 0} PAYMENTS</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] tracking-widest uppercase text-slate-500 dark:text-primary/60">&gt; {t("admin.dashboard.90_days")}</p>
-                  <p className="text-xl font-bold tabular-nums tracking-widest text-slate-900 dark:text-white">
-                    {analyticsData ? <CountUpMoney value={sales90d} currency={defaultCurrency} /> : "—"}
-                  </p>
-                  <p className="text-[10px] tracking-widest text-slate-400 dark:text-primary/50 uppercase">90 DAYS_REVENUE</p>
-                </div>
-              </div>
+                </motion.div>
+              ))}
+            </div>
 
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-xs tracking-widest uppercase text-slate-500 dark:text-primary/60">&gt; {t("admin.dashboard.analytics_period")}</p>
-                  <h3 className="text-lg font-bold tracking-widest text-slate-900 dark:text-white">Revenue vs New Users</h3>
-                </div>
-                <div className="flex items-center gap-2">
-                  {[7, 30, 90].map((period) => {
-                    const isActive = chartPeriod === period;
-                    return (
-                      <Button
-                        key={period}
-                        size="sm"
-                        variant="outline"
-                        className={`h-8 px-3 text-[10px] uppercase tracking-widest border-white/20 dark:border-white/10 bg-white/30 dark:bg-black/30 hover:bg-white/50 dark:hover:bg-primary/20 ${
-                          isActive
-                            ? "text-slate-900 dark:text-white border-primary/50 shadow-[0_0_12px_hsl(var(--primary)/0.3)]"
-                            : "text-slate-500 dark:text-primary/60"
-                        }`}
-                        onClick={() => setChartPeriod(period)}
-                      >
-                        {period}d
-                      </Button>
-                    );
-                  })}
-                </div>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">{t("admin.dashboard.analytics_period")}</p>
+                <h3 className="text-base font-bold tracking-tight">Доход / новые пользователи</h3>
               </div>
-              <div className="h-[320px] w-full rounded-xl border border-white/10 dark:border-primary/20 bg-white/10 dark:bg-black/30 p-4 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]">
-                <ResponsiveContainer width="100%" height={300}>
-                  <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="dashRevenue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
-                        <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-white/10" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11 }} className="text-slate-500" />
-                    <YAxis yAxisId="left" tick={{ fontSize: 11 }} className="text-slate-500" tickFormatter={(value) => formatMoney(Number(value ?? 0), defaultCurrency)} />
-                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} className="text-slate-500" allowDecimals={false} />
-                    <Tooltip
-                      contentStyle={{
-                        background: "rgba(10,10,20,0.85)",
-                        border: "1px solid rgba(255,255,255,0.15)",
-                        borderRadius: "8px",
-                        color: "white",
-                        fontSize: "12px",
-                      }}
-                      formatter={(value, name) => {
-                        if (name === "Revenue") return [formatMoney(Number(value ?? 0), defaultCurrency), "Revenue"];
-                        return [Number(value ?? 0).toLocaleString(), "New Users"];
-                      }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: "11px", color: "rgba(148,163,184,0.9)" }} />
-                    <Area
-                      yAxisId="left"
-                      type="monotone"
-                      dataKey="revenue"
-                      name="Revenue"
-                      stroke="hsl(var(--primary))"
-                      strokeWidth={2}
-                      fill="url(#dashRevenue)"
-                      dot={false}
-                      isAnimationActive={true}
-                      animationDuration={1200}
-                    />
-                    <Line
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="users"
-                      name="New Users"
-                      stroke="#10b981"
-                      strokeWidth={2}
-                      dot={false}
-                      isAnimationActive={true}
-                      animationDuration={1200}
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
+              <div className="flex items-center gap-1 bg-foreground/[0.03] dark:bg-white/[0.02] p-1 rounded-xl border border-white/5">
+                {[7, 30, 90].map((period) => {
+                  const isActive = chartPeriod === period;
+                  return (
+                    <button
+                      key={period}
+                      onClick={() => setChartPeriod(period)}
+                      className={cn(
+                        "rounded-lg px-3 py-1.5 text-xs font-medium transition-all",
+                        isActive
+                          ? "bg-primary text-primary-foreground shadow-md"
+                          : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                      )}
+                    >
+                      {period}d
+                    </button>
+                  );
+                })}
               </div>
             </div>
-          </CardContent>
-        </GlassCard>
+
+            <div className="mt-4 h-[320px] w-full rounded-2xl border border-white/5 bg-foreground/[0.03] dark:bg-white/[0.02] p-4 backdrop-blur-md">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="dashRevenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
+                      <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-white/10" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11 }} className="text-muted-foreground" />
+                  <YAxis
+                    yAxisId="left"
+                    tick={{ fontSize: 11 }}
+                    className="text-muted-foreground"
+                    tickFormatter={(value) => formatMoney(Number(value ?? 0), defaultCurrency)}
+                  />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} className="text-muted-foreground" allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{
+                      background: "rgba(10,10,20,0.85)",
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      borderRadius: "12px",
+                      color: "white",
+                      fontSize: "12px",
+                    }}
+                    formatter={(value, name) => {
+                      if (name === "Доход") return [formatMoney(Number(value ?? 0), defaultCurrency), "Доход"];
+                      return [Number(value ?? 0).toLocaleString(), "Новые"];
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: "11px", color: "rgba(148,163,184,0.9)" }} />
+                  <Area
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="revenue"
+                    name="Доход"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={2}
+                    fill="url(#dashRevenue)"
+                    dot={false}
+                    isAnimationActive
+                    animationDuration={1000}
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="users"
+                    name="Новые"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    dot={false}
+                    isAnimationActive
+                    animationDuration={1000}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </motion.div>
       </section>
 
-      {/* ═══ Gift Analytics Section ═══ */}
+      {/* Gift Analytics */}
       {giftAnalytics && (giftAnalytics.totalSubscriptions > 0 || giftAnalytics.pendingCodes > 0) && (
         <section>
-          <SectionHeader icon={Gift} title="Подарки" subtitle="gift_system analytics" />
+          <SectionHeader icon={Gift} title="Подарки" subtitle="Аналитика подарков" />
           <motion.div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4" variants={staggerContainer} initial="hidden" animate="visible">
             <StatCard
               index={0}
@@ -1021,231 +951,49 @@ export function DashboardPage() {
         </section>
       )}
 
-      {/* ═══ Server Command Center Section ═══ */}
+      {/* Server Stats */}
       {serverStats && (
         <section>
           <SectionHeader icon={Server} title={t("admin.dashboard.command_center")} subtitle={t("admin.dashboard.server_monitoring")} />
-          <motion.div variants={cardVariants} initial="hidden" animate="visible" custom={6}>
-            <ServerCommandCenter serverStats={serverStats} />
+          <motion.div variants={cardVariants} initial="hidden" animate="visible" custom={0}>
+            <ServerStatsCard serverStats={serverStats} />
           </motion.div>
         </section>
       )}
 
-      {/* ═══ Remna Nodes Section ═══ */}
+      {/* Remna Nodes */}
       <section>
         <SectionHeader
           icon={Globe}
           title={t("admin.dashboard.remna_nodes")}
-          subtitle={hasRemnaNodesAccess && nodes.length > 0 ? t("admin.dashboard.nodes_online_count", { online: nodesOnline, total: nodesTotal }) : t("admin.dashboard.nodes_subtitle")}
+          subtitle={
+            hasRemnaNodesAccess && nodes.length > 0
+              ? t("admin.dashboard.nodes_online_count").replace("{online}", String(nodesOnline)).replace("{total}", String(nodesTotal))
+              : t("admin.dashboard.nodes_subtitle")
+          }
         />
-        <motion.div variants={cardVariants} initial="hidden" animate="visible" custom={7}>
-          {!hasRemnaNodesAccess ? (
-            <Card className="bg-white/5 dark:bg-white/5 backdrop-blur-md border-white/10 dark:border-white/10 rounded-none font-mono">
-              <CardContent className="py-8">
-                <p className="text-slate-500 dark:text-primary/60 text-xs tracking-widest uppercase text-center">
-                  [ACCESS_DENIED] {t("admin.dashboard.no_node_access")}
-                </p>
-              </CardContent>
-            </Card>
-          ) : nodes.length === 0 ? (
-            <Card className="bg-white/5 dark:bg-white/5 backdrop-blur-md border-white/10 dark:border-white/10 rounded-none font-mono">
-              <CardContent className="py-8">
-                <p className="text-slate-500 dark:text-primary/60 text-xs tracking-widest uppercase text-center">
-                  [SYSTEM_EMPTY] {t("admin.dashboard.nodes_not_loaded")}
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <motion.div
-              className="grid gap-4 lg:grid-cols-2"
-              variants={staggerContainer}
-              initial="hidden"
-              animate="visible"
-            >
-              {nodes.map((node, idx) => {
-                const isBusy = nodeActionUuid === node.uuid;
-                const statusLabel = node.isDisabled
-                  ? t("admin.dashboard.node_disabled")
-                  : node.isConnecting
-                    ? t("admin.dashboard.node_connecting")
-                    : node.isConnected
-                      ? t("admin.dashboard.node_online")
-                      : t("admin.dashboard.node_offline");
-                const statusColor = node.isDisabled
-                  ? "text-gray-400"
-                  : node.isConnecting
-                    ? "text-amber-500"
-                    : node.isConnected
-                      ? "text-emerald-500"
-                      : "text-red-500";
-                const hoverShadow = node.isConnected && !node.isDisabled
-                  ? "hover:shadow-[0_0_15px_rgba(16,185,129,0.2)]"
-                  : node.isConnecting
-                    ? "hover:shadow-[0_0_15px_rgba(245,158,11,0.2)]"
-                    : "hover:shadow-[0_0_15px_rgba(239,68,68,0.2)]";
-
-                const limit = node.trafficLimitBytes ?? 0;
-                const usedVal = node.trafficUsedBytes ?? 0;
-                const percent = limit > 0 ? Math.min((usedVal / limit) * 100, 100) : 0;
-                const colorClass = percent >= 90 ? "red" : percent >= 70 ? "amber" : "cyan";
-                const valueStr = limit > 0 ? `${formatBytes(usedVal)} / ${formatBytes(limit)}` : `${formatBytes(usedVal)}`;
-
-                return (
-                  <motion.div key={node.uuid} custom={idx + 8} variants={cardVariants}>
-                    <Card className={`relative overflow-hidden bg-white/40 dark:bg-white/5 bg-gradient-to-br from-white/5 to-transparent backdrop-blur-md border border-white/20 dark:border-white/10 shadow-xl dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_0_30px_hsl(var(--primary)/0.15)] font-mono text-slate-900 dark:text-white group transition-colors duration-500 ${hoverShadow}`}>
-                      {/* Hex Background Pattern */}
-                      <div 
-                        className="absolute inset-0 opacity-[0.06] dark:opacity-[0.10] pointer-events-none"
-                        style={{
-                          backgroundImage: `url("data:image/svg+xml,%3Csvg width='24' height='40' viewBox='0 0 24 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 40L12 20L0 0M24 40L12 20L24 0' stroke='var(--primary)' stroke-width='1' fill='none' fill-rule='evenodd'/%3E%3C/svg%3E")`,
-                        }}
-                      />
-                      
-                      {/* Top Bar / Terminal Header */}
-                      <div className="border-b border-white/30 dark:border-primary/20 bg-white/50 dark:bg-white/5 px-4 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs transition-colors duration-500">
-                        <div className="flex items-center gap-2">
-                          <div className="flex gap-1.5">
-                            <span className="h-2.5 w-2.5 rounded-full bg-red-500/80 shadow-[0_0_8px_#ef4444]"></span>
-                            <span className="h-2.5 w-2.5 rounded-full bg-amber-500/80 shadow-[0_0_8px_#f59e0b]"></span>
-                            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/80 shadow-[0_0_8px_#10b981]"></span>
-                          </div>
-                          <span className="ml-2 text-slate-600 dark:text-white/70 tracking-widest uppercase text-[10px] truncate max-w-[200px] sm:max-w-[400px]">
-                            root@{node.address} ~ /sys/node/{node.name || node.uuid.substring(0,6)}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 text-slate-500 dark:text-white/50 justify-between sm:justify-end">
-                          <span className="hidden sm:inline">PORT: {node.port ?? "N/A"}</span>
-                          <motion.div 
-                            animate={node.isConnected && !node.isDisabled ? { opacity: [1, 0, 1] } : {}} 
-                            transition={{ duration: 1.5, repeat: Infinity }}
-                            className={`flex items-center gap-1.5 font-bold uppercase tracking-widest text-[10px] ${statusColor}`}
-                          >
-                            <div className={`h-1.5 w-1.5 rounded-full bg-current shadow-[0_0_8px_currentColor]`} />
-                            {statusLabel}
-                          </motion.div>
-                        </div>
-                      </div>
-
-                      <CardContent className="p-4 sm:p-5 relative">
-                        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6">
-                          
-                          {/* Left Col: Main Resources */}
-                          <div className="xl:col-span-2 space-y-4">
-                            <DataBarSegmented 
-                              label="BANDWIDTH [ALLOC]"
-                              percent={percent}
-                              value={valueStr}
-                              colorClass={colorClass}
-                            />
-
-                            <div className="grid grid-cols-2 gap-4 mt-4">
-                              <div className="space-y-1.5">
-                                <span className="text-slate-500 dark:text-primary/70 uppercase tracking-widest text-[10px] flex items-center gap-1.5">
-                                  <Cpu className="h-3 w-3"/> CPU/RAM [ALLOC]
-                                </span>
-                                <div className="text-sm sm:text-base font-bold text-slate-800 dark:text-primary tabular-nums">
-                                  {formatNodeCpuRam(node)}
-                                </div>
-                              </div>
-                              <div className="space-y-1.5">
-                                <span className="text-slate-500 dark:text-primary/70 uppercase tracking-widest text-[10px] flex items-center gap-1.5">
-                                  <Wifi className="h-3 w-3"/> CONN [WIFI]
-                                </span>
-                                <div className="text-sm sm:text-base font-bold text-slate-800 dark:text-primary tabular-nums flex items-center gap-2">
-                                  {node.usersOnline != null ? (
-                                    <>
-                                      <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"></span>
-                                      {node.usersOnline} ONLINE
-                                    </>
-                                  ) : (
-                                    <>
-                                      <span className="h-2 w-2 rounded-full bg-slate-500/50"></span>
-                                      OFFLINE
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Hex Dump / Mini Logs */}
-                            <div className="mt-4 p-3 bg-white/60 dark:bg-white/5 border border-white/40 dark:border-primary/10 rounded overflow-hidden h-24 relative text-[10px] sm:text-xs text-slate-700 dark:text-primary/60 font-mono leading-tight shadow-inner transition-colors duration-500">
-                              <motion.div
-                                initial={{ y: 20, opacity: 0 }}
-                                animate={{ y: 0, opacity: 1 }}
-                                transition={{ duration: 0.5 }}
-                                className="absolute inset-x-3 bottom-3"
-                              >
-                                <div className="flex gap-4"><span className="opacity-50">0x0000</span><span className="text-white font-medium">NODE_UUID: {node.uuid}</span></div>
-                                <div className="flex gap-4"><span className="opacity-50">0x0010</span><span className="text-white font-medium">TRAFFIC_LIMIT: {limit > 0 ? formatBytes(limit) : 'UNLIMITED'}</span></div>
-                                <div className="flex gap-4"><span className="opacity-50">0x0020</span><span className="text-white font-medium">VER: {node.name || 'UNKNOWN'}</span></div>
-                                <div className="flex gap-4"><span className="opacity-50">0x0030</span><span className="text-slate-900 dark:text-white font-medium">STATUS: {statusLabel.toUpperCase()}_</span><motion.span animate={{opacity:[0,1]}} transition={{repeat:Infinity, duration:0.8}}>█</motion.span></div>
-                              </motion.div>
-                            </div>
-                          </div>
-
-                          {/* Right Col: Actions */}
-                          <div className="flex flex-col gap-3">
-                            <div className="border border-white/40 dark:border-primary/20 bg-white/50 dark:bg-white/5 p-4 rounded-lg flex flex-col items-center justify-center relative overflow-hidden flex-1 hover:border-white/60 dark:hover:border-primary/40 transition-colors duration-500 shadow-sm gap-4">
-                              {/* Soft pulsing ambient glow in background */}
-                              <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                                <motion.div
-                                  animate={{ opacity: [0.3, 0.6, 0.3], scale: [1, 1.1, 1] }}
-                                  transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
-                                  className="absolute -top-[50%] -right-[50%] w-[200%] h-[200%] bg-[radial-gradient(ellipse_at_center,hsl(var(--primary)/0.15)_0%,transparent_50%)]"
-                                />
-                                <motion.div
-                                  animate={{ opacity: [0.2, 0.5, 0.2], scale: [1, 1.15, 1] }}
-                                  transition={{ duration: 9, repeat: Infinity, ease: "easeInOut", delay: 1.5 }}
-                                  className="absolute -bottom-[50%] -left-[50%] w-[200%] h-[200%] bg-[radial-gradient(ellipse_at_center,hsl(var(--primary)/0.15)_0%,transparent_50%)]"
-                                />
-                              </div>
-
-                              <span className="text-slate-500 dark:text-white/60 text-xs tracking-[0.2em] z-10 font-semibold">[ ACTIONS ]</span>
-                              
-                              <div className="flex flex-col gap-3 w-full z-10">
-                                {node.isDisabled ? (
-                                  <Button
-                                    variant="outline"
-                                    className="w-full h-10 text-[10px] sm:text-xs uppercase tracking-widest gap-2 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 hover:border-emerald-500/50 transition-all bg-white/50 dark:bg-white/5"
-                                    disabled={isBusy}
-                                    onClick={() => handleNodeAction(node.uuid, "enable")}
-                                  >
-                                    {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Power className="h-4 w-4" />}
-                                    ACTIVATE
-                                  </Button>
-                                ) : (
-                                  <Button
-                                    variant="outline"
-                                    className="w-full h-10 text-[10px] sm:text-xs uppercase tracking-widest gap-2 border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:border-red-500/50 transition-all bg-white/50 dark:bg-white/5"
-                                    disabled={isBusy}
-                                    onClick={() => handleNodeAction(node.uuid, "disable")}
-                                  >
-                                    {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PowerOff className="h-4 w-4" />}
-                                    HALT
-                                  </Button>
-                                )}
-                                <Button
-                                  variant="outline"
-                                  className="w-full h-10 text-[10px] sm:text-xs uppercase tracking-widest gap-2 border-primary/30 text-primary/80 dark:text-primary hover:bg-primary/10 hover:border-primary/50 transition-all bg-white/50 dark:bg-white/5"
-                                  disabled={isBusy}
-                                  onClick={() => handleNodeAction(node.uuid, "restart")}
-                                >
-                                  <RotateCw className="h-4 w-4" />
-                                  REBOOT
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                );
-              })}
-            </motion.div>
-          )}
-        </motion.div>
+        {!hasRemnaNodesAccess ? (
+          <Card className="bg-background/60 backdrop-blur-3xl border-white/10 rounded-[2rem] py-10 text-center shadow-xl">
+            <p className="text-sm text-muted-foreground">{t("admin.dashboard.no_node_access")}</p>
+          </Card>
+        ) : nodes.length === 0 ? (
+          <Card className="bg-background/60 backdrop-blur-3xl border-white/10 rounded-[2rem] py-10 text-center shadow-xl">
+            <p className="text-sm text-muted-foreground">{t("admin.dashboard.nodes_not_loaded")}</p>
+          </Card>
+        ) : (
+          <motion.div className="grid gap-4 lg:grid-cols-2" variants={staggerContainer} initial="hidden" animate="visible">
+            {nodes.map((node, idx) => (
+              <NodeCard
+                key={node.uuid}
+                index={idx}
+                node={node}
+                isBusy={nodeActionUuid === node.uuid}
+                onAction={handleNodeAction}
+                t={t}
+              />
+            ))}
+          </motion.div>
+        )}
       </section>
     </div>
   );

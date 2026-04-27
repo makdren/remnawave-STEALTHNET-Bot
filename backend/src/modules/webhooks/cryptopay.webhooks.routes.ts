@@ -14,6 +14,7 @@ import { createSingboxSlotsByPaymentId } from "../singbox/singbox-slots-activati
 import { applyExtraOptionByPaymentId } from "../extra-options/extra-options.service.js";
 import { distributeReferralRewards } from "../referral/referral.service.js";
 import { notifyBalanceToppedUp, notifyTariffActivated, notifyProxySlotsCreated, notifySingboxSlotsCreated } from "../notification/telegram-notify.service.js";
+import { recordPromoCodeUsageFromPayment } from "../payment/promo-code-usage.util.js";
 
 function hasExtraOptionInMetadata(metadata: string | null): boolean {
   if (!metadata?.trim()) return false;
@@ -86,6 +87,7 @@ cryptopayWebhooksRouter.post("/", async (req: Request, res: Response) => {
     where: { id: payment.id },
     data: { status: "PAID", paidAt: new Date(), externalId: invoiceId != null ? String(invoiceId) : null },
   });
+  await recordPromoCodeUsageFromPayment(payment.id);
 
   const isExtraOption = hasExtraOptionInMetadata(payment.metadata);
   const isTopUp = !payment.tariffId && !payment.proxyTariffId && !payment.singboxTariffId && !isExtraOption;

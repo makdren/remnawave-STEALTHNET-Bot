@@ -77,6 +77,10 @@ model Client {
   isBlocked           Boolean  @default(false) @map("is_blocked")
   blockReason         String?  @map("block_reason")
   referralPercent     Float?   @map("referral_percent")
+  /// Персональная скидка, % (0–100). Применяется админом выборочно; работает на все продуктовые
+  /// оплаты (тариф, прокси, singbox, кастомный билд, доп-опции) и стэкается с промокодом.
+  /// На пополнение баланса и на отправку поощрений рефералам не влияет.
+  personalDiscountPercent Float? @map("personal_discount_percent")
   trialUsed           Boolean  @default(false) @map("trial_used")
   yoomoneyAccessToken String?  @map("yoomoney_access_token")
   utmSource           String?  @map("utm_source")
@@ -93,6 +97,9 @@ model Client {
   autoRenewTariffId   String?  @map("auto_renew_tariff_id")
   autoRenewRetryCount Int      @default(0) @map("auto_renew_retry_count")
   autoRenewNotifiedAt DateTime? @map("auto_renew_notified_at")
+  autoRenewPromoCode  String?  @map("auto_renew_promo_code")
+  currentTariffId     String?  @map("current_tariff_id")
+  currentPricePerDay  Float?   @map("current_price_per_day")
   yookassaPaymentMethodId    String?  @map("yookassa_payment_method_id")
   yookassaPaymentMethodTitle String?  @map("yookassa_payment_method_title")
   createdAt           DateTime @default(now()) @map("created_at")
@@ -102,6 +109,7 @@ model Client {
   referrals             Client[]                 @relation("ClientReferrer")
   payments              Payment[]
   autoRenewTariff       Tariff?                  @relation("ClientAutoRenewTariff", fields: [autoRenewTariffId], references: [id], onDelete: SetNull)
+  currentTariff         Tariff?                  @relation("ClientCurrentTariff", fields: [currentTariffId], references: [id], onDelete: SetNull)
   referralCredits       ReferralCredit[]
   promoActivations      PromoActivation[]
   promoCodeUsages       PromoCodeUsage[]
@@ -144,6 +152,10 @@ model TicketMessage {
   ticketId   String   @map("ticket_id")
   authorType String   @map("author_type") @db.VarChar(20) // client | support
   content    String   @db.Text
+  /// JSON-массив прикреплённых файлов (фото). Формат: [{ "url": string, "mime": string, "size": number, "name"?: string }].
+  /// NULL/пустая строка = нет вложений. Храним строкой в TEXT, чтобы не ломать читателей, которые ждут
+  /// json-null (см. Payment.metadata).
+  attachments String?  @db.Text
   isRead     Boolean  @default(false) @map("is_read")
   createdAt  DateTime @default(now()) @map("created_at")
 
@@ -213,6 +225,7 @@ model Payment {
   provider              String? // yookassa, cryptobot, etc.
   externalId            String?   @map("external_id")
   tariffId              String?   @map("tariff_id")
+  tariffPriceOptionId   String?   @map("tariff_price_option_id")
   proxyTariffId         String?   @map("proxy_tariff_id")
   singboxTariffId       String?   @map("singbox_tariff_id")
   remnawaveUserId       String?   @map("remnawave_user_id")
@@ -221,15 +234,17 @@ model Payment {
   paidAt                DateTime? @map("paid_at")
   referralDistributedAt DateTime? @map("referral_distributed_at")
 
-  client          Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  tariff          Tariff?          @relation(fields: [tariffId], references: [id], onDelete: SetNull)
-  proxyTariff     ProxyTariff?     @relation(fields: [proxyTariffId], references: [id], onDelete: SetNull)
-  singboxTariff   SingboxTariff?   @relation(fields: [singboxTariffId], references: [id], onDelete: SetNull)
-  referralCredits ReferralCredit[]
+  client            Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  tariff            Tariff?            @relation(fields: [tariffId], references: [id], onDelete: SetNull)
+  tariffPriceOption TariffPriceOption? @relation(fields: [tariffPriceOptionId], references: [id], onDelete: SetNull)
+  proxyTariff       ProxyTariff?       @relation(fields: [proxyTariffId], references: [id], onDelete: SetNull)
+  singboxTariff     SingboxTariff?     @relation(fields: [singboxTariffId], references: [id], onDelete: SetNull)
+  referralCredits   ReferralCredit[]
 
   @@index([clientId])
   @@index([status])
   @@index([tariffId])
+  @@index([tariffPriceOptionId])
   @@index([proxyTariffId])
   @@index([singboxTariffId])
   @@map("payments")
@@ -362,10 +377,33 @@ model Tariff {
   category         TariffCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   payments         Payment[]
   autoRenewClients Client[]       @relation("ClientAutoRenewTariff")
+  currentTariffClients Client[]   @relation("ClientCurrentTariff")
   secondarySubscriptions SecondarySubscription[]
+  priceOptions     TariffPriceOption[]
 
   @@index([categoryId])
   @@map("tariffs")
+}
+
+// Опции цен в тарифе: например (30 дней — $50), (90 дней — $130), (180 дней — $240).
+// При покупке клиент выбирает конкретную опцию. У тарифа должна быть минимум одна опция.
+// Поля Tariff.price и Tariff.durationDays оставлены для обратной совместимости
+// (синхронизируются с минимальной опцией) — но активация и платежи идут через priceOption.
+model TariffPriceOption {
+  id           String   @id @default(cuid())
+  tariffId     String   @map("tariff_id")
+  durationDays Int      @map("duration_days")
+  price        Float
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  tariff   Tariff    @relation(fields: [tariffId], references: [id], onDelete: Cascade)
+  payments Payment[]
+
+  @@index([tariffId])
+  @@index([sortOrder])
+  @@map("tariff_price_options")
 }
 
 // ——— Авто-рассылка (настраиваемые правила для удержания клиентов) ———

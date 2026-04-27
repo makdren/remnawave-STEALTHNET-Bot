@@ -722,7 +722,7 @@ function CabinetShell() {
 export function CabinetLayout() {
   const location = useLocation();
   const { state } = useClientAuth();
-  useLanguageSync(state.client?.preferredLang, null);
+  useLanguageSync(state.client?.preferredLang);
   const isAuthPage = location.pathname === "/cabinet/login" || location.pathname === "/cabinet/register";
   const isLoggedIn = Boolean(state.token);
   const needs2FA = !isLoggedIn && Boolean(state.pending2FAToken);

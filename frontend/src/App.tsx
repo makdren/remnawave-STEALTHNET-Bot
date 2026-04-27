@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from "@/contexts/auth";
 import { ClientAuthProvider, useClientAuth } from "@/contexts/client-auth";
 import { ThemeProvider } from "@/contexts/theme";
 import { AnimatedBackground } from "@/components/animated-background";
+import { PwaUpdatePrompt } from "@/components/pwa/pwa-update-prompt";
 import { api } from "@/lib/api";
 import { LoginPage } from "@/pages/login";
 import { ChangePasswordPage } from "@/pages/change-password";
@@ -29,6 +30,7 @@ import { AdminTicketsPage } from "@/pages/admin-tickets";
 import { BroadcastPage } from "@/pages/broadcast";
 import { AutoBroadcastPage } from "@/pages/auto-broadcast";
 import { ReferralNetworkPage } from "@/pages/referral-network";
+import { GramadsPromoPage } from "@/pages/gramads-promo";
 import { TrafficAbusePage } from "@/pages/traffic-abuse";
 import { ApiKeysPage } from "@/pages/api-keys";
 import { ApiDocsPage } from "@/pages/api-docs";
@@ -221,6 +223,7 @@ function AppRoutes() {
         <Route path="geo-map" element={<ForceChangePassword><GeoMapPage /></ForceChangePassword>} />
         <Route path="secondary-subscriptions" element={<ForceChangePassword><AdminSecondarySubscriptionsPage /></ForceChangePassword>} />
         <Route path="tour-constructor" element={<ForceChangePassword><TourConstructorPage /></ForceChangePassword>} />
+        <Route path="promo-vpn" element={<ForceChangePassword><GramadsPromoPage /></ForceChangePassword>} />
       </Route>
       {/* Онбординг — вне CabinetLayout (без навбара) */}
       <Route
@@ -420,6 +423,7 @@ export default function App() {
           <AnimatedBackground />
           <TitleAndThemeSync  />
           <AppRoutes />
+          <PwaUpdatePrompt />
         </BrowserRouter>
       </AuthProvider>
     </ThemeProvider>

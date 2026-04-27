@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCabinetMiniapp } from "@/pages/cabinet/cabinet-layout";
-import { openPaymentInBrowser } from "@/lib/open-payment-url";
+import { PayNowPanel } from "@/components/payment/pay-now-panel";
 import { cn } from "@/lib/utils";
 
 type ProxyTariff = { id: string; name: string; description?: string; proxyCount: number; durationDays: number; price: number; currency: string };
@@ -79,9 +79,13 @@ export function ClientProxyPage() {
   const [yookassaEnabled, setYookassaEnabled] = useState(false);
   const [cryptopayEnabled, setCryptopayEnabled] = useState(false);
   const [heleketEnabled, setHeleketEnabled] = useState(false);
+  const [lavaEnabled, setLavaEnabled] = useState(false);
+  const [overpayEnabled, setOverpayEnabled] = useState(false);
+  const [paymentProviders, setPaymentProviders] = useState<{ id: string; label: string; sortOrder: number }[]>([]);
   const [payModal, setPayModal] = useState<ProxyTariff | null>(null);
   const [payLoading, setPayLoading] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
+  const [readyUrl, setReadyUrl] = useState<{ url: string; provider: string } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("tariffs");
 
@@ -102,6 +106,9 @@ export function ClientProxyPage() {
       setYookassaEnabled(Boolean(c.yookassaEnabled));
       setCryptopayEnabled(Boolean(c.cryptopayEnabled));
       setHeleketEnabled(Boolean(c.heleketEnabled));
+      setLavaEnabled(Boolean(c.lavaEnabled));
+      setOverpayEnabled(Boolean(c.overpayEnabled));
+      setPaymentProviders(c.paymentProviders ?? []);
     }).catch(() => { });
   }, []);
 
@@ -157,8 +164,7 @@ export function ClientProxyPage() {
         paymentType: "AC",
         proxyTariffId: tariff.id,
       });
-      setPayModal(null);
-      if (res.paymentUrl) openPaymentInBrowser(res.paymentUrl);
+      if (res.paymentUrl) setReadyUrl({ url: res.paymentUrl, provider: "ЮMoney" });
     } catch (e) {
       setPayError(e instanceof Error ? e.message : "Ошибка");
     } finally {
@@ -176,8 +182,7 @@ export function ClientProxyPage() {
         currency: "RUB",
         proxyTariffId: tariff.id,
       });
-      setPayModal(null);
-      if (res.confirmationUrl) openPaymentInBrowser(res.confirmationUrl);
+      if (res.confirmationUrl) setReadyUrl({ url: res.confirmationUrl, provider: "ЮKassa" });
     } catch (e) {
       setPayError(e instanceof Error ? e.message : "Ошибка");
     } finally {
@@ -195,8 +200,7 @@ export function ClientProxyPage() {
         currency: tariff.currency,
         proxyTariffId: tariff.id,
       });
-      setPayModal(null);
-      if (res.payUrl) openPaymentInBrowser(res.payUrl);
+      if (res.payUrl) setReadyUrl({ url: res.payUrl, provider: "Crypto Bot" });
     } catch (e) {
       setPayError(e instanceof Error ? e.message : "Ошибка");
     } finally {
@@ -214,8 +218,43 @@ export function ClientProxyPage() {
         currency: tariff.currency,
         proxyTariffId: tariff.id,
       });
-      setPayModal(null);
-      if (res.payUrl) openPaymentInBrowser(res.payUrl);
+      if (res.payUrl) setReadyUrl({ url: res.payUrl, provider: "Heleket" });
+    } catch (e) {
+      setPayError(e instanceof Error ? e.message : "Ошибка");
+    } finally {
+      setPayLoading(false);
+    }
+  }
+
+  async function startLavaPayment(tariff: ProxyTariff) {
+    if (!token) return;
+    setPayError(null);
+    setPayLoading(true);
+    try {
+      const res = await api.lavaCreatePayment(token, {
+        amount: tariff.price,
+        currency: tariff.currency,
+        proxyTariffId: tariff.id,
+      });
+      if (res.payUrl) setReadyUrl({ url: res.payUrl, provider: "LAVA" });
+    } catch (e) {
+      setPayError(e instanceof Error ? e.message : "Ошибка");
+    } finally {
+      setPayLoading(false);
+    }
+  }
+
+  async function startOverpayPayment(tariff: ProxyTariff) {
+    if (!token) return;
+    setPayError(null);
+    setPayLoading(true);
+    try {
+      const res = await api.overpayCreatePayment(token, {
+        amount: tariff.price,
+        currency: tariff.currency,
+        proxyTariffId: tariff.id,
+      });
+      if (res.payUrl) setReadyUrl({ url: res.payUrl, provider: "Overpay" });
     } catch (e) {
       setPayError(e instanceof Error ? e.message : "Ошибка");
     } finally {
@@ -235,8 +274,7 @@ export function ClientProxyPage() {
         description: tariff.name,
         proxyTariffId: tariff.id,
       });
-      setPayModal(null);
-      openPaymentInBrowser(res.paymentUrl);
+      if (res.paymentUrl) setReadyUrl({ url: res.paymentUrl, provider: "Platega" });
     } catch (e) {
       setPayError(e instanceof Error ? e.message : "Ошибка");
     } finally {
@@ -247,11 +285,24 @@ export function ClientProxyPage() {
   const closePayment = () => {
     setPayModal(null);
     setPayError(null);
+    setReadyUrl(null);
   };
 
   const PaymentContent = () => {
     if (!payModal) return null;
     const hasBalance = client ? client.balance >= payModal.price : false;
+
+    if (readyUrl) {
+      return (
+        <PayNowPanel
+          url={readyUrl.url}
+          provider={readyUrl.provider}
+          onBack={() => setReadyUrl(null)}
+          onPaid={() => closePayment()}
+          compact={isMobileOrMiniapp}
+        />
+      );
+    }
 
     return (
       <div className="space-y-6">
@@ -338,136 +389,79 @@ export function ClientProxyPage() {
               </Button>
             )}
 
-            {cryptopayEnabled && (
-              <Button
-                size="lg"
-                variant="outline"
-                onClick={() => startCryptopayPayment(payModal)}
-                disabled={payLoading}
-                className={cn("w-full", isMobileOrMiniapp ? "justify-start gap-4 px-6 h-16 rounded-2xl border-white/5 bg-card/40 hover:bg-card/60" : "gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative")}
-              >
-                {isMobileOrMiniapp ? (
-                  <>
-                    <div className="p-2 rounded-xl bg-yellow-500/10">
-                      {payLoading ? <Loader2 className="h-6 w-6 animate-spin text-yellow-500" /> : <Zap className="h-6 w-6 text-yellow-500" />}
-                    </div>
-                    <span className="text-base font-bold">Crypto Bot</span>
-                  </>
-                ) : (
-                  <>
-                    <div className="absolute left-6 p-1.5 rounded-lg bg-yellow-500/10 group-hover:bg-yellow-500/20 transition-colors">
-                      {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-yellow-500" /> : <Zap className="h-5 w-5 text-yellow-500" />}
-                    </div>
-                    <span className="text-base font-medium">⚡ Crypto Bot (Криптовалюта)</span>
-                  </>
-                )}
-              </Button>
-            )}
+            {(() => {
+              const providerLabel = (id: string, fallback: string) => paymentProviders.find((p) => p.id === id)?.label || fallback;
+              const btnCls = cn("w-full", isMobileOrMiniapp ? "justify-start gap-4 px-6 h-16 rounded-2xl border-white/5 bg-card/40 hover:bg-card/60" : "gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative");
 
-            {heleketEnabled && (
-              <Button
-                size="lg"
-                variant="outline"
-                onClick={() => startHeleketPayment(payModal)}
-                disabled={payLoading}
-                className={cn("w-full", isMobileOrMiniapp ? "justify-start gap-4 px-6 h-16 rounded-2xl border-white/5 bg-card/40 hover:bg-card/60" : "gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative")}
-              >
-                {isMobileOrMiniapp ? (
-                  <>
-                    <div className="p-2 rounded-xl bg-orange-500/10">
-                      {payLoading ? <Loader2 className="h-6 w-6 animate-spin text-orange-500" /> : <Zap className="h-6 w-6 text-orange-500" />}
-                    </div>
-                    <span className="text-base font-bold">Heleket</span>
-                  </>
-                ) : (
-                  <>
-                    <div className="absolute left-6 p-1.5 rounded-lg bg-orange-500/10 group-hover:bg-orange-500/20 transition-colors">
-                      {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-orange-500" /> : <Zap className="h-5 w-5 text-orange-500" />}
-                    </div>
-                    <span className="text-base font-medium">⚡ Heleket (Криптовалюта)</span>
-                  </>
-                )}
-              </Button>
-            )}
+              const colorMap: Record<string, { bg10: string; bg20: string; text: string }> = {
+                cryptopay: { bg10: "bg-yellow-500/10", bg20: "group-hover:bg-yellow-500/20", text: "text-yellow-500" },
+                heleket: { bg10: "bg-orange-500/10", bg20: "group-hover:bg-orange-500/20", text: "text-orange-500" },
+                yookassa: { bg10: "bg-green-500/10", bg20: "group-hover:bg-green-500/20", text: "text-green-500" },
+                yoomoney: { bg10: "bg-green-500/10", bg20: "group-hover:bg-green-500/20", text: "text-green-500" },
+                lava: { bg10: "bg-sky-500/10", bg20: "group-hover:bg-sky-500/20", text: "text-sky-500" },
+                overpay: { bg10: "bg-indigo-500/10", bg20: "group-hover:bg-indigo-500/20", text: "text-indigo-500" },
+              };
 
-            {yookassaEnabled && payModal.currency.toUpperCase() === "RUB" && (
-              <Button
-                size="lg"
-                variant="outline"
-                onClick={() => startYookassaPayment(payModal)}
-                disabled={payLoading}
-                className={cn("w-full", isMobileOrMiniapp ? "justify-start gap-4 px-6 h-16 rounded-2xl border-white/5 bg-card/40 hover:bg-card/60" : "gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative")}
-              >
-                 {isMobileOrMiniapp ? (
-                  <>
-                    <div className="p-2 rounded-xl bg-green-500/10">
-                      {payLoading ? <Loader2 className="h-6 w-6 animate-spin text-green-500" /> : <CreditCard className="h-6 w-6 text-green-500" />}
-                    </div>
-                    <span className="text-base font-bold">СБП / Карты РФ</span>
-                  </>
-                ) : (
-                  <>
-                    <div className="absolute left-6 p-1.5 rounded-lg bg-green-500/10 group-hover:bg-green-500/20 transition-colors">
-                      {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-green-500" /> : <CreditCard className="h-5 w-5 text-green-500" />}
-                    </div>
-                    <span className="text-base font-medium">💳 СБП</span>
-                  </>
-                )}
-              </Button>
-            )}
+              type ProviderEntry = { id: string; enabled: boolean; onClick: () => void; label: string; icon: "crypto" | "card" };
+              const providers: ProviderEntry[] = [
+                { id: "cryptopay", enabled: cryptopayEnabled, onClick: () => startCryptopayPayment(payModal), label: providerLabel("cryptopay", "Crypto Bot"), icon: "crypto" },
+                { id: "heleket", enabled: heleketEnabled, onClick: () => startHeleketPayment(payModal), label: providerLabel("heleket", "Heleket"), icon: "crypto" },
+                { id: "yookassa", enabled: yookassaEnabled && payModal.currency.toUpperCase() === "RUB", onClick: () => startYookassaPayment(payModal), label: providerLabel("yookassa", "СБП / Карты РФ"), icon: "card" },
+                { id: "yoomoney", enabled: yoomoneyEnabled && payModal.currency.toUpperCase() === "RUB", onClick: () => startYoomoneyPayment(payModal), label: providerLabel("yoomoney", "ЮMoney / Карты"), icon: "card" },
+                { id: "lava", enabled: lavaEnabled && payModal.currency.toUpperCase() === "RUB", onClick: () => startLavaPayment(payModal), label: providerLabel("lava", "LAVA"), icon: "card" },
+                { id: "overpay", enabled: overpayEnabled, onClick: () => startOverpayPayment(payModal), label: providerLabel("overpay", "Overpay"), icon: "card" },
+              ];
 
-            {yoomoneyEnabled && payModal.currency.toUpperCase() === "RUB" && (
-              <Button
-                size="lg"
-                variant="outline"
-                onClick={() => startYoomoneyPayment(payModal)}
-                disabled={payLoading}
-                className={cn("w-full", isMobileOrMiniapp ? "justify-start gap-4 px-6 h-16 rounded-2xl border-white/5 bg-card/40 hover:bg-card/60" : "gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative")}
-              >
-                 {isMobileOrMiniapp ? (
-                  <>
-                    <div className="p-2 rounded-xl bg-green-500/10">
-                      {payLoading ? <Loader2 className="h-6 w-6 animate-spin text-green-500" /> : <CreditCard className="h-6 w-6 text-green-500" />}
-                    </div>
-                    <span className="text-base font-bold">ЮMoney / Карты</span>
-                  </>
-                ) : (
-                  <>
-                    <div className="absolute left-6 p-1.5 rounded-lg bg-green-500/10 group-hover:bg-green-500/20 transition-colors">
-                      {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-green-500" /> : <CreditCard className="h-5 w-5 text-green-500" />}
-                    </div>
-                    <span className="text-base font-medium">💳 Карты</span>
-                  </>
-                )}
-              </Button>
-            )}
+              const sortedProviders = paymentProviders.length > 0
+                ? paymentProviders.map((pp) => providers.find((p) => p.id === pp.id)).filter((p): p is ProviderEntry => !!p)
+                : providers;
 
-            {plategaMethods.map((m) => (
-              <Button
-                key={m.id}
-                size="lg"
-                variant="outline"
-                onClick={() => startPlategaPayment(payModal, m.id)}
-                disabled={payLoading}
-                className={cn("w-full", isMobileOrMiniapp ? "justify-start gap-4 px-6 h-16 rounded-2xl border-white/5 bg-card/40 hover:bg-card/60" : "gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative")}
-              >
-                {isMobileOrMiniapp ? (
-                  <>
-                    <div className="p-2 rounded-xl bg-green-500/10">
-                      {payLoading ? <Loader2 className="h-6 w-6 animate-spin text-green-500" /> : <CreditCard className="h-6 w-6 text-green-500" />}
-                    </div>
-                    <span className="text-base font-bold">{m.label}</span>
-                  </>
-                ) : (
-                  <>
-                    <div className="absolute left-6 p-1.5 rounded-lg bg-green-500/10 group-hover:bg-green-500/20 transition-colors">
-                      {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-green-500" /> : <CreditCard className="h-5 w-5 text-green-500" />}
-                    </div>
-                    <span className="text-base font-medium">💳 {m.label}</span>
-                  </>
-                )}
-              </Button>
-            ))}
+              return (
+                <>
+                  {sortedProviders.filter((p) => p.enabled).map((p) => {
+                    const c = colorMap[p.id] ?? colorMap.yookassa;
+                    return (
+                    <Button key={p.id} size="lg" variant="outline" onClick={p.onClick} disabled={payLoading} className={btnCls}>
+                      {isMobileOrMiniapp ? (
+                        <>
+                          <div className={cn("p-2 rounded-xl", c.bg10)}>
+                            {payLoading ? <Loader2 className={cn("h-6 w-6 animate-spin", c.text)} /> : p.icon === "crypto" ? <Zap className={cn("h-6 w-6", c.text)} /> : <CreditCard className={cn("h-6 w-6", c.text)} />}
+                          </div>
+                          <span className="text-base font-bold">{p.label}</span>
+                        </>
+                      ) : (
+                        <>
+                          <div className={cn("absolute left-6 p-1.5 rounded-lg transition-colors", c.bg10, c.bg20)}>
+                            {payLoading ? <Loader2 className={cn("h-5 w-5 animate-spin", c.text)} /> : p.icon === "crypto" ? <Zap className={cn("h-5 w-5", c.text)} /> : <CreditCard className={cn("h-5 w-5", c.text)} />}
+                          </div>
+                          <span className="text-base font-medium">{p.icon === "crypto" ? "⚡" : "💳"} {p.label}</span>
+                        </>
+                      )}
+                    </Button>
+                    );
+                  })}
+                  {plategaMethods.map((m) => (
+                    <Button key={m.id} size="lg" variant="outline" onClick={() => startPlategaPayment(payModal, m.id)} disabled={payLoading} className={btnCls}>
+                      {isMobileOrMiniapp ? (
+                        <>
+                          <div className="p-2 rounded-xl bg-green-500/10">
+                            {payLoading ? <Loader2 className="h-6 w-6 animate-spin text-green-500" /> : <CreditCard className="h-6 w-6 text-green-500" />}
+                          </div>
+                          <span className="text-base font-bold">{m.label}</span>
+                        </>
+                      ) : (
+                        <>
+                          <div className="absolute left-6 p-1.5 rounded-lg bg-green-500/10 group-hover:bg-green-500/20 transition-colors">
+                            {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-green-500" /> : <CreditCard className="h-5 w-5 text-green-500" />}
+                          </div>
+                          <span className="text-base font-medium">💳 {m.label}</span>
+                        </>
+                      )}
+                    </Button>
+                  ))}
+                </>
+              );
+            })()}
           </div>
           {isMobileOrMiniapp && <div className="h-8" />}
         </div>

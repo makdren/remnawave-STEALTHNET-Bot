@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/auth";
 import { api, type ProxyNodeListItem, type CreateProxyNodeResponse, type ProxySlotAdminItem } from "@/lib/api";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Globe, Plus, Copy, Check, Loader2, Server, Pencil, Trash2, Layers, Download, BarChart3, Users, Ban, KeyRound } from "lucide-react";
+import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
+import { Globe, Plus, Copy, Check, Loader2, Server, Pencil, Trash2, Layers, Download, BarChart3, Users, Ban, KeyRound, Tag } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -51,13 +53,19 @@ function formatDate(iso: string | null): string {
 
 function statusBadge(status: string) {
   const map: Record<string, string> = {
-    ONLINE: "bg-green-500/15 text-green-700 dark:text-green-400",
-    OFFLINE: "bg-muted text-muted-foreground",
-    DISABLED: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+    ONLINE: "bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border-emerald-500/20",
+    OFFLINE: "bg-foreground/[0.05] dark:bg-white/[0.05] text-muted-foreground border-white/10",
+    DISABLED: "bg-amber-500/10 text-amber-500 dark:text-amber-400 border-amber-500/20",
+  };
+  const dotColor: Record<string, string> = {
+    ONLINE: "bg-emerald-400 shadow-[0_0_4px_#10b981]",
+    OFFLINE: "bg-muted-foreground/40",
+    DISABLED: "bg-amber-400 shadow-[0_0_4px_#fbbf24]",
   };
   const label = status === "ONLINE" ? "Онлайн" : status === "DISABLED" ? "Отключена" : "Офлайн";
   return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${map[status] ?? "bg-muted"}`}>
+    <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium backdrop-blur-md", map[status] ?? map.OFFLINE)}>
+      <span className={cn("h-1.5 w-1.5 rounded-full", dotColor[status] ?? dotColor.OFFLINE)} />
       {label}
     </span>
   );
@@ -336,95 +344,117 @@ cd /opt/proxy-node && docker compose up -d --build`
     : "";
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-          <Globe className="h-7 w-7 text-primary" />
-          Прокси
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Ноды, категории и тарифы для продажи прокси.
-        </p>
-      </div>
+    <div className="space-y-5 px-4 sm:px-6 md:px-8 pt-6 pb-10 relative">
+      <div className="fixed -z-10 bg-primary/15 blur-[120px] top-[-50px] left-[-50px] w-[300px] h-[300px] rounded-full pointer-events-none" />
+      <div className="fixed -z-10 bg-purple-500/10 blur-[100px] top-[20%] right-[-50px] w-[250px] h-[250px] rounded-full pointer-events-none" />
+
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between bg-background/40 backdrop-blur-3xl border border-white/10 p-6 rounded-[2rem] shadow-2xl"
+      >
+        <div className="flex items-center gap-4">
+          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center shadow-inner border border-white/10">
+            <Globe className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60">
+              Прокси
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">Ноды, категории и тарифы для продажи прокси</p>
+          </div>
+        </div>
+      </motion.div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full max-w-lg grid-cols-3">
-          <TabsTrigger value="nodes" className="gap-2">
+        <TabsList className="grid w-full max-w-lg grid-cols-3 bg-foreground/[0.03] dark:bg-white/[0.02] border border-white/5 rounded-xl p-1">
+          <TabsTrigger value="nodes" className="gap-2 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md">
             <Server className="h-4 w-4" /> Ноды
           </TabsTrigger>
-          <TabsTrigger value="slots" className="gap-2">
+          <TabsTrigger value="slots" className="gap-2 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md">
             <Users className="h-4 w-4" /> Слоты
           </TabsTrigger>
-          <TabsTrigger value="categories" className="gap-2">
+          <TabsTrigger value="categories" className="gap-2 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md">
             <Layers className="h-4 w-4" /> Категории и тарифы
           </TabsTrigger>
         </TabsList>
 
-      <TabsContent value="nodes">
+      <TabsContent value="nodes" className="mt-4 space-y-5">
       {nodes.length > 0 && (
-        <Card className="mb-6">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center gap-2">
+        <Card className="bg-background/60 backdrop-blur-3xl border-white/10 rounded-[2rem] p-5 sm:p-6 shadow-xl">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-primary/15 to-primary/5 border border-white/10 flex items-center justify-center shadow-inner shrink-0">
               <BarChart3 className="h-5 w-5 text-primary" />
-              Нагрузка и трафик по нодам
-            </CardTitle>
-            <CardDescription>Текущее состояние: трафик (↓+↑), подключения, слотов.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="h-64">
-                <p className="text-sm font-medium mb-2">Трафик (МБ)</p>
+            </div>
+            <div>
+              <h3 className="text-sm font-bold tracking-tight">Нагрузка и трафик по нодам</h3>
+              <p className="text-xs text-muted-foreground">Текущее состояние: трафик, подключения, слотов</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="rounded-2xl border border-white/5 bg-foreground/[0.03] dark:bg-white/[0.02] p-4">
+              <p className="text-xs font-medium text-muted-foreground mb-2">Трафик (МБ)</p>
+              <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={nodes.map((n) => ({ name: n.name || n.id.slice(0, 8), trafficMb: (Number(n.trafficInBytes) + Number(n.trafficOutBytes)) / (1024 * 1024), fill: n.status === "ONLINE" ? "#22c55e" : n.status === "DISABLED" ? "#f59e0b" : "#94a3b8" }))}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}`} />
-                    <Tooltip formatter={(v) => [`${(Number(v) || 0).toFixed(1)} МБ`, "Трафик"]} />
+                  <BarChart data={nodes.map((n) => ({ name: n.name || n.id.slice(0, 8), trafficMb: (Number(n.trafficInBytes) + Number(n.trafficOutBytes)) / (1024 * 1024), fill: n.status === "ONLINE" ? "#10b981" : n.status === "DISABLED" ? "#f59e0b" : "#94a3b8" }))}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-foreground/10" />
+                    <XAxis dataKey="name" tick={{ fontSize: 11 }} className="text-muted-foreground" />
+                    <YAxis tick={{ fontSize: 11 }} className="text-muted-foreground" tickFormatter={(v) => `${v}`} />
+                    <Tooltip
+                      contentStyle={{ background: "rgba(10,10,20,0.85)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "12px", color: "white", fontSize: "12px" }}
+                      formatter={(v) => [`${(Number(v) || 0).toFixed(1)} МБ`, "Трафик"]}
+                    />
                     <Bar dataKey="trafficMb" name="Трафик (МБ)" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-              <div className="h-64">
-                <p className="text-sm font-medium mb-2">Подключения и слотов</p>
+            </div>
+            <div className="rounded-2xl border border-white/5 bg-foreground/[0.03] dark:bg-white/[0.02] p-4">
+              <p className="text-xs font-medium text-muted-foreground mb-2">Подключения и слотов</p>
+              <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={nodes.map((n) => ({ name: n.name || n.id.slice(0, 8), connections: n.currentConnections, slots: n.slotsCount }))}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip />
-                    <Legend />
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-foreground/10" />
+                    <XAxis dataKey="name" tick={{ fontSize: 11 }} className="text-muted-foreground" />
+                    <YAxis tick={{ fontSize: 11 }} className="text-muted-foreground" />
+                    <Tooltip contentStyle={{ background: "rgba(10,10,20,0.85)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "12px", color: "white", fontSize: "12px" }} />
+                    <Legend wrapperStyle={{ fontSize: "11px" }} />
                     <Bar dataKey="connections" name="Подключения" fill="#6366f1" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="slots" name="Слотов" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
-          </CardContent>
+          </div>
         </Card>
       )}
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <CardTitle className="text-lg">Ноды</CardTitle>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => token && api.downloadProxySlotsCsv(token).catch((e) => alert(e instanceof Error ? e.message : "Ошибка"))}>
-                <Download className="h-4 w-4 mr-2" /> Экспорт слотов CSV
-              </Button>
-              <Button
-                onClick={() => {
-                  setAddOpen(true);
-                  setAddResult(null);
-                }}
-                disabled={creating}
-              >
-                {creating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
-                Добавить прокси
-              </Button>
+      <Card className="bg-background/60 backdrop-blur-3xl border-white/10 rounded-[2rem] p-5 shadow-xl">
+        <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/20 border border-white/10 flex items-center justify-center shadow-inner shrink-0">
+              <Server className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold tracking-tight">Ноды</h3>
+              <p className="text-xs text-muted-foreground">Статус «Онлайн» — нода шлёт heartbeat за последние 5 минут</p>
             </div>
           </div>
-          <CardDescription>Список прокси-нод. Статус «Онлайн» — нода присылает heartbeat за последние 5 минут.</CardDescription>
-        </CardHeader>
-        <CardContent>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => token && api.downloadProxySlotsCsv(token).catch((e) => alert(e instanceof Error ? e.message : "Ошибка"))} className="gap-1.5 rounded-xl">
+              <Download className="h-4 w-4" /> Экспорт CSV
+            </Button>
+            <Button
+              size="sm"
+              className="gap-1.5 rounded-xl"
+              onClick={() => { setAddOpen(true); setAddResult(null); }}
+              disabled={creating}
+            >
+              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              Добавить прокси
+            </Button>
+          </div>
+        </div>
+        <div>
           {loading ? (
             <p className="text-muted-foreground py-8 text-center">Загрузка…</p>
           ) : nodes.length === 0 ? (
@@ -432,114 +462,129 @@ cd /opt/proxy-node && docker compose up -d --build`
               Нет нод. Нажмите «Добавить прокси», скопируйте docker-compose на сервер и запустите контейнер.
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-2 font-medium">Название</th>
-                    <th className="text-left py-3 px-2 font-medium">Статус</th>
-                    <th className="text-left py-3 px-2 font-medium">Хост / порты</th>
-                    <th className="text-right py-3 px-2 font-medium">Слотов</th>
-                    <th className="text-right py-3 px-2 font-medium">Подключения</th>
-                    <th className="text-right py-3 px-2 font-medium">Трафик</th>
-                    <th className="text-left py-3 px-2 font-medium">Последний heartbeat</th>
-                    <th className="text-right py-3 px-2 font-medium w-24">Действия</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {nodes.map((n) => (
-                    <tr key={n.id} className="border-b last:border-0">
-                      <td className="py-3 px-2">
-                        <span className="font-medium">{n.name || "—"}</span>
-                      </td>
-                      <td className="py-3 px-2">{statusBadge(n.status)}</td>
-                      <td className="py-3 px-2 font-mono text-xs">
-                        {n.publicHost ?? "—"} :{n.socksPort}/{n.httpPort}
-                      </td>
-                      <td className="py-3 px-2 text-right">{n.slotsCount}</td>
-                      <td className="py-3 px-2 text-right">{n.currentConnections}</td>
-                      <td className="py-3 px-2 text-right text-muted-foreground">
-                        ↓{formatBytes(n.trafficInBytes)} ↑{formatBytes(n.trafficOutBytes)}
-                      </td>
-                      <td className="py-3 px-2 text-muted-foreground">{formatDate(n.lastSeenAt)}</td>
-                      <td className="py-3 px-2 text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => openEdit(n)} title="Редактировать">
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => setNodeToDelete(n)} title="Удалить" className="text-destructive hover:text-destructive">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
+            <div className="rounded-2xl border border-white/5 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-foreground/[0.04] dark:bg-white/[0.03] border-b border-white/5">
+                      <th className="text-left py-3 px-3 font-medium text-muted-foreground text-xs">Название</th>
+                      <th className="text-left py-3 px-3 font-medium text-muted-foreground text-xs">Статус</th>
+                      <th className="text-left py-3 px-3 font-medium text-muted-foreground text-xs">Хост / порты</th>
+                      <th className="text-right py-3 px-3 font-medium text-muted-foreground text-xs">Слотов</th>
+                      <th className="text-right py-3 px-3 font-medium text-muted-foreground text-xs">Подключения</th>
+                      <th className="text-right py-3 px-3 font-medium text-muted-foreground text-xs">Трафик</th>
+                      <th className="text-left py-3 px-3 font-medium text-muted-foreground text-xs">Heartbeat</th>
+                      <th className="text-right py-3 px-3 font-medium text-muted-foreground text-xs w-24">Действия</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {nodes.map((n) => (
+                      <tr key={n.id} className="border-b border-white/5 last:border-0 hover:bg-foreground/[0.03] dark:hover:bg-white/[0.02] transition-colors">
+                        <td className="py-3 px-3">
+                          <span className="font-medium">{n.name || "—"}</span>
+                        </td>
+                        <td className="py-3 px-3">{statusBadge(n.status)}</td>
+                        <td className="py-3 px-3 font-mono text-xs text-muted-foreground">
+                          {n.publicHost ?? "—"}:{n.socksPort}/{n.httpPort}
+                        </td>
+                        <td className="py-3 px-3 text-right tabular-nums font-semibold">{n.slotsCount}</td>
+                        <td className="py-3 px-3 text-right tabular-nums">{n.currentConnections}</td>
+                        <td className="py-3 px-3 text-right text-xs text-muted-foreground tabular-nums">
+                          ↓{formatBytes(n.trafficInBytes)} ↑{formatBytes(n.trafficOutBytes)}
+                        </td>
+                        <td className="py-3 px-3 text-xs text-muted-foreground">{formatDate(n.lastSeenAt)}</td>
+                        <td className="py-3 px-3 text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => openEdit(n)} title="Редактировать">
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-red-500 dark:text-red-400 hover:bg-red-500/10" onClick={() => setNodeToDelete(n)} title="Удалить">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
-        </CardContent>
+        </div>
       </Card>
       </TabsContent>
 
-      <TabsContent value="slots">
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Users className="h-5 w-5 text-primary" />
-            Прокси-доступы пользователей
-          </CardTitle>
-          <CardDescription>Все выданные слоты. Можно менять логин/пароль, лимит подключений, отзывать или удалять.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {slotsLoading ? (
-            <p className="text-muted-foreground py-8 text-center">Загрузка...</p>
-          ) : slots.length === 0 ? (
-            <p className="text-muted-foreground py-8 text-center">Нет выданных слотов.</p>
-          ) : (
+      <TabsContent value="slots" className="mt-4">
+      <Card className="bg-background/60 backdrop-blur-3xl border-white/10 rounded-[2rem] p-5 shadow-xl">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-cyan-500/5 border border-white/10 flex items-center justify-center shadow-inner shrink-0">
+            <Users className="h-5 w-5 text-cyan-500 dark:text-cyan-400" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold tracking-tight">Прокси-доступы пользователей</h3>
+            <p className="text-xs text-muted-foreground">Все выданные слоты. Меняйте логин/пароль, лимит, отзывайте.</p>
+          </div>
+        </div>
+        {slotsLoading ? (
+          <p className="text-muted-foreground py-8 text-center">Загрузка...</p>
+        ) : slots.length === 0 ? (
+          <p className="text-muted-foreground py-8 text-center">Нет выданных слотов.</p>
+        ) : (
+          <div className="rounded-2xl border border-white/5 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-2 font-medium">Клиент</th>
-                    <th className="text-left py-3 px-2 font-medium">Нода</th>
-                    <th className="text-left py-3 px-2 font-medium">Логин</th>
-                    <th className="text-left py-3 px-2 font-medium">Пароль</th>
-                    <th className="text-right py-3 px-2 font-medium">Лимит подкл.</th>
-                    <th className="text-right py-3 px-2 font-medium">Трафик</th>
-                    <th className="text-left py-3 px-2 font-medium">Статус</th>
-                    <th className="text-left py-3 px-2 font-medium">Истекает</th>
-                    <th className="text-right py-3 px-2 font-medium w-28">Действия</th>
+                  <tr className="bg-foreground/[0.04] dark:bg-white/[0.03] border-b border-white/5">
+                    <th className="text-left py-3 px-3 font-medium text-muted-foreground text-xs">Клиент</th>
+                    <th className="text-left py-3 px-3 font-medium text-muted-foreground text-xs">Нода</th>
+                    <th className="text-left py-3 px-3 font-medium text-muted-foreground text-xs">Логин</th>
+                    <th className="text-left py-3 px-3 font-medium text-muted-foreground text-xs">Пароль</th>
+                    <th className="text-right py-3 px-3 font-medium text-muted-foreground text-xs">Лимит подкл.</th>
+                    <th className="text-right py-3 px-3 font-medium text-muted-foreground text-xs">Трафик</th>
+                    <th className="text-left py-3 px-3 font-medium text-muted-foreground text-xs">Статус</th>
+                    <th className="text-left py-3 px-3 font-medium text-muted-foreground text-xs">Истекает</th>
+                    <th className="text-right py-3 px-3 font-medium text-muted-foreground text-xs w-28">Действия</th>
                   </tr>
                 </thead>
                 <tbody>
                   {slots.map((s) => (
-                    <tr key={s.id} className="border-b last:border-0">
-                      <td className="py-3 px-2">
-                        <span className="font-medium">{s.clientEmail || s.clientTelegram || s.clientTelegramId || s.clientId.slice(0, 8)}</span>
+                    <tr key={s.id} className="border-b border-white/5 last:border-0 hover:bg-foreground/[0.03] dark:hover:bg-white/[0.02] transition-colors">
+                      <td className="py-3 px-3">
+                        <span className="font-medium truncate">{s.clientEmail || s.clientTelegram || s.clientTelegramId || s.clientId.slice(0, 8)}</span>
                       </td>
-                      <td className="py-3 px-2 text-xs">{s.nodeName || "—"}<br /><span className="text-muted-foreground font-mono">{s.publicHost ?? "—"}</span></td>
-                      <td className="py-3 px-2 font-mono text-xs">{s.login}</td>
-                      <td className="py-3 px-2 font-mono text-xs">{s.password}</td>
-                      <td className="py-3 px-2 text-right">{s.connectionLimit ?? "—"}</td>
-                      <td className="py-3 px-2 text-right text-muted-foreground text-xs">{formatBytes(s.trafficUsedBytes)}{s.trafficLimitBytes ? ` / ${formatBytes(s.trafficLimitBytes)}` : ""}</td>
-                      <td className="py-3 px-2">
-                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${s.status === "ACTIVE" ? "bg-green-500/15 text-green-700 dark:text-green-400" : s.status === "REVOKED" ? "bg-red-500/15 text-red-700 dark:text-red-400" : "bg-muted text-muted-foreground"}`}>
+                      <td className="py-3 px-3 text-xs">{s.nodeName || "—"}<br /><span className="text-muted-foreground font-mono">{s.publicHost ?? "—"}</span></td>
+                      <td className="py-3 px-3 font-mono text-xs">{s.login}</td>
+                      <td className="py-3 px-3 font-mono text-xs">{s.password}</td>
+                      <td className="py-3 px-3 text-right tabular-nums">{s.connectionLimit ?? "—"}</td>
+                      <td className="py-3 px-3 text-right text-muted-foreground text-xs tabular-nums">{formatBytes(s.trafficUsedBytes)}{s.trafficLimitBytes ? ` / ${formatBytes(s.trafficLimitBytes)}` : ""}</td>
+                      <td className="py-3 px-3">
+                        <span className={cn(
+                          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium backdrop-blur-md",
+                          s.status === "ACTIVE" && "bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border-emerald-500/20",
+                          s.status === "REVOKED" && "bg-red-500/10 text-red-500 dark:text-red-400 border-red-500/20",
+                          s.status !== "ACTIVE" && s.status !== "REVOKED" && "bg-foreground/[0.05] dark:bg-white/[0.05] text-muted-foreground border-white/10",
+                        )}>
+                          <span className={cn(
+                            "h-1.5 w-1.5 rounded-full",
+                            s.status === "ACTIVE" && "bg-emerald-400 shadow-[0_0_4px_#10b981]",
+                            s.status === "REVOKED" && "bg-red-400",
+                            s.status !== "ACTIVE" && s.status !== "REVOKED" && "bg-muted-foreground/40",
+                          )} />
                           {s.status === "ACTIVE" ? "Активен" : s.status === "REVOKED" ? "Отозван" : "Истёк"}
                         </span>
                       </td>
-                      <td className="py-3 px-2 text-xs text-muted-foreground">{formatDate(s.expiresAt)}</td>
-                      <td className="py-3 px-2 text-right">
+                      <td className="py-3 px-3 text-xs text-muted-foreground">{formatDate(s.expiresAt)}</td>
+                      <td className="py-3 px-3 text-right">
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => openSlotEdit(s)} title="Редактировать">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => openSlotEdit(s)} title="Редактировать">
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
                           {s.status === "ACTIVE" && (
-                            <Button variant="ghost" size="sm" onClick={() => handleRevokeSlot(s.id)} title="Отозвать" className="text-amber-600 hover:text-amber-600">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-amber-500 dark:text-amber-400 hover:bg-amber-500/10" onClick={() => handleRevokeSlot(s.id)} title="Отозвать">
                               <Ban className="h-3.5 w-3.5" />
                             </Button>
                           )}
-                          <Button variant="ghost" size="sm" onClick={() => handleDeleteSlot(s.id)} title="Удалить" className="text-destructive hover:text-destructive">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-red-500 dark:text-red-400 hover:bg-red-500/10" onClick={() => handleDeleteSlot(s.id)} title="Удалить">
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
@@ -549,89 +594,107 @@ cd /opt/proxy-node && docker compose up -d --build`
                 </tbody>
               </table>
             </div>
-          )}
-        </CardContent>
+          </div>
+        )}
       </Card>
       </TabsContent>
 
-      <TabsContent value="categories">
+      <TabsContent value="categories" className="mt-4">
       <div className="space-y-4">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center gap-3 flex-wrap">
           <p className="text-muted-foreground text-sm">
-            Категории группируют тарифы (например «Прокси РФ», «Прокси EU»). В каждой категории — свои тарифы.
+            Категории группируют тарифы. В каждой — свои тарифы (количество прокси, срок, цена).
           </p>
-          <Button onClick={() => setCategoryModal("add")} size="sm">
-            <Plus className="h-4 w-4 mr-2" /> Добавить категорию
+          <Button onClick={() => setCategoryModal("add")} size="sm" className="gap-1.5 rounded-xl">
+            <Plus className="h-4 w-4" /> Добавить категорию
           </Button>
         </div>
         {categoriesLoading ? (
           <p className="text-muted-foreground py-8 text-center">Загрузка…</p>
         ) : categories.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground mb-4">Нет категорий. Создайте категорию, затем добавьте в неё тарифы (кол-во прокси, срок, цена).</p>
-              <Button onClick={() => setCategoryModal("add")}>
-                <Plus className="h-4 w-4 mr-2" /> Создать категорию
-              </Button>
-            </CardContent>
+          <Card className="bg-background/60 backdrop-blur-3xl border-white/10 rounded-[2rem] py-12 shadow-xl flex flex-col items-center text-center">
+            <div className="h-16 w-16 rounded-full bg-white/5 flex items-center justify-center mb-3 border border-white/10">
+              <Layers className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <p className="text-muted-foreground mb-4">Нет категорий. Создайте категорию, затем добавьте тарифы.</p>
+            <Button onClick={() => setCategoryModal("add")} className="gap-1.5 rounded-xl">
+              <Plus className="h-4 w-4" /> Создать категорию
+            </Button>
           </Card>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {categories.map((cat) => (
-              <Card key={cat.id} className="overflow-hidden">
-                <CardHeader className="pb-2 bg-muted/30">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-                      <Layers className="h-5 w-5 text-primary" />
-                      {cat.name}
-                    </CardTitle>
-                    <div className="flex gap-2 flex-wrap">
-                      <Button variant="outline" size="sm" onClick={() => setCategoryModal({ edit: cat })}>
-                        <Pencil className="h-3.5 w-3.5 mr-1" /> Изменить
-                      </Button>
-                      <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleDeleteCategory(cat.id)}>
-                        <Trash2 className="h-3.5 w-3.5 mr-1" /> Удалить
-                      </Button>
-                      <Button size="sm" onClick={() => setTariffModal({ kind: "add", categoryId: cat.id })}>
-                        <Plus className="h-3.5 w-3.5 mr-1" /> Тариф
-                      </Button>
+              <Card key={cat.id} className="bg-background/60 backdrop-blur-3xl border-white/10 rounded-[2rem] shadow-xl overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-white/5 bg-foreground/[0.02] dark:bg-white/[0.02]">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-9 w-9 rounded-2xl bg-gradient-to-br from-violet-500/20 to-violet-500/5 border border-white/10 flex items-center justify-center shadow-inner shrink-0">
+                      <Layers className="h-4 w-4 text-violet-500 dark:text-violet-400" />
                     </div>
+                    <h3 className="text-base font-bold tracking-tight truncate">{cat.name}</h3>
                   </div>
-                </CardHeader>
-                <CardContent className="pt-3">
+                  <div className="flex gap-2 flex-wrap shrink-0">
+                    <Button variant="outline" size="sm" onClick={() => setCategoryModal({ edit: cat })} className="gap-1.5 rounded-xl">
+                      <Pencil className="h-3.5 w-3.5" /> Изменить
+                    </Button>
+                    <Button variant="outline" size="sm" className="gap-1.5 rounded-xl border-red-500/30 text-red-500 dark:text-red-400 hover:bg-red-500/10 hover:border-red-500/50" onClick={() => handleDeleteCategory(cat.id)}>
+                      <Trash2 className="h-3.5 w-3.5" /> Удалить
+                    </Button>
+                    <Button size="sm" onClick={() => setTariffModal({ kind: "add", categoryId: cat.id })} className="gap-1.5 rounded-xl">
+                      <Plus className="h-3.5 w-3.5" /> Тариф
+                    </Button>
+                  </div>
+                </div>
+                <div className="p-4">
                   {cat.tariffs.length === 0 ? (
-                    <p className="text-sm text-muted-foreground py-4">
-                      Нет тарифов в этой категории. Нажмите «Тариф», чтобы добавить.
+                    <p className="text-sm text-muted-foreground py-4 text-center">
+                      Нет тарифов. Нажмите «Тариф», чтобы добавить.
                     </p>
                   ) : (
                     <ul className="space-y-2">
                       {cat.tariffs.map((t) => (
-                        <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2 hover:bg-muted/30">
-                          <div className="flex items-center gap-3 flex-wrap min-w-0">
-                            <span className="font-medium truncate">{t.name}</span>
-                            <span className="text-sm text-muted-foreground">{t.proxyCount} прокси</span>
-                            <span className="text-sm text-muted-foreground">{t.durationDays} дн.</span>
-                            <span className="text-sm font-semibold text-primary">{formatPrice(t.price, t.currency)}</span>
-                            <span className={`text-xs px-1.5 py-0.5 rounded ${t.enabled ? "bg-green-500/15 text-green-700 dark:text-green-400" : "bg-muted text-muted-foreground"}`}>
+                        <motion.li
+                          key={t.id}
+                          whileHover={{ y: -1 }}
+                          className={cn(
+                            "rounded-xl border p-3 flex flex-wrap items-center justify-between gap-3 backdrop-blur-md transition-all",
+                            t.enabled
+                              ? "border-white/10 bg-foreground/[0.03] dark:bg-white/[0.02] hover:border-white/20"
+                              : "border-amber-500/20 bg-amber-500/[0.04] hover:border-amber-500/30"
+                          )}
+                        >
+                          <div className="flex items-center gap-3 flex-wrap min-w-0 flex-1">
+                            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 border border-white/10 flex items-center justify-center shrink-0">
+                              <Tag className="h-4 w-4 text-primary" />
+                            </div>
+                            <span className="font-semibold truncate">{t.name}</span>
+                            <span className="text-xs text-muted-foreground">{t.proxyCount} прокси</span>
+                            <span className="text-xs text-muted-foreground">{t.durationDays} дн.</span>
+                            <span className="text-sm font-bold text-emerald-500 dark:text-emerald-400">{formatPrice(t.price, t.currency)}</span>
+                            <span className={cn(
+                              "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                              t.enabled
+                                ? "bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border-emerald-500/20"
+                                : "bg-amber-500/10 text-amber-500 dark:text-amber-400 border-amber-500/20"
+                            )}>
                               {t.enabled ? "Вкл" : "Выкл"}
                             </span>
                           </div>
                           <div className="flex gap-1 shrink-0">
-                            <Button variant="ghost" size="sm" className="h-7" onClick={() => handleToggleTariffEnabled(t)} title={t.enabled ? "Выключить" : "Включить"}>
+                            <Button variant="ghost" size="sm" className="h-8 rounded-lg" onClick={() => handleToggleTariffEnabled(t)} title={t.enabled ? "Выключить" : "Включить"}>
                               {t.enabled ? "Выкл" : "Вкл"}
                             </Button>
-                            <Button variant="ghost" size="sm" className="h-7" onClick={() => setTariffModal({ kind: "edit", category: cat, tariff: t })}>
-                              <Pencil className="h-3 w-3" />
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => setTariffModal({ kind: "edit", category: cat, tariff: t })}>
+                              <Pencil className="h-3.5 w-3.5" />
                             </Button>
-                            <Button variant="ghost" size="sm" className="h-7 text-destructive hover:text-destructive" onClick={() => handleDeleteTariff(t.id)}>
-                              <Trash2 className="h-3 w-3" />
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-red-500 dark:text-red-400 hover:bg-red-500/10" onClick={() => handleDeleteTariff(t.id)}>
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
-                        </li>
+                        </motion.li>
                       ))}
                     </ul>
                   )}
-                </CardContent>
+                </div>
               </Card>
             ))}
           </div>

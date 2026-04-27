@@ -1,11 +1,35 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, X, Send, User, Sparkles, Headset, ArrowLeft, MessageSquarePlus, CircleDot, CircleCheck, Inbox, Loader2, Maximize2, Minimize2 } from "lucide-react";
+import { MessageCircle, X, Send, User, Sparkles, Headset, ArrowLeft, MessageSquarePlus, CircleDot, CircleCheck, Inbox, Loader2, Maximize2, Minimize2, Paperclip, X as XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useClientAuth } from "@/contexts/client-auth";
 import { useCabinetConfig } from "@/contexts/cabinet-config";
-import { api } from "@/lib/api";
+import { api, type TicketAttachmentDto } from "@/lib/api";
+
+// Синхронизировано с backend (uploadTicketAttachment).
+const TICKET_MAX_FILES = 5;
+const TICKET_MAX_FILE_MB = 10;
+const TICKET_MAX_FILE_BYTES = TICKET_MAX_FILE_MB * 1024 * 1024;
+
+function TicketAttachments({ items }: { items: TicketAttachmentDto[] }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <div className={cn("mt-1.5 grid gap-1", items.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
+      {items.map((a, i) => (
+        <a
+          key={`${a.url}-${i}`}
+          href={a.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block overflow-hidden rounded-lg border border-white/10 bg-black/10 hover:opacity-90 transition-opacity"
+        >
+          <img src={a.url} alt={a.name ?? "attachment"} className="w-full max-h-44 object-cover" loading="lazy" />
+        </a>
+      ))}
+    </div>
+  );
+}
 
 type Message = {
   id: string;
@@ -157,10 +181,41 @@ function SupportTab({ headerProps, onRefreshUnread }: { headerProps: any, onRefr
   const [detailLoading, setDetailLoading] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [replySending, setReplySending] = useState(false);
+  const [replyFiles, setReplyFiles] = useState<File[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const replyInputRef = useRef<HTMLInputElement>(null);
   const [showNewForm, setShowNewForm] = useState(false);
   const [newSubject, setNewSubject] = useState("");
   const [newMessage, setNewMessage] = useState("");
+  const [newFiles, setNewFiles] = useState<File[]>([]);
+  const newInputRef = useRef<HTMLInputElement>(null);
   const [createSending, setCreateSending] = useState(false);
+
+  const addFiles = (
+    setList: (files: File[]) => void,
+    current: File[],
+    incoming: FileList | null,
+  ) => {
+    if (!incoming) return;
+    setUploadError(null);
+    const next: File[] = [...current];
+    for (const f of Array.from(incoming)) {
+      if (next.length >= TICKET_MAX_FILES) {
+        setUploadError(`Не больше ${TICKET_MAX_FILES} файлов`);
+        break;
+      }
+      if (!f.type.startsWith("image/")) {
+        setUploadError("Можно прикладывать только изображения");
+        continue;
+      }
+      if (f.size > TICKET_MAX_FILE_BYTES) {
+        setUploadError(`Файл больше ${TICKET_MAX_FILE_MB} MB`);
+        continue;
+      }
+      next.push(f);
+    }
+    setList(next);
+  };
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const loadList = () => {
@@ -212,21 +267,28 @@ function SupportTab({ headerProps, onRefreshUnread }: { headerProps: any, onRefr
   }, [detail?.messages?.length]);
 
   const sendReply = () => {
-    if (!token || !detailId || !replyText.trim()) return;
+    if (!token || !detailId) return;
+    if (!replyText.trim() && replyFiles.length === 0) return;
     setReplySending(true);
-    api.replyTicket(token, detailId, { content: replyText.trim() })
+    setUploadError(null);
+    api.replyTicket(token, detailId, { content: replyText.trim(), files: replyFiles })
       .then((msg) => {
         setDetail((d: any) => (d ? { ...d, messages: [...d.messages, msg] } : d));
         setReplyText("");
+        setReplyFiles([]);
+        if (replyInputRef.current) replyInputRef.current.value = "";
         scrollToBottom();
       })
+      .catch((e) => setUploadError(e instanceof Error ? e.message : "Не удалось отправить"))
       .finally(() => setReplySending(false));
   };
 
   const createTicket = () => {
-    if (!token || !newSubject.trim() || !newMessage.trim()) return;
+    if (!token || !newSubject.trim()) return;
+    if (!newMessage.trim() && newFiles.length === 0) return;
     setCreateSending(true);
-    api.createTicket(token, { subject: newSubject.trim(), message: newMessage.trim() })
+    setUploadError(null);
+    api.createTicket(token, { subject: newSubject.trim(), message: newMessage.trim(), files: newFiles })
       .then((t) => {
         setList((prev) => [{ id: t.id, subject: t.subject, status: t.status, createdAt: t.createdAt, updatedAt: t.updatedAt }, ...prev]);
         setDetailId(t.id);
@@ -234,7 +296,10 @@ function SupportTab({ headerProps, onRefreshUnread }: { headerProps: any, onRefr
         setShowNewForm(false);
         setNewSubject("");
         setNewMessage("");
+        setNewFiles([]);
+        if (newInputRef.current) newInputRef.current.value = "";
       })
+      .catch((e) => setUploadError(e instanceof Error ? e.message : "Не удалось создать тикет"))
       .finally(() => setCreateSending(false));
   };
 
@@ -294,7 +359,8 @@ function SupportTab({ headerProps, onRefreshUnread }: { headerProps: any, onRefr
                         {isUser ? <User className="h-4 w-4" /> : <Headset className="h-4 w-4" />}
                       </div>
                       <div className={cn("rounded-2xl px-4 py-2.5 text-[14px] leading-relaxed shadow-sm backdrop-blur-md", isUser ? "bg-primary text-primary-foreground rounded-tr-sm" : "bg-card/60 border border-white/5 text-foreground rounded-tl-sm")}>
-                        <p className="whitespace-pre-wrap break-words">{m.content}</p>
+                        {m.content && <p className="whitespace-pre-wrap break-words">{m.content}</p>}
+                        <TicketAttachments items={m.attachments ?? []} />
                         <p className={cn("text-[10px] mt-1.5 opacity-60 font-medium", isUser ? "text-right" : "text-left text-muted-foreground")}>
                           {formatDate(m.createdAt)}
                         </p>
@@ -311,9 +377,58 @@ function SupportTab({ headerProps, onRefreshUnread }: { headerProps: any, onRefr
         {/* Input area */}
         {detail?.status === "open" && (
           <div className="p-3 sm:p-4 border-t border-black/5 dark:border-white/5 bg-background/80 sm:bg-background/50 backdrop-blur-xl shrink-0 pb-[max(env(safe-area-inset-bottom),16px)] sm:pb-4">
+            {replyFiles.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {replyFiles.map((f, i) => (
+                  <div
+                    key={`${f.name}-${i}`}
+                    className="relative flex items-center gap-1.5 rounded-lg border border-white/10 bg-background/60 px-1.5 py-1 backdrop-blur-md"
+                  >
+                    <img
+                      src={URL.createObjectURL(f)}
+                      alt={f.name}
+                      className="h-8 w-8 rounded-md object-cover"
+                      onLoad={(e) => URL.revokeObjectURL((e.target as HTMLImageElement).src)}
+                    />
+                    <span className="text-[10px] text-muted-foreground max-w-[90px] truncate font-medium">{f.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setReplyFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                      className="flex h-4 w-4 items-center justify-center rounded-full bg-background/80 text-muted-foreground hover:text-foreground"
+                      aria-label="Удалить"
+                    >
+                      <XIcon className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {uploadError && (
+              <p className="mb-1.5 text-[10px] text-destructive text-center font-semibold">{uploadError}</p>
+            )}
             <div className="relative flex items-end gap-2 bg-black/5 dark:bg-black/20 p-1.5 rounded-2xl border border-black/5 dark:border-white/10 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/50 transition-all">
+              <input
+                ref={replyInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => addFiles(setReplyFiles, replyFiles, e.target.files)}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 rounded-xl shrink-0 text-muted-foreground hover:text-foreground mb-0.5"
+                onClick={() => replyInputRef.current?.click()}
+                disabled={replyFiles.length >= TICKET_MAX_FILES}
+                aria-label="Прикрепить фото"
+                title="Прикрепить фото"
+              >
+                <Paperclip className="h-4 w-4" />
+              </Button>
               <textarea
-                className="flex-1 max-h-32 min-h-[40px] w-full resize-none bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none custom-scrollbar"
+                className="flex-1 max-h-32 min-h-[40px] w-full resize-none bg-transparent px-2 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none custom-scrollbar"
                 placeholder="Сообщение..."
                 value={replyText}
                 onChange={(e) => setReplyText(e.target.value)}
@@ -329,7 +444,7 @@ function SupportTab({ headerProps, onRefreshUnread }: { headerProps: any, onRefr
                 size="icon"
                 className="h-10 w-10 rounded-xl shrink-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md transition-transform active:scale-95 mb-0.5 mr-0.5"
                 onClick={sendReply}
-                disabled={replySending || !replyText.trim()}
+                disabled={replySending || (!replyText.trim() && replyFiles.length === 0)}
               >
                 {replySending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4 ml-0.5" />}
               </Button>
@@ -370,10 +485,59 @@ function SupportTab({ headerProps, onRefreshUnread }: { headerProps: any, onRefr
               onChange={(e) => setNewMessage(e.target.value)}
             />
           </div>
-          <Button 
-            className="w-full h-11 rounded-xl shadow-md bg-primary hover:bg-primary/90 text-primary-foreground font-semibold" 
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground ml-1">Вложения</label>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                ref={newInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => addFiles(setNewFiles, newFiles, e.target.files)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => newInputRef.current?.click()}
+                disabled={newFiles.length >= TICKET_MAX_FILES}
+                className="gap-2 h-9 rounded-xl"
+              >
+                <Paperclip className="h-4 w-4" />
+                Фото ({newFiles.length}/{TICKET_MAX_FILES})
+              </Button>
+              {newFiles.map((f, i) => (
+                <div
+                  key={`${f.name}-${i}`}
+                  className="relative flex items-center gap-1.5 rounded-lg border border-white/10 bg-background/60 px-1.5 py-1 backdrop-blur-md"
+                >
+                  <img
+                    src={URL.createObjectURL(f)}
+                    alt={f.name}
+                    className="h-8 w-8 rounded-md object-cover"
+                    onLoad={(e) => URL.revokeObjectURL((e.target as HTMLImageElement).src)}
+                  />
+                  <span className="text-[10px] text-muted-foreground max-w-[90px] truncate font-medium">{f.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setNewFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                    className="flex h-4 w-4 items-center justify-center rounded-full bg-background/80 text-muted-foreground hover:text-foreground"
+                    aria-label="Удалить"
+                  >
+                    <XIcon className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+          {uploadError && (
+            <p className="text-[11px] text-destructive font-semibold ml-1">{uploadError}</p>
+          )}
+          <Button
+            className="w-full h-11 rounded-xl shadow-md bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
             onClick={createTicket}
-            disabled={createSending || !newSubject.trim() || !newMessage.trim()}
+            disabled={createSending || !newSubject.trim() || (!newMessage.trim() && newFiles.length === 0)}
           >
             {createSending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
             Отправить

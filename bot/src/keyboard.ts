@@ -354,6 +354,32 @@ export function tariffPayButtons(
   return tariffCategoryButtons(categories, backLabel, innerStyles, emojiIds, prefixEmoji);
 }
 
+/**
+ * Кнопки выбора опции цены тарифа (когда у тарифа несколько priceOptions).
+ * callback_data: `topt:<idx>` — индекс в кэше options для пользователя.
+ * Опция с лучшей ценой за день помечается эмодзи 🌟.
+ */
+export function tariffOptionPickerButtons(
+  options: { id: string; durationDays: number; price: number }[],
+  currency: string,
+  bestId: string | null,
+  backLabel?: string | null,
+  innerStyles?: InnerButtonStyles,
+  emojiIds?: InnerEmojiIds,
+): InlineMarkup {
+  const tariffPay = resolveStyle(toStyle(innerStyles?.tariffPay), "success");
+  const back = (backLabel && backLabel.trim()) || DEFAULT_BACK_LABEL;
+  const backSty = resolveStyle(toStyle(innerStyles?.back), "danger");
+  const tariffId = emojiIds?.tariff;
+  const rows: InlineButton[][] = options.map((o, idx) => {
+    const star = bestId && o.id === bestId ? "🌟 " : "";
+    const label = `${star}${o.durationDays} дн — ${o.price} ${currency}`.slice(0, 64);
+    return [btn(label, `topt:${idx}`, tariffPay, tariffId)];
+  });
+  rows.push([btn(back, "menu:tariffs", backSty, emojiIds?.back)]);
+  return { inline_keyboard: rows };
+}
+
 /** Кнопки выбора способа оплаты (СПБ, Карты и т.д. из админки) для тарифа + баланс + ЮMoney */
 export function tariffPaymentMethodButtons(
   tariffId: string,

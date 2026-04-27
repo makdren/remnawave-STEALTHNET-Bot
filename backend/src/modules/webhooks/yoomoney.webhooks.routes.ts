@@ -25,6 +25,7 @@ function hasExtraOptionInMetadata(metadata: string | null): boolean {
 }
 import { distributeReferralRewards } from "../referral/referral.service.js";
 import { notifyBalanceToppedUp, notifyTariffActivated, notifyProxySlotsCreated, notifySingboxSlotsCreated } from "../notification/telegram-notify.service.js";
+import { recordPromoCodeUsageFromPayment } from "../payment/promo-code-usage.util.js";
 
 export const yoomoneyWebhooksRouter = Router();
 
@@ -208,6 +209,7 @@ yoomoneyWebhooksRouter.post("/yoomoney", async (req, res) => {
       where: { id: payment.id },
       data: { status: "PAID", paidAt: new Date(), externalId: operationId },
     });
+    await recordPromoCodeUsageFromPayment(payment.id);
     console.log("[YooMoney Webhook] Payment PAID (tariff/option)", { paymentId: payment.id, operationId, notificationType });
 
     if (isExtraOption) {

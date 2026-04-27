@@ -10,14 +10,36 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { RefreshCw, Download, Upload, Link2, Settings2, Gift, Users, ArrowLeftRight, Mail, MessageCircle, CreditCard, ChevronDown, Copy, Check, Bot, FileJson, Palette, Wallet, Package, Plus, Trash2, KeyRound, Loader2, Sparkles, Layers, Globe, BarChart3, RotateCw, Shield, Terminal, FileText, MapPin } from "lucide-react";
+import { RefreshCw, Download, Upload, Link2, Settings2, Gift, Users, ArrowLeftRight, Mail, MessageCircle, CreditCard, ChevronDown, ChevronUp, Copy, Check, Bot, FileJson, Palette, Wallet, Package, Plus, Trash2, KeyRound, Loader2, Sparkles, Layers, Globe, BarChart3, RotateCw, Shield, Terminal, FileText, MapPin, GripVertical } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ACCENT_PALETTES } from "@/contexts/theme";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
-const ALLOWED_LANGS = ["ru", "en"];
+const FALLBACK_LANGS = ["ru", "en"];
+const LANG_NAMES: Record<string, string> = {
+  ru: "Русский",
+  en: "English",
+  uk: "Українська",
+  be: "Беларуская",
+  kz: "Қазақша",
+  kk: "Қазақша",
+  uz: "Oʻzbekcha",
+  de: "Deutsch",
+  fr: "Français",
+  es: "Español",
+  pt: "Português",
+  it: "Italiano",
+  pl: "Polski",
+  tr: "Türkçe",
+  zh: "中文",
+  ja: "日本語",
+  ko: "한국어",
+  ar: "العربية",
+  hi: "हिन्दी",
+  fa: "فارسی",
+};
 const ALLOWED_CURRENCIES = ["usd", "rub"];
 
 const DEFAULT_PLATEGA_METHODS: { id: number; enabled: boolean; label: string }[] = [
@@ -171,11 +193,14 @@ export function SettingsPage() {
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [squads, setSquads] = useState<{ uuid: string; name?: string }[]>([]);
   const [activeTab, setActiveTab] = useState("general");
+  const [installedLangCodes, setInstalledLangCodes] = useState<string[]>(FALLBACK_LANGS);
   const [plategaCallbackCopied, setPlategaCallbackCopied] = useState(false);
   const [yoomoneyWebhookCopied, setYoomoneyWebhookCopied] = useState(false);
   const [yookassaWebhookCopied, setYookassaWebhookCopied] = useState(false);
   const [cryptopayWebhookCopied, setCryptopayWebhookCopied] = useState(false);
   const [heleketWebhookCopied, setHeleketWebhookCopied] = useState(false);
+  const [lavaWebhookCopied, setLavaWebhookCopied] = useState(false);
+  const [overpayWebhookCopied, setOverpayWebhookCopied] = useState(false);
   const [defaultSubpageConfig, setDefaultSubpageConfig] = useState<SubscriptionPageConfig | null>(null);
   const [autoRenewStats, setAutoRenewStats] = useState<AutoRenewStats | null>(null);
   const defaultJourneySteps = [
@@ -205,10 +230,21 @@ export function SettingsPage() {
   const token = state.accessToken!;
 
   useEffect(() => {
+    let cancelled = false;
+    api.getLanguages(token).then((res) => {
+      if (cancelled || !res?.ok) return;
+      const codes = Array.from(new Set<string>(["ru", ...res.languages.map((l) => l.code)]));
+      setInstalledLangCodes(codes);
+    }).catch(() => { /* keep fallback */ });
+    return () => { cancelled = true; };
+  }, [token]);
+
+  useEffect(() => {
     api.getSettings(token).then((data) => {
+      const allowed = installedLangCodes;
       setSettings({
         ...data,
-        activeLanguages: (data.activeLanguages || []).filter((l: string) => ALLOWED_LANGS.includes(l)),
+        activeLanguages: (data.activeLanguages || []).filter((l: string) => allowed.includes(l)),
         activeCurrencies: (data.activeCurrencies || []).filter((c: string) => ALLOWED_CURRENCIES.includes(c)),
         defaultReferralPercent: data.defaultReferralPercent ?? 30,
         referralPercentLevel2: (data as AdminSettings).referralPercentLevel2 ?? 10,
@@ -488,13 +524,14 @@ export function SettingsPage() {
     if (!settings) return;
     setSaving(true);
     setMessage("");
-    const langs = Array.isArray(settings.activeLanguages) ? settings.activeLanguages.filter((l) => ALLOWED_LANGS.includes(l)) : ALLOWED_LANGS;
+    const allowedLangs = installedLangCodes.length ? installedLangCodes : FALLBACK_LANGS;
+    const langs = Array.isArray(settings.activeLanguages) ? settings.activeLanguages.filter((l) => allowedLangs.includes(l)) : allowedLangs;
     const currs = Array.isArray(settings.activeCurrencies) ? settings.activeCurrencies.filter((c) => ALLOWED_CURRENCIES.includes(c)) : ALLOWED_CURRENCIES;
-    const defaultLang = (settings.defaultLanguage && ALLOWED_LANGS.includes(settings.defaultLanguage) ? settings.defaultLanguage : langs[0]) ?? "ru";
+    const defaultLang = (settings.defaultLanguage && allowedLangs.includes(settings.defaultLanguage) ? settings.defaultLanguage : langs[0]) ?? "ru";
     const defaultCurr = (settings.defaultCurrency && ALLOWED_CURRENCIES.includes(settings.defaultCurrency) ? settings.defaultCurrency : currs[0]) ?? "usd";
     api
       .updateSettings(token, {
-        activeLanguages: langs.length ? langs.join(",") : ALLOWED_LANGS.join(","),
+        activeLanguages: langs.length ? langs.join(",") : allowedLangs.join(","),
         activeCurrencies: currs.length ? currs.join(",") : ALLOWED_CURRENCIES.join(","),
         defaultLanguage: defaultLang,
         defaultCurrency: defaultCurr,
@@ -537,6 +574,7 @@ export function SettingsPage() {
         plategaMerchantId: settings.plategaMerchantId ?? null,
         plategaSecret: settings.plategaSecret && settings.plategaSecret !== "********" ? settings.plategaSecret : undefined,
         plategaMethods: settings.plategaMethods != null ? JSON.stringify(settings.plategaMethods) : undefined,
+        paymentProvidersConfig: settings.paymentProviders != null ? JSON.stringify(settings.paymentProviders) : undefined,
         yoomoneyClientId: settings.yoomoneyClientId ?? null,
         yoomoneyClientSecret: settings.yoomoneyClientSecret && settings.yoomoneyClientSecret !== "********" ? settings.yoomoneyClientSecret : undefined,
         yoomoneyReceiverWallet: settings.yoomoneyReceiverWallet ?? null,
@@ -547,6 +585,13 @@ export function SettingsPage() {
         cryptopayTestnet: settings.cryptopayTestnet ?? false,
         heleketMerchantId: settings.heleketMerchantId ?? null,
         heleketApiKey: settings.heleketApiKey && settings.heleketApiKey !== "********" ? settings.heleketApiKey : undefined,
+        lavaShopId: settings.lavaShopId ?? null,
+        lavaSecretKey: settings.lavaSecretKey && settings.lavaSecretKey !== "********" ? settings.lavaSecretKey : undefined,
+        lavaAdditionalKey: settings.lavaAdditionalKey && settings.lavaAdditionalKey !== "********" ? settings.lavaAdditionalKey : undefined,
+        overpayApiUrl: settings.overpayApiUrl ?? null,
+        overpayProjectId: settings.overpayProjectId ?? null,
+        overpayLogin: settings.overpayLogin ?? null,
+        overpayPassword: settings.overpayPassword && settings.overpayPassword !== "********" ? settings.overpayPassword : undefined,
         groqApiKey: settings.groqApiKey && settings.groqApiKey !== "********" ? settings.groqApiKey : undefined,
         groqModel: settings.groqModel ?? undefined,
         groqFallback1: settings.groqFallback1 ?? undefined,
@@ -1116,17 +1161,19 @@ export function SettingsPage() {
                   <Label>{t("admin.settings.languages")}</Label>
                   <div className="flex flex-wrap gap-2">
                     {(() => {
-                      const preset = ["ru", "en"];
+                      const preset = installedLangCodes.length ? installedLangCodes : FALLBACK_LANGS;
                       const defaultLang = (settings.defaultLanguage && preset.includes(settings.defaultLanguage) ? settings.defaultLanguage : preset[0]) ?? "";
                       return preset.map((lang) => {
                         const isActive = settings.activeLanguages.includes(lang);
                         const isDefault = lang === defaultLang;
+                        const displayName = LANG_NAMES[lang] ?? lang.toUpperCase();
                         return (
                           <Button
                             key={lang}
                             type="button"
                             variant={isActive ? "default" : "outline"}
                             size="sm"
+                            title={displayName}
                             onClick={() =>
                               setSettings((s) => {
                                 if (!s) return s;
@@ -1145,15 +1192,21 @@ export function SettingsPage() {
                       });
                     })()}
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    {t("admin.settings.languages_hint", "Список языков формируется из раздела «Языки». Добавьте пакет там, чтобы включить новый язык здесь.")}
+                  </p>
                   <div className="flex items-center gap-2 flex-wrap">
                     <Label className="text-xs text-muted-foreground">{t("admin.settings.default_language")}</Label>
                     <select
                       className="rounded-md border border-input bg-background px-2 py-1 text-sm"
-                      value={(settings.defaultLanguage && ALLOWED_LANGS.includes(settings.defaultLanguage) ? settings.defaultLanguage : ALLOWED_LANGS[0]) ?? ""}
+                      value={(() => {
+                        const active = settings.activeLanguages.length ? settings.activeLanguages : installedLangCodes;
+                        return (settings.defaultLanguage && active.includes(settings.defaultLanguage) ? settings.defaultLanguage : active[0]) ?? "";
+                      })()}
                       onChange={(e) => setSettings((s) => s ? { ...s, defaultLanguage: e.target.value } : s)}
                     >
-                      {ALLOWED_LANGS.map((l) => (
-                        <option key={l} value={l}>{l.toUpperCase()}</option>
+                      {(settings.activeLanguages.length ? settings.activeLanguages : installedLangCodes).map((l) => (
+                        <option key={l} value={l}>{(LANG_NAMES[l] ?? l.toUpperCase())} ({l})</option>
                       ))}
                     </select>
                   </div>
@@ -2112,6 +2165,68 @@ export function SettingsPage() {
               </Card>
             )}
 
+            {/* ── Порядок и названия платёжных провайдеров ── */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <GripVertical className="h-5 w-5 text-primary" />
+                  <CardTitle>{t("admin.settings.payment_providers_order")}</CardTitle>
+                </div>
+                <p className="text-sm text-muted-foreground">{t("admin.settings.payment_providers_order_hint")}</p>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {(settings.paymentProviders ?? []).map((prov, idx, arr) => (
+                  <div key={prov.id} className="flex items-center gap-3 p-3 rounded-xl border bg-card/50">
+                    <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <Input
+                      value={prov.label}
+                      onChange={(e) => {
+                        const updated = [...arr];
+                        updated[idx] = { ...prov, label: e.target.value };
+                        setSettings((s) => s ? { ...s, paymentProviders: updated } : s);
+                      }}
+                      className="flex-1 h-9"
+                    />
+                    <span className="text-xs text-muted-foreground font-mono shrink-0">{prov.id}</span>
+                    <div className="flex flex-col gap-0.5">
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        className="p-1 rounded hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        onClick={() => {
+                          if (idx === 0) return;
+                          const updated = [...arr];
+                          [updated[idx - 1], updated[idx]] = [updated[idx], updated[idx - 1]];
+                          updated.forEach((p, i) => { p.sortOrder = i; });
+                          setSettings((s) => s ? { ...s, paymentProviders: updated } : s);
+                        }}
+                      >
+                        <ChevronUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={idx === arr.length - 1}
+                        className="p-1 rounded hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        onClick={() => {
+                          if (idx === arr.length - 1) return;
+                          const updated = [...arr];
+                          [updated[idx], updated[idx + 1]] = [updated[idx + 1], updated[idx]];
+                          updated.forEach((p, i) => { p.sortOrder = i; });
+                          setSettings((s) => s ? { ...s, paymentProviders: updated } : s);
+                        }}
+                      >
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {message && <p className="text-sm text-muted-foreground">{message}</p>}
+                <Button onClick={handleSubmit} disabled={saving}>
+                  {saving ? t("admin.settings.saving") : t("admin.settings.save")}
+                </Button>
+              </CardContent>
+            </Card>
+
             <Card>
               <Collapsible defaultOpen={false} className="group">
                 <CollapsibleTrigger asChild>
@@ -2570,6 +2685,204 @@ export function SettingsPage() {
                           placeholder={t("admin.settings.heleket_key_placeholder")}
                         />
                         <p className="text-xs text-muted-foreground">{t("admin.settings.heleket_key_hint")}</p>
+                      </div>
+                    </div>
+                    <div className="pt-2 border-t">
+                      <Button type="submit" disabled={saving} className="min-w-[140px]">
+                        {saving ? t("admin.settings.saving") : t("admin.settings.save")}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </CollapsibleContent>
+              </Collapsible>
+
+              <Collapsible defaultOpen={false} className="group mt-4">
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="w-full cursor-pointer rounded-t-lg text-left transition-colors hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    <CardHeader className="pointer-events-none [&_.chevron]:transition-transform [&_.chevron]:duration-200 group-data-[state=open]:[&_.chevron]:rotate-180">
+                      <div className="flex items-center justify-between pr-2">
+                        <div className="flex items-center gap-2">
+                          <Wallet className="h-5 w-5 text-primary" />
+                          <CardTitle>LAVA</CardTitle>
+                          <span className="text-xs font-normal text-muted-foreground">{t("admin.settings.lava_desc_short")}</span>
+                        </div>
+                        <ChevronDown className="chevron h-5 w-5 shrink-0 text-muted-foreground" />
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {t("admin.settings.lava_register")}
+                      </p>
+                    </CardHeader>
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent className="space-y-4 border-t pt-4">
+                    <div className="space-y-2">
+                      <Label>{t("admin.settings.lava_webhook")}</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          readOnly
+                          value={(settings.publicAppUrl ?? "").replace(/\/$/, "") ? `${(settings.publicAppUrl ?? "").replace(/\/$/, "")}/api/webhooks/lava` : t("admin.settings.specify_url_hint")}
+                          className="font-mono text-sm bg-muted/50"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="shrink-0"
+                          onClick={async () => {
+                            const url = (settings.publicAppUrl ?? "").replace(/\/$/, "") ? `${(settings.publicAppUrl ?? "").replace(/\/$/, "")}/api/webhooks/lava` : "";
+                            if (url && navigator.clipboard) {
+                              await navigator.clipboard.writeText(url);
+                              setLavaWebhookCopied(true);
+                              setTimeout(() => setLavaWebhookCopied(false), 2000);
+                            }
+                          }}
+                          disabled={!(settings.publicAppUrl ?? "").trim()}
+                          title={t("admin.settings.copy")}
+                        >
+                          {lavaWebhookCopied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{t("admin.settings.lava_webhook_hint")}</p>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {t("admin.settings.lava_desc")}
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>{t("admin.settings.lava_shop_id")}</Label>
+                        <Input
+                          value={settings.lavaShopId ?? ""}
+                          onChange={(e) => setSettings((s) => (s ? { ...s, lavaShopId: e.target.value || null } : s))}
+                          placeholder="00000000-0000-0000-0000-000000000000"
+                        />
+                        <p className="text-xs text-muted-foreground">{t("admin.settings.lava_shop_id_hint")}</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t("admin.settings.lava_secret_key")}</Label>
+                        <Input
+                          type="password"
+                          value={settings.lavaSecretKey ?? ""}
+                          onChange={(e) => setSettings((s) => (s ? { ...s, lavaSecretKey: e.target.value || null } : s))}
+                          placeholder={t("admin.settings.lava_secret_key_placeholder")}
+                        />
+                        <p className="text-xs text-muted-foreground">{t("admin.settings.lava_secret_key_hint")}</p>
+                      </div>
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label>{t("admin.settings.lava_additional_key")}</Label>
+                        <Input
+                          type="password"
+                          value={settings.lavaAdditionalKey ?? ""}
+                          onChange={(e) => setSettings((s) => (s ? { ...s, lavaAdditionalKey: e.target.value || null } : s))}
+                          placeholder={t("admin.settings.lava_additional_key_placeholder")}
+                        />
+                        <p className="text-xs text-muted-foreground">{t("admin.settings.lava_additional_key_hint")}</p>
+                      </div>
+                    </div>
+                    <div className="pt-2 border-t">
+                      <Button type="submit" disabled={saving} className="min-w-[140px]">
+                        {saving ? t("admin.settings.saving") : t("admin.settings.save")}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </CollapsibleContent>
+              </Collapsible>
+
+              <Collapsible defaultOpen={false} className="group mt-4">
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="w-full cursor-pointer rounded-t-lg text-left transition-colors hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    <CardHeader className="pointer-events-none [&_.chevron]:transition-transform [&_.chevron]:duration-200 group-data-[state=open]:[&_.chevron]:rotate-180">
+                      <div className="flex items-center justify-between pr-2">
+                        <div className="flex items-center gap-2">
+                          <Wallet className="h-5 w-5 text-primary" />
+                          <CardTitle>Overpay</CardTitle>
+                          <span className="text-xs font-normal text-muted-foreground">{t("admin.settings.overpay_desc_short")}</span>
+                        </div>
+                        <ChevronDown className="chevron h-5 w-5 shrink-0 text-muted-foreground" />
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {t("admin.settings.overpay_register")}
+                      </p>
+                    </CardHeader>
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent className="space-y-4 border-t pt-4">
+                    <div className="space-y-2">
+                      <Label>{t("admin.settings.overpay_webhook")}</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          readOnly
+                          value={(settings.publicAppUrl ?? "").replace(/\/$/, "") ? `${(settings.publicAppUrl ?? "").replace(/\/$/, "")}/api/webhooks/overpay` : t("admin.settings.specify_url_hint")}
+                          className="font-mono text-sm bg-muted/50"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="shrink-0"
+                          onClick={async () => {
+                            const url = (settings.publicAppUrl ?? "").replace(/\/$/, "") ? `${(settings.publicAppUrl ?? "").replace(/\/$/, "")}/api/webhooks/overpay` : "";
+                            if (url && navigator.clipboard) {
+                              await navigator.clipboard.writeText(url);
+                              setOverpayWebhookCopied(true);
+                              setTimeout(() => setOverpayWebhookCopied(false), 2000);
+                            }
+                          }}
+                          disabled={!(settings.publicAppUrl ?? "").trim()}
+                          title={t("admin.settings.copy")}
+                        >
+                          {overpayWebhookCopied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{t("admin.settings.overpay_webhook_hint")}</p>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {t("admin.settings.overpay_desc")}
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label>{t("admin.settings.overpay_api_url")}</Label>
+                        <Input
+                          value={settings.overpayApiUrl ?? ""}
+                          onChange={(e) => setSettings((s) => (s ? { ...s, overpayApiUrl: e.target.value || null } : s))}
+                          placeholder="https://api.overpay.io"
+                        />
+                        <p className="text-xs text-muted-foreground">{t("admin.settings.overpay_api_url_hint")}</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t("admin.settings.overpay_project_id")}</Label>
+                        <Input
+                          value={settings.overpayProjectId ?? ""}
+                          onChange={(e) => setSettings((s) => (s ? { ...s, overpayProjectId: e.target.value || null } : s))}
+                          placeholder="1234"
+                        />
+                        <p className="text-xs text-muted-foreground">{t("admin.settings.overpay_project_id_hint")}</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t("admin.settings.overpay_login")}</Label>
+                        <Input
+                          value={settings.overpayLogin ?? ""}
+                          onChange={(e) => setSettings((s) => (s ? { ...s, overpayLogin: e.target.value || null } : s))}
+                          placeholder="api-login"
+                        />
+                        <p className="text-xs text-muted-foreground">{t("admin.settings.overpay_login_hint")}</p>
+                      </div>
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label>{t("admin.settings.overpay_password")}</Label>
+                        <Input
+                          type="password"
+                          value={settings.overpayPassword ?? ""}
+                          onChange={(e) => setSettings((s) => (s ? { ...s, overpayPassword: e.target.value || null } : s))}
+                          placeholder={t("admin.settings.overpay_password_placeholder")}
+                        />
+                        <p className="text-xs text-muted-foreground">{t("admin.settings.overpay_password_hint")}</p>
                       </div>
                     </div>
                     <div className="pt-2 border-t">

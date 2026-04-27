@@ -50,6 +50,7 @@ function getSectionFromPath(normalisedPath: string): string | null {
   if (first === "referrals") return "clients";
   if (first === "traffic-abuse") return "analytics";
   if (first === "api-keys") return "settings";
+  if (first === "gramads") return "promo-vpn";
   return first;
 }
 

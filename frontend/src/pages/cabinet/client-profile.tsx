@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
-import { User, Wallet, Copy, Check, CreditCard, Loader2, Link2, Mail, Fingerprint, CalendarDays, Shield, KeyRound, Monitor, Trash2, Globe } from "lucide-react";
+import { User, Wallet, Copy, Check, CreditCard, Loader2, Link2, Mail, Fingerprint, CalendarDays, Shield, KeyRound, Monitor, Trash2, Zap } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useClientAuth } from "@/contexts/client-auth";
 import { useCabinetMiniapp } from "@/pages/cabinet/cabinet-layout";
-import { openPaymentInBrowser } from "@/lib/open-payment-url";
+import { PayNowPanel } from "@/components/payment/pay-now-panel";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import type { ClientPayment } from "@/lib/api";
@@ -49,6 +49,9 @@ export function ClientProfilePage() {
   const [yookassaEnabled, setYookassaEnabled] = useState(false);
   const [cryptopayEnabled, setCryptopayEnabled] = useState(false);
   const [heleketEnabled, setHeleketEnabled] = useState(false);
+  const [lavaEnabled, setLavaEnabled] = useState(false);
+  const [overpayEnabled, setOverpayEnabled] = useState(false);
+  const [paymentProviders, setPaymentProviders] = useState<{ id: string; label: string; sortOrder: number }[]>([]);
   const [publicAppUrl, setPublicAppUrl] = useState<string | null>(null);
   const [yookassaRecurringEnabled, setYookassaRecurringEnabled] = useState(false);
   const [unlinkingPayment, setUnlinkingPayment] = useState(false);
@@ -57,6 +60,7 @@ export function ClientProfilePage() {
   const [topUpModalOpen, setTopUpModalOpen] = useState(false);
   const [topUpLoading, setTopUpLoading] = useState(false);
   const [topUpError, setTopUpError] = useState<string | null>(null);
+  const [readyUrl, setReadyUrl] = useState<{ url: string; provider: string } | null>(null);
   const [linkTelegramCode, setLinkTelegramCode] = useState<string | null>(null);
   const [linkTelegramLoading, setLinkTelegramLoading] = useState(false);
   const [linkTelegramError, setLinkTelegramError] = useState<string | null>(null);
@@ -83,6 +87,13 @@ export function ClientProfilePage() {
   const [changePasswordLoading, setChangePasswordLoading] = useState(false);
   const [changePasswordError, setChangePasswordError] = useState<string | null>(null);
   const [changePasswordSuccess, setChangePasswordSuccess] = useState(false);
+  // Установка пароля (для юзеров без пароля — зарегистрировались через Telegram/Google/Apple).
+  const [setPasswordOpen, setSetPasswordOpen] = useState(false);
+  const [setPasswordNew, setSetPasswordNew] = useState("");
+  const [setPasswordConfirm, setSetPasswordConfirm] = useState("");
+  const [setPasswordLoading, setSetPasswordLoading] = useState(false);
+  const [setPasswordError, setSetPasswordError] = useState<string | null>(null);
+  const [setPasswordSuccess, setSetPasswordSuccess] = useState(false);
 
   const client = state.client;
   const token = state.token;
@@ -241,6 +252,43 @@ export function ClientProfilePage() {
     setChangePasswordSuccess(false);
   }
 
+  async function submitSetPassword() {
+    if (!token) return;
+    if (setPasswordNew.length < 6) {
+      setSetPasswordError(t("cabinet.profile.change_password_error_min"));
+      return;
+    }
+    if (setPasswordNew !== setPasswordConfirm) {
+      setSetPasswordError(t("cabinet.profile.change_password_error_mismatch"));
+      return;
+    }
+    setSetPasswordError(null);
+    setSetPasswordLoading(true);
+    try {
+      await api.clientSetPassword(token, { newPassword: setPasswordNew });
+      setSetPasswordSuccess(true);
+      await refreshProfile().catch(() => {});
+      setTimeout(() => {
+        setSetPasswordOpen(false);
+        setSetPasswordSuccess(false);
+        setSetPasswordNew("");
+        setSetPasswordConfirm("");
+      }, 1500);
+    } catch (e) {
+      setSetPasswordError(e instanceof Error ? e.message : t("cabinet.profile.change_password_error"));
+    } finally {
+      setSetPasswordLoading(false);
+    }
+  }
+
+  function closeSetPassword() {
+    setSetPasswordOpen(false);
+    setSetPasswordNew("");
+    setSetPasswordConfirm("");
+    setSetPasswordError(null);
+    setSetPasswordSuccess(false);
+  }
+
   useEffect(() => {
     api.getPublicConfig().then((c) => {
       setPlategaMethods(c.plategaMethods ?? []);
@@ -248,6 +296,9 @@ export function ClientProfilePage() {
       setYookassaEnabled(Boolean(c.yookassaEnabled));
       setCryptopayEnabled(Boolean(c.cryptopayEnabled));
       setHeleketEnabled(Boolean(c.heleketEnabled));
+      setLavaEnabled(Boolean(c.lavaEnabled));
+      setOverpayEnabled(Boolean(c.overpayEnabled));
+      setPaymentProviders(c.paymentProviders ?? []);
       setPublicAppUrl(c.publicAppUrl ?? null);
       setTelegramBotUsername(c.telegramBotUsername ?? null);
       setYookassaRecurringEnabled(Boolean(c.yookassaRecurringEnabled));
@@ -278,8 +329,7 @@ export function ClientProfilePage() {
         paymentMethod: methodId,
         description: t("cabinet.profile.top_up_description"),
       });
-      setTopUpModalOpen(false);
-      openPaymentInBrowser(res.paymentUrl);
+      if (res.paymentUrl) setReadyUrl({ url: res.paymentUrl, provider: "Platega" });
     } catch (e) {
       setTopUpError(e instanceof Error ? e.message : t("cabinet.profile.top_up_error"));
     } finally {
@@ -298,13 +348,12 @@ export function ClientProfilePage() {
     setTopUpLoading(true);
     try {
       const res = await api.yoomoneyCreateFormPayment(token, { amount, paymentType });
-      setTopUpModalOpen(false);
       if (res.paymentUrl) {
-        openPaymentInBrowser(res.paymentUrl);
+        setReadyUrl({ url: res.paymentUrl, provider: "ЮMoney" });
       } else if (res.form) {
         const f = res.form;
         const yoomoneyUrl = `https://yoomoney.ru/quickpay/confirm.xml?quickpay-form=shop&receiver=${encodeURIComponent(f.receiver)}&sum=${f.sum}&label=${encodeURIComponent(f.label)}&paymentType=${f.paymentType}&successURL=${encodeURIComponent(f.successURL)}`;
-        openPaymentInBrowser(yoomoneyUrl);
+        setReadyUrl({ url: yoomoneyUrl, provider: "ЮMoney" });
       }
     } catch (e) {
       setTopUpError(e instanceof Error ? e.message : t("cabinet.profile.top_up_error"));
@@ -324,8 +373,7 @@ export function ClientProfilePage() {
     setTopUpLoading(true);
     try {
       const res = await api.yookassaCreatePayment(token, { amount, currency: "RUB" });
-      setTopUpModalOpen(false);
-      if (res.confirmationUrl) openPaymentInBrowser(res.confirmationUrl);
+      if (res.confirmationUrl) setReadyUrl({ url: res.confirmationUrl, provider: "ЮKassa" });
     } catch (e) {
       setTopUpError(e instanceof Error ? e.message : t("cabinet.profile.top_up_error"));
     } finally {
@@ -344,8 +392,7 @@ export function ClientProfilePage() {
     setTopUpLoading(true);
     try {
       const res = await api.cryptopayCreatePayment(token, { amount, currency });
-      setTopUpModalOpen(false);
-      if (res.payUrl) openPaymentInBrowser(res.payUrl);
+      if (res.payUrl) setReadyUrl({ url: res.payUrl, provider: "Crypto Bot" });
     } catch (e) {
       setTopUpError(e instanceof Error ? e.message : t("cabinet.profile.top_up_error"));
     } finally {
@@ -364,8 +411,45 @@ export function ClientProfilePage() {
     setTopUpLoading(true);
     try {
       const res = await api.heleketCreatePayment(token, { amount, currency });
-      setTopUpModalOpen(false);
-      if (res.payUrl) openPaymentInBrowser(res.payUrl);
+      if (res.payUrl) setReadyUrl({ url: res.payUrl, provider: "Heleket" });
+    } catch (e) {
+      setTopUpError(e instanceof Error ? e.message : t("cabinet.profile.top_up_error"));
+    } finally {
+      setTopUpLoading(false);
+    }
+  }
+
+  async function startTopUpLava() {
+    if (!token || !client) return;
+    const amount = Number(topUpAmount?.replace(",", "."));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setTopUpError(t("cabinet.profile.top_up_enter_amount"));
+      return;
+    }
+    setTopUpError(null);
+    setTopUpLoading(true);
+    try {
+      const res = await api.lavaCreatePayment(token, { amount, currency });
+      if (res.payUrl) setReadyUrl({ url: res.payUrl, provider: "LAVA" });
+    } catch (e) {
+      setTopUpError(e instanceof Error ? e.message : t("cabinet.profile.top_up_error"));
+    } finally {
+      setTopUpLoading(false);
+    }
+  }
+
+  async function startTopUpOverpay() {
+    if (!token || !client) return;
+    const amount = Number(topUpAmount?.replace(",", "."));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setTopUpError(t("cabinet.profile.top_up_enter_amount"));
+      return;
+    }
+    setTopUpError(null);
+    setTopUpLoading(true);
+    try {
+      const res = await api.overpayCreatePayment(token, { amount, currency });
+      if (res.payUrl) setReadyUrl({ url: res.payUrl, provider: "Overpay" });
     } catch (e) {
       setTopUpError(e instanceof Error ? e.message : t("cabinet.profile.top_up_error"));
     } finally {
@@ -697,20 +781,37 @@ export function ClientProfilePage() {
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-muted/40 border border-border/50 transition-colors hover:bg-muted/60 dark:bg-white/5 dark:border-white/5 dark:hover:bg-white/10">
-                <div className="flex items-center gap-4 min-w-0">
-                  <div className="flex h-10 w-10 items-center justify-center shrink-0 rounded-xl bg-primary/10 text-primary">
-                    <KeyRound className="w-5 h-5" />
+              {client.hasPassword === false && client.email ? (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-muted/40 border border-border/50 transition-colors hover:bg-muted/60 dark:bg-white/5 dark:border-white/5 dark:hover:bg-white/10">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="flex h-10 w-10 items-center justify-center shrink-0 rounded-xl bg-orange-500/10 text-orange-500">
+                      <KeyRound className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs text-muted-foreground mb-0.5">{t("cabinet.profile.password_label")}</p>
+                      <p className="font-medium text-sm truncate text-orange-500">{t("cabinet.profile.password_not_set")}</p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-xs text-muted-foreground mb-0.5">{t("cabinet.profile.password_label")}</p>
-                    <p className="font-medium text-sm truncate">{t("cabinet.profile.password_change_account")}</p>
-                  </div>
+                  <Button variant="outline" size="sm" className="shadow-sm shrink-0" onClick={() => setSetPasswordOpen(true)}>
+                    {t("cabinet.profile.password_set")}
+                  </Button>
                 </div>
-                <Button variant="outline" size="sm" className="shadow-sm shrink-0" onClick={() => setChangePasswordOpen(true)}>
-                  {t("cabinet.profile.password_change")}
-                </Button>
-              </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-muted/40 border border-border/50 transition-colors hover:bg-muted/60 dark:bg-white/5 dark:border-white/5 dark:hover:bg-white/10">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="flex h-10 w-10 items-center justify-center shrink-0 rounded-xl bg-primary/10 text-primary">
+                      <KeyRound className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs text-muted-foreground mb-0.5">{t("cabinet.profile.password_label")}</p>
+                      <p className="font-medium text-sm truncate">{t("cabinet.profile.password_change_account")}</p>
+                    </div>
+                  </div>
+                  <Button variant="outline" size="sm" className="shadow-sm shrink-0" onClick={() => setChangePasswordOpen(true)}>
+                    {t("cabinet.profile.password_change")}
+                  </Button>
+                </div>
+              )}
 
               {yookassaRecurringEnabled && client.yookassaPaymentMethodTitle && (
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-muted/40 border border-border/50 transition-colors hover:bg-muted/60 dark:bg-white/5 dark:border-white/5 dark:hover:bg-white/10">
@@ -817,7 +918,7 @@ export function ClientProfilePage() {
         transition={{ duration: 0.3, delay: 0.1 }}
         className={`grid gap-6 ${isMiniapp ? "grid-cols-1" : "lg:grid-cols-2"} min-w-0`}
       >
-        {(plategaMethods.length > 0 || yoomoneyEnabled || yookassaEnabled || cryptopayEnabled || heleketEnabled) && (
+        {(plategaMethods.length > 0 || yoomoneyEnabled || yookassaEnabled || cryptopayEnabled || heleketEnabled || lavaEnabled || overpayEnabled) && (
           <div id="topup" className="relative flex flex-col rounded-[2rem] shadow-[0_8px_40px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_40px_rgba(0,0,0,0.3)]">
             <div className="absolute inset-0 overflow-hidden rounded-[2rem] border border-white/10 dark:border-white/5 bg-background/40 backdrop-blur-2xl">
               <div className="absolute -top-32 -left-32 h-64 w-64 rounded-full bg-primary/20 blur-[80px] pointer-events-none" />
@@ -1014,7 +1115,14 @@ export function ClientProfilePage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={topUpModalOpen} onOpenChange={(open) => !topUpLoading && setTopUpModalOpen(open)}>
+      <Dialog
+        open={topUpModalOpen}
+        onOpenChange={(open) => {
+          if (topUpLoading) return;
+          setTopUpModalOpen(open);
+          if (!open) setReadyUrl(null);
+        }}
+      >
         <DialogContent className="max-w-md p-6 rounded-3xl border border-border/50 bg-card/60 backdrop-blur-3xl shadow-2xl" showCloseButton={!topUpLoading} onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader className="mb-4 text-center sm:text-left">
             <DialogTitle className="text-2xl font-bold flex items-center justify-center sm:justify-start gap-2">
@@ -1042,84 +1150,97 @@ export function ClientProfilePage() {
             </div>
           )}
 
+          {readyUrl ? (
+            <PayNowPanel
+              url={readyUrl.url}
+              provider={readyUrl.provider}
+              onBack={() => setReadyUrl(null)}
+              onPaid={() => { setTopUpModalOpen(false); setReadyUrl(null); }}
+            />
+          ) : (
           <div className="flex flex-col gap-3">
-            {cryptopayEnabled && (
-              <Button
-                size="lg"
-                variant="outline"
-                className="w-full gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative"
-                disabled={topUpLoading}
-                onClick={() => startTopUpCryptopay()}
-              >
-                <div className="absolute left-6 p-1.5 rounded-lg bg-yellow-500/10 group-hover:bg-yellow-500/20 transition-colors">
-                  {topUpLoading ? <Loader2 className="h-5 w-5 animate-spin text-yellow-500" /> : <Globe className="h-5 w-5 text-yellow-500" />}
-                </div>
-                <span className="text-base font-medium">Crypto Bot</span>
-              </Button>
-            )}
-            {heleketEnabled && (
-              <Button
-                size="lg"
-                variant="outline"
-                className="w-full gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative"
-                disabled={topUpLoading}
-                onClick={() => startTopUpHeleket()}
-              >
-                <div className="absolute left-6 p-1.5 rounded-lg bg-orange-500/10 group-hover:bg-orange-500/20 transition-colors">
-                  {topUpLoading ? <Loader2 className="h-5 w-5 animate-spin text-orange-500" /> : <Globe className="h-5 w-5 text-orange-500" />}
-                </div>
-                <span className="text-base font-medium">Heleket</span>
-              </Button>
-            )}
-            {yookassaEnabled && (
-              <Button
-                size="lg"
-                variant="outline"
-                className="w-full gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative"
-                disabled={topUpLoading}
-                onClick={() => startTopUpYookassa()}
-              >
-                <div className="absolute left-6 p-1.5 rounded-lg bg-green-500/10 group-hover:bg-green-500/20 transition-colors">
-                  {topUpLoading ? <Loader2 className="h-5 w-5 animate-spin text-green-500" /> : <CreditCard className="h-5 w-5 text-green-500" />}
-                </div>
-                <span className="text-base font-medium">{t("cabinet.tariffs.sbp")}</span>
-              </Button>
-            )}
-            {yoomoneyEnabled && (
-              <Button
-                size="lg"
-                variant="outline"
-                className="w-full gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative"
-                disabled={topUpLoading}
-                onClick={() => startTopUpYoomoneyForm("AC")}
-              >
-                <div className="absolute left-6 p-1.5 rounded-lg bg-green-500/10 group-hover:bg-green-500/20 transition-colors">
-                  {topUpLoading ? <Loader2 className="h-5 w-5 animate-spin text-green-500" /> : <CreditCard className="h-5 w-5 text-green-500" />}
-                </div>
-                <span className="text-base font-medium">{t("cabinet.tariffs.cards_label")}</span>
-              </Button>
-            )}
-            {plategaMethods.map((m) => (
-              <Button
-                key={m.id}
-                size="lg"
-                variant="outline"
-                className="w-full gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative"
-                disabled={topUpLoading}
-                onClick={() => startTopUp(m.id)}
-              >
-                <div className="absolute left-6 p-1.5 rounded-lg bg-green-500/10 group-hover:bg-green-500/20 transition-colors">
-                  {topUpLoading ? <Loader2 className="h-5 w-5 animate-spin text-green-500" /> : <CreditCard className="h-5 w-5 text-green-500" />}
-                </div>
-                <span className="text-base font-medium">{m.label}</span>
-              </Button>
-            ))}
+            {(() => {
+              const providerLabel = (id: string, fallback: string) => paymentProviders.find((p) => p.id === id)?.label || fallback;
+              const btnCls = cn("w-full", isMiniapp ? "justify-start gap-4 px-6 h-16 rounded-2xl border-white/5 bg-card/40 hover:bg-card/60" : "gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative");
+
+              const colorMap: Record<string, { bg10: string; bg20: string; text: string }> = {
+                cryptopay: { bg10: "bg-yellow-500/10", bg20: "group-hover:bg-yellow-500/20", text: "text-yellow-500" },
+                heleket: { bg10: "bg-orange-500/10", bg20: "group-hover:bg-orange-500/20", text: "text-orange-500" },
+                yookassa: { bg10: "bg-green-500/10", bg20: "group-hover:bg-green-500/20", text: "text-green-500" },
+                yoomoney: { bg10: "bg-green-500/10", bg20: "group-hover:bg-green-500/20", text: "text-green-500" },
+                lava: { bg10: "bg-sky-500/10", bg20: "group-hover:bg-sky-500/20", text: "text-sky-500" },
+                overpay: { bg10: "bg-indigo-500/10", bg20: "group-hover:bg-indigo-500/20", text: "text-indigo-500" },
+              };
+
+              type ProviderEntry = { id: string; enabled: boolean; onClick: () => void; label: string; icon: "crypto" | "card" };
+              const providers: ProviderEntry[] = [
+                { id: "cryptopay", enabled: cryptopayEnabled, onClick: () => startTopUpCryptopay(), label: providerLabel("cryptopay", "Crypto Bot"), icon: "crypto" },
+                { id: "heleket", enabled: heleketEnabled, onClick: () => startTopUpHeleket(), label: providerLabel("heleket", "Heleket"), icon: "crypto" },
+                { id: "yookassa", enabled: yookassaEnabled, onClick: () => startTopUpYookassa(), label: providerLabel("yookassa", t("cabinet.tariffs.sbp_cards_ru")), icon: "card" },
+                { id: "yoomoney", enabled: yoomoneyEnabled, onClick: () => startTopUpYoomoneyForm("AC"), label: providerLabel("yoomoney", t("cabinet.tariffs.yoomoney_cards")), icon: "card" },
+                { id: "lava", enabled: lavaEnabled && currency.toLowerCase() === "rub", onClick: () => startTopUpLava(), label: providerLabel("lava", "LAVA"), icon: "card" },
+                { id: "overpay", enabled: overpayEnabled, onClick: () => startTopUpOverpay(), label: providerLabel("overpay", "Overpay"), icon: "card" },
+              ];
+
+              const sortedProviders = paymentProviders.length > 0
+                ? paymentProviders.map((pp) => providers.find((p) => p.id === pp.id)).filter((p): p is ProviderEntry => !!p)
+                : providers;
+
+              return (
+                <>
+                  {sortedProviders.filter((p) => p.enabled).map((p) => {
+                    const c = colorMap[p.id] ?? colorMap.yookassa;
+                    return (
+                    <Button key={p.id} size="lg" variant="outline" onClick={p.onClick} disabled={topUpLoading} className={btnCls}>
+                      {isMiniapp ? (
+                        <>
+                          <div className={cn("p-2 rounded-xl", c.bg10)}>
+                            {topUpLoading ? <Loader2 className={cn("h-6 w-6 animate-spin", c.text)} /> : p.icon === "crypto" ? <Zap className={cn("h-6 w-6", c.text)} /> : <CreditCard className={cn("h-6 w-6", c.text)} />}
+                          </div>
+                          <span className="text-base font-bold">{p.label}</span>
+                        </>
+                      ) : (
+                        <>
+                          <div className={cn("absolute left-6 p-1.5 rounded-lg transition-colors", c.bg10, c.bg20)}>
+                            {topUpLoading ? <Loader2 className={cn("h-5 w-5 animate-spin", c.text)} /> : p.icon === "crypto" ? <Zap className={cn("h-5 w-5", c.text)} /> : <CreditCard className={cn("h-5 w-5", c.text)} />}
+                          </div>
+                          <span className="text-base font-medium">{p.icon === "crypto" ? "⚡" : "💳"} {p.label}</span>
+                        </>
+                      )}
+                    </Button>
+                    );
+                  })}
+                  {plategaMethods.map((m) => (
+                    <Button key={m.id} size="lg" variant="outline" onClick={() => startTopUp(m.id)} disabled={topUpLoading} className={btnCls}>
+                      {isMiniapp ? (
+                        <>
+                          <div className="p-2 rounded-xl bg-green-500/10">
+                            {topUpLoading ? <Loader2 className="h-6 w-6 animate-spin text-green-500" /> : <CreditCard className="h-6 w-6 text-green-500" />}
+                          </div>
+                          <span className="text-base font-bold">{m.label}</span>
+                        </>
+                      ) : (
+                        <>
+                          <div className="absolute left-6 p-1.5 rounded-lg bg-green-500/10 group-hover:bg-green-500/20 transition-colors">
+                            {topUpLoading ? <Loader2 className="h-5 w-5 animate-spin text-green-500" /> : <CreditCard className="h-5 w-5 text-green-500" />}
+                          </div>
+                          <span className="text-base font-medium">💳 {m.label}</span>
+                        </>
+                      )}
+                    </Button>
+                  ))}
+                </>
+              );
+            })()}
           </div>
+          )}
+          {!readyUrl && (
           <DialogFooter className="mt-4 sm:justify-center border-t border-border/50 pt-4">
             <Button variant="ghost" onClick={() => setTopUpModalOpen(false)} disabled={topUpLoading} className="rounded-xl hover:bg-background/50 hover:text-foreground text-muted-foreground transition-colors">
               {t("cabinet.profile.cancel")}
             </Button>
           </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -1283,6 +1404,59 @@ export function ClientProfilePage() {
                 )}
                 <Button className="w-full h-12 rounded-xl font-bold text-base shadow-lg" onClick={submitChangePassword} disabled={changePasswordLoading || !currentPassword || !newPassword || !confirmPassword}>
                   {changePasswordLoading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : null}
+                  {t("cabinet.profile.save_password")}
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Установка пароля — для юзеров без пароля (Telegram/Google/Apple) */}
+      <Dialog open={setPasswordOpen} onOpenChange={(open) => !open && closeSetPassword()}>
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden border-border/50 backdrop-blur-3xl" showCloseButton={!setPasswordLoading} onOpenAutoFocus={(e) => e.preventDefault()}>
+          <div className="p-6 sm:p-8 flex flex-col items-center text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-primary/10 text-primary mb-6 shadow-inner border border-primary/20">
+              <KeyRound className="h-8 w-8" />
+            </div>
+            <DialogHeader className="p-0 flex flex-col items-center mb-6">
+              <DialogTitle className="text-2xl font-bold tracking-tight">{t("cabinet.profile.set_password_title")}</DialogTitle>
+              <DialogDescription className="text-center text-sm mt-2 max-w-[280px]">
+                {t("cabinet.profile.set_password_desc")}
+              </DialogDescription>
+            </DialogHeader>
+
+            {setPasswordSuccess ? (
+              <div className="flex flex-col items-center gap-4 py-6 animate-in fade-in scale-95 duration-300">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500/10 text-green-500">
+                  <Check className="h-8 w-8" />
+                </div>
+                <p className="text-lg font-bold text-green-500">{t("cabinet.profile.set_password_ok")}</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="space-y-3">
+                  <Input
+                    type="password"
+                    placeholder={t("cabinet.profile.new_password")}
+                    value={setPasswordNew}
+                    onChange={(e) => setSetPasswordNew(e.target.value)}
+                    className="h-12 rounded-xl"
+                    autoFocus
+                  />
+                  <Input
+                    type="password"
+                    placeholder={t("cabinet.profile.confirm_password")}
+                    value={setPasswordConfirm}
+                    onChange={(e) => setSetPasswordConfirm(e.target.value)}
+                    className="h-12 rounded-xl"
+                  />
+                </div>
+                {setPasswordError && (
+                  <p className="text-sm font-medium text-destructive animate-in fade-in text-center">{setPasswordError}</p>
+                )}
+                <Button className="w-full h-12 rounded-xl font-bold text-base shadow-lg" onClick={submitSetPassword} disabled={setPasswordLoading || !setPasswordNew || !setPasswordConfirm}>
+                  {setPasswordLoading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : null}
                   {t("cabinet.profile.save_password")}
                 </Button>
               </div>

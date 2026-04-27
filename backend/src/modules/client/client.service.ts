@@ -104,11 +104,14 @@ const SYSTEM_CONFIG_KEYS = [
   "notification_topic_new_clients",
   "notification_topic_payments",
   "notification_topic_tickets",
-  "platega_merchant_id", "platega_secret", "platega_methods",
+  "platega_merchant_id", "platega_secret", "platega_methods", "payment_providers_config",
+  "gramads_api_key", // Gramads.net — ключ для рекламного кабинета "Продвижение VPN"
   "yoomoney_client_id", "yoomoney_client_secret", "yoomoney_receiver_wallet", "yoomoney_notification_secret",
   "yookassa_shop_id", "yookassa_secret_key", "yookassa_recurring_enabled",
   "cryptopay_api_token", "cryptopay_testnet",
   "heleket_merchant_id", "heleket_api_key",
+  "lava_shop_id", "lava_secret_key", "lava_additional_key",
+  "overpay_api_url", "overpay_project_id", "overpay_login", "overpay_password",
   "groq_api_key", "groq_model", "groq_fallback_1", "groq_fallback_2", "groq_fallback_3", "ai_system_prompt",
   "bot_buttons", "bot_buttons_per_row", "bot_back_label", "bot_menu_texts", "bot_menu_line_visibility", "bot_inner_button_styles",
   "bot_tariffs_text", "bot_tariffs_fields", "bot_payment_text",
@@ -505,6 +508,8 @@ export async function getSystemConfig() {
     plategaMerchantId: map.platega_merchant_id || null,
     plategaSecret: map.platega_secret || null,
     plategaMethods: parsePlategaMethods(map.platega_methods),
+    paymentProviders: parsePaymentProviders(map.payment_providers_config),
+    gramadsApiKey: (map.gramads_api_key ?? "").trim() || null,
     yoomoneyClientId: map.yoomoney_client_id || null,
     yoomoneyClientSecret: map.yoomoney_client_secret || null,
     yoomoneyReceiverWallet: map.yoomoney_receiver_wallet || null,
@@ -515,6 +520,13 @@ export async function getSystemConfig() {
     cryptopayTestnet: map.cryptopay_testnet === "true" || map.cryptopay_testnet === "1",
     heleketMerchantId: (map.heleket_merchant_id ?? "").trim() || null,
     heleketApiKey: (map.heleket_api_key ?? "").trim() || null,
+    lavaShopId: (map.lava_shop_id ?? "").trim() || null,
+    lavaSecretKey: (map.lava_secret_key ?? "").trim() || null,
+    lavaAdditionalKey: (map.lava_additional_key ?? "").trim() || null,
+    overpayApiUrl: (map.overpay_api_url ?? "").trim() || null,
+    overpayProjectId: (map.overpay_project_id ?? "").trim() || null,
+    overpayLogin: (map.overpay_login ?? "").trim() || null,
+    overpayPassword: (map.overpay_password ?? "").trim() || null,
     groqApiKey: (map.groq_api_key ?? "").trim() || null,
     groqModel: (map.groq_model ?? "").trim() || "llama3-8b-8192",
     groqFallback1: (map.groq_fallback_1 ?? "").trim() || null,
@@ -745,6 +757,40 @@ const DEFAULT_PLATEGA_METHODS: PlategaMethodConfig[] = [
   { id: 13, enabled: false, label: "Криптовалюта" },
 ];
 
+export type PaymentProviderConfig = { id: string; label: string; sortOrder: number };
+const DEFAULT_PAYMENT_PROVIDERS: PaymentProviderConfig[] = [
+  { id: "cryptopay", label: "Crypto Bot", sortOrder: 0 },
+  { id: "heleket", label: "Heleket", sortOrder: 1 },
+  { id: "yookassa", label: "ЮKassa (СБП / Карты)", sortOrder: 2 },
+  { id: "yoomoney", label: "ЮMoney (Карты)", sortOrder: 3 },
+  { id: "lava", label: "LAVA (СБП / Карты / СберPay)", sortOrder: 4 },
+  { id: "overpay", label: "Overpay (Карты / СБП)", sortOrder: 5 },
+];
+
+function parsePaymentProviders(raw: string | undefined): PaymentProviderConfig[] {
+  if (!raw || !raw.trim()) return DEFAULT_PAYMENT_PROVIDERS;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return DEFAULT_PAYMENT_PROVIDERS;
+    const result = parsed.map((m: unknown, i: number) => {
+      const x = m as Record<string, unknown>;
+      return {
+        id: typeof x.id === "string" ? x.id : `unknown_${i}`,
+        label: typeof x.label === "string" ? x.label : String(x.id ?? ""),
+        sortOrder: typeof x.sortOrder === "number" ? x.sortOrder : i,
+      };
+    });
+    const knownIds = new Set(result.map((r) => r.id));
+    for (const def of DEFAULT_PAYMENT_PROVIDERS) {
+      if (!knownIds.has(def.id)) result.push({ ...def, sortOrder: result.length });
+    }
+    result.sort((a, b) => a.sortOrder - b.sortOrder);
+    return result;
+  } catch {
+    return DEFAULT_PAYMENT_PROVIDERS;
+  }
+}
+
 function parsePlategaMethods(raw: string | undefined): PlategaMethodConfig[] {
   if (!raw || !raw.trim()) return DEFAULT_PLATEGA_METHODS;
   try {
@@ -951,6 +997,14 @@ export async function getPublicConfig() {
     yookassaRecurringEnabled: full.yookassaRecurringEnabled ?? false,
     cryptopayEnabled: Boolean((full as { cryptopayApiToken?: string | null }).cryptopayApiToken?.trim()),
     heleketEnabled: Boolean((full as { heleketMerchantId?: string | null }).heleketMerchantId?.trim() && (full as { heleketApiKey?: string | null }).heleketApiKey?.trim()),
+    lavaEnabled: Boolean((full as { lavaShopId?: string | null }).lavaShopId?.trim() && (full as { lavaSecretKey?: string | null }).lavaSecretKey?.trim()),
+    overpayEnabled: Boolean(
+      (full as { overpayApiUrl?: string | null }).overpayApiUrl?.trim() &&
+      (full as { overpayProjectId?: string | null }).overpayProjectId?.trim() &&
+      (full as { overpayLogin?: string | null }).overpayLogin?.trim() &&
+      (full as { overpayPassword?: string | null }).overpayPassword?.trim(),
+    ),
+    paymentProviders: full.paymentProviders,
     skipEmailVerification: full.skipEmailVerification ?? false,
     useRemnaSubscriptionPage: full.useRemnaSubscriptionPage ?? false,
     aiChatEnabled: full.aiChatEnabled ?? true,

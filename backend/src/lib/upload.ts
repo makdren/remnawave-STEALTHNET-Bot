@@ -8,6 +8,7 @@ const UPLOADS_ROOT = "/app/uploads";
 const UPLOAD_DIRS = {
   mascots: path.join(UPLOADS_ROOT, "mascots"),
   videos: path.join(UPLOADS_ROOT, "videos"),
+  tickets: path.join(UPLOADS_ROOT, "tickets"),
 } as const;
 
 // Создаём директории при старте
@@ -61,6 +62,28 @@ export const uploadVideo = multer({
   },
 });
 
+// ——— Ticket attachments (PNG/JPG/WEBP/GIF, max 10MB, до 5 файлов за раз) ———
+// Используется как клиентской частью тикетов (POST /client/tickets, /client/tickets/:id/messages),
+// так и админской (POST /admin/tickets/:id/messages).
+const ticketStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, UPLOAD_DIRS.tickets),
+  filename: (_req, file, cb) => cb(null, makeFilename(file.originalname)),
+});
+
+export const uploadTicketAttachment = multer({
+  storage: ticketStorage,
+  limits: { fileSize: 10 * 1024 * 1024, files: 5 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".heic", ".heif"];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.includes(ext) || file.mimetype.startsWith("image/")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Допустимые форматы: PNG, JPG, WEBP, GIF, HEIC"));
+    }
+  },
+});
+
 /** Удалить файл из uploads (safe, не бросает ошибку) */
 export function removeUploadedFile(relativePath: string): void {
   try {
@@ -78,4 +101,8 @@ export function mascotUrl(filename: string): string {
 
 export function videoUploadUrl(filename: string): string {
   return `/api/uploads/videos/${filename}`;
+}
+
+export function ticketAttachmentUrl(filename: string): string {
+  return `/api/uploads/tickets/${filename}`;
 }

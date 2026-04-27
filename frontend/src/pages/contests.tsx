@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/auth";
 import { api, type ContestListItem, type ContestDetail, type ContestFormPayload, type ContestPrizeType, type ContestDrawType } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Trophy, Plus, Pencil, Trash2, Loader2, Users, Shuffle, Send, Clock, X, MousePointerClick } from "lucide-react";
+import { Trophy, Plus, Pencil, Trash2, Loader2, Users, Shuffle, Send, Clock, X, MousePointerClick, Sparkles, Award } from "lucide-react";
+import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 const PRIZE_TYPES: { value: ContestPrizeType; label: string }[] = [
   { value: "custom", label: "Свой текст" },
@@ -35,6 +37,22 @@ const STATUS_LABELS: Record<string, string> = {
   ended: "Завершён",
   drawn: "Розыгрыш проведён",
 };
+
+function statusBadge(status: string) {
+  const map: Record<string, { cls: string; dot: string }> = {
+    draft: { cls: "bg-foreground/[0.05] dark:bg-white/[0.05] text-muted-foreground border-white/10", dot: "bg-muted-foreground/40" },
+    active: { cls: "bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border-emerald-500/20", dot: "bg-emerald-400 shadow-[0_0_4px_#10b981]" },
+    ended: { cls: "bg-amber-500/10 text-amber-500 dark:text-amber-400 border-amber-500/20", dot: "bg-amber-400 shadow-[0_0_4px_#fbbf24]" },
+    drawn: { cls: "bg-violet-500/10 text-violet-500 dark:text-violet-400 border-violet-500/20", dot: "bg-violet-400 shadow-[0_0_4px_#a78bfa]" },
+  };
+  const cfg = map[status] ?? map.draft;
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium backdrop-blur-md", cfg.cls)}>
+      <span className={cn("h-1.5 w-1.5 rounded-full", cfg.dot)} />
+      {STATUS_LABELS[status] ?? status}
+    </span>
+  );
+}
 
 function toLocalDatetime(d: string): string {
   if (!d) return "";
@@ -105,6 +123,9 @@ const emptyForm: ContestFormPayload = {
   buttonText: null,
   buttonUrl: null,
 };
+
+const inputCls = "rounded-xl bg-foreground/[0.03] dark:bg-white/[0.02] border-white/10 focus-visible:ring-primary/50";
+const selectCls = "flex h-10 w-full rounded-xl border border-white/10 bg-foreground/[0.03] dark:bg-white/[0.02] px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50";
 
 export function ContestsPage() {
   const { state } = useAuth();
@@ -304,61 +325,87 @@ export function ContestsPage() {
   }
 
   return (
-    <div className="space-y-6 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold flex items-center gap-2">
-          <Trophy className="h-7 w-7" />
-          Конкурсы
-        </h1>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4 mr-2" />
+    <div className="space-y-5 px-4 sm:px-6 md:px-8 pt-6 pb-10 relative">
+      <div className="fixed -z-10 bg-primary/15 blur-[120px] top-[-50px] left-[-50px] w-[300px] h-[300px] rounded-full pointer-events-none" />
+      <div className="fixed -z-10 bg-purple-500/10 blur-[100px] top-[20%] right-[-50px] w-[250px] h-[250px] rounded-full pointer-events-none" />
+
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between bg-background/40 backdrop-blur-3xl border border-white/10 p-6 rounded-[2rem] shadow-2xl"
+      >
+        <div className="flex items-center gap-4">
+          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center shadow-inner border border-white/10">
+            <Trophy className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60">
+              Конкурсы
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">Создавайте розыгрыши и поощряйте активных пользователей</p>
+          </div>
+        </div>
+        <Button onClick={openCreate} className="gap-1.5 rounded-xl">
+          <Plus className="h-4 w-4" />
           Создать конкурс
         </Button>
-      </div>
+      </motion.div>
 
       {error && (
-        <div className="rounded-lg bg-destructive/10 text-destructive px-4 py-2 text-sm">
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border border-red-500/30 bg-red-500/10 backdrop-blur-md px-4 py-3 text-sm text-red-500 dark:text-red-400"
+        >
           {error}
-        </div>
+        </motion.div>
       )}
 
       <Dialog open={showForm} onOpenChange={(open) => !open && setShowForm(false)}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="bg-background/80 backdrop-blur-3xl border-white/10 rounded-[2rem] max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingId ? "Редактировать конкурс" : "Новый конкурс"}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <div className="h-9 w-9 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/20 border border-white/10 flex items-center justify-center shadow-inner">
+                {editingId ? <Pencil className="h-4 w-4 text-primary" /> : <Sparkles className="h-4 w-4 text-primary" />}
+              </div>
+              {editingId ? "Редактировать конкурс" : "Новый конкурс"}
+            </DialogTitle>
             <DialogDescription className="sr-only">Форма создания и редактирования конкурса</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="grid gap-2">
-              <Label>Название</Label>
+            <div className="grid gap-1.5">
+              <Label className="text-xs text-muted-foreground">Название</Label>
               <Input
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 placeholder="Название конкурса"
+                className={inputCls}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label>Начало</Label>
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">Начало</Label>
                 <Input
                   type="datetime-local"
                   value={toLocalDatetime(form.startAt)}
                   onChange={(e) => setForm((f) => ({ ...f, startAt: e.target.value ? new Date(e.target.value).toISOString() : f.startAt }))}
+                  className={inputCls}
                 />
               </div>
-              <div className="grid gap-2">
-                <Label>Окончание</Label>
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">Окончание</Label>
                 <Input
                   type="datetime-local"
                   value={toLocalDatetime(form.endAt)}
                   onChange={(e) => setForm((f) => ({ ...f, endAt: e.target.value ? new Date(e.target.value).toISOString() : f.endAt }))}
+                  className={inputCls}
                 />
               </div>
             </div>
-            <div className="grid gap-2">
-              <Label>Тип розыгрыша</Label>
+            <div className="grid gap-1.5">
+              <Label className="text-xs text-muted-foreground">Тип розыгрыша</Label>
               <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm"
+                className={selectCls}
                 value={form.drawType}
                 onChange={(e) => setForm((f) => ({ ...f, drawType: e.target.value as ContestDrawType }))}
               >
@@ -368,81 +415,100 @@ export function ContestsPage() {
               </select>
             </div>
             <div className="grid gap-2">
-              <Label>Условия участия (опционально)</Label>
-              <div className="flex gap-4 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <Label className="text-muted-foreground text-xs">Мин. дней тарифа</Label>
+              <Label className="text-xs text-muted-foreground">Условия участия (опционально)</Label>
+              <div className="rounded-2xl border border-white/5 bg-foreground/[0.03] dark:bg-white/[0.02] p-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid gap-1">
+                  <Label className="text-[11px] text-muted-foreground">Мин. дней тарифа</Label>
                   <Input
                     type="number"
                     min={0}
-                    className="w-24"
                     placeholder="30"
                     value={minTariffDays}
                     onChange={(e) => setMinTariffDays(e.target.value)}
+                    className={inputCls}
                   />
                 </div>
-                <div className="flex items-center gap-2">
-                  <Label className="text-muted-foreground text-xs">Мин. оплат</Label>
+                <div className="grid gap-1">
+                  <Label className="text-[11px] text-muted-foreground">Мин. оплат</Label>
                   <Input
                     type="number"
                     min={0}
-                    className="w-24"
                     placeholder="1"
                     value={minPaymentsCount}
                     onChange={(e) => setMinPaymentsCount(e.target.value)}
+                    className={inputCls}
                   />
                 </div>
-                <div className="flex items-center gap-2">
-                  <Label className="text-muted-foreground text-xs">Мин. рефералов (привёл реферала)</Label>
+                <div className="grid gap-1">
+                  <Label className="text-[11px] text-muted-foreground">Мин. рефералов</Label>
                   <Input
                     type="number"
                     min={0}
-                    className="w-24"
                     placeholder="0"
                     value={minReferrals}
                     onChange={(e) => setMinReferrals(e.target.value)}
+                    className={inputCls}
                   />
                 </div>
               </div>
             </div>
-            {([1, 2, 3] as const).map((place) => (
-              <div key={place} className="grid grid-cols-2 gap-4 items-end">
-                <div className="grid gap-2">
-                  <Label>Приз {place} место — тип</Label>
-                  <select
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm"
-                    value={form[`prize${place}Type` as keyof ContestFormPayload] as string}
-                    onChange={(e) => setForm((f) => ({ ...f, [`prize${place}Type`]: e.target.value as ContestPrizeType }))}
-                  >
-                    {PRIZE_TYPES.map((t) => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
-                    ))}
-                  </select>
+            {([1, 2, 3] as const).map((place) => {
+              const colors = {
+                1: { grad: "from-amber-500/20 to-amber-500/5", text: "text-amber-500 dark:text-amber-400", label: "1 место" },
+                2: { grad: "from-slate-400/20 to-slate-400/5", text: "text-slate-400 dark:text-slate-300", label: "2 место" },
+                3: { grad: "from-orange-500/20 to-orange-500/5", text: "text-orange-500 dark:text-orange-400", label: "3 место" },
+              }[place];
+              return (
+                <div key={place} className="rounded-2xl border border-white/5 bg-foreground/[0.03] dark:bg-white/[0.02] p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className={cn("h-7 w-7 rounded-xl bg-gradient-to-br border border-white/10 flex items-center justify-center", colors.grad)}>
+                      <Award className={cn("h-4 w-4", colors.text)} />
+                    </div>
+                    <span className="text-sm font-semibold">Приз — {colors.label}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 items-end">
+                    <div className="grid gap-1.5">
+                      <Label className="text-[11px] text-muted-foreground">Тип</Label>
+                      <select
+                        className={selectCls}
+                        value={form[`prize${place}Type` as keyof ContestFormPayload] as string}
+                        onChange={(e) => setForm((f) => ({ ...f, [`prize${place}Type`]: e.target.value as ContestPrizeType }))}
+                      >
+                        {PRIZE_TYPES.map((t) => (
+                          <option key={t.value} value={t.value}>{t.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label className="text-[11px] text-muted-foreground">Значение (текст / сумма / дни)</Label>
+                      <Input
+                        value={form[`prize${place}Value` as keyof ContestFormPayload] as string}
+                        onChange={(e) => setForm((f) => ({ ...f, [`prize${place}Value`]: e.target.value }))}
+                        placeholder={form[`prize${place}Type` as keyof ContestFormPayload] === "balance" ? "500" : form[`prize${place}Type` as keyof ContestFormPayload] === "vpn_days" ? "30" : "Описание приза"}
+                        className={inputCls}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="grid gap-2">
-                  <Label>Значение (текст / сумма ₽ / кол-во дней)</Label>
-                  <Input
-                    value={form[`prize${place}Value` as keyof ContestFormPayload] as string}
-                    onChange={(e) => setForm((f) => ({ ...f, [`prize${place}Value`]: e.target.value }))}
-                    placeholder={form[`prize${place}Type` as keyof ContestFormPayload] === "balance" ? "500" : form[`prize${place}Type` as keyof ContestFormPayload] === "vpn_days" ? "30" : "Описание приза"}
-                  />
-                </div>
-              </div>
-            ))}
-            <div className="grid gap-2">
-              <Label>Текст ежедневной рассылки в боте (опционально)</Label>
+              );
+            })}
+            <div className="grid gap-1.5">
+              <Label className="text-xs text-muted-foreground">Текст ежедневной рассылки в боте (опционально)</Label>
               <Textarea
                 rows={3}
                 value={form.dailyMessage ?? ""}
                 onChange={(e) => setForm((f) => ({ ...f, dailyMessage: e.target.value || null }))}
                 placeholder="Сообщение, которое бот будет отправлять каждый день во время конкурса"
+                className={inputCls}
               />
             </div>
-            <div className="grid gap-2">
-              <Label className="flex items-center gap-1.5"><MousePointerClick className="h-4 w-4" /> Кнопка в сообщении (опционально)</Label>
+            <div className="grid gap-1.5">
+              <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <MousePointerClick className="h-3.5 w-3.5" /> Кнопка в сообщении (опционально)
+              </Label>
               <div className="grid grid-cols-2 gap-4">
                 <select
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm"
+                  className={selectCls}
                   value={buttonAction}
                   onChange={(e) => setButtonAction(e.target.value)}
                 >
@@ -455,6 +521,7 @@ export function ContestsPage() {
                   onChange={(e) => setForm((f) => ({ ...f, buttonText: e.target.value || null }))}
                   placeholder="Текст кнопки"
                   disabled={!buttonAction}
+                  className={inputCls}
                 />
               </div>
               {buttonAction === "custom" && (
@@ -462,15 +529,16 @@ export function ContestsPage() {
                   value={buttonCustomUrl}
                   onChange={(e) => setButtonCustomUrl(e.target.value)}
                   placeholder="https://..."
+                  className={inputCls}
                 />
               )}
             </div>
             <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
+              <Button type="button" variant="outline" onClick={() => setShowForm(false)} className="rounded-xl">
                 Отмена
               </Button>
-              <Button onClick={handleSave} disabled={saving}>
-                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              <Button onClick={handleSave} disabled={saving} className="gap-2 rounded-xl">
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 {editingId ? "Сохранить" : "Создать"}
               </Button>
             </DialogFooter>
@@ -479,129 +547,216 @@ export function ContestsPage() {
       </Dialog>
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
+        <Card className="bg-background/60 backdrop-blur-3xl border-white/10 rounded-[2rem] py-16 shadow-xl flex flex-col items-center justify-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Загружаем конкурсы…</p>
+        </Card>
       ) : (
         <div className="space-y-4">
           {list.length === 0 ? (
-            <Card>
-              <CardContent className="py-8 text-center text-muted-foreground">
-                Нет конкурсов. Создайте первый.
-              </CardContent>
+            <Card className="bg-background/60 backdrop-blur-3xl border-white/10 rounded-[2rem] py-12 shadow-xl flex flex-col items-center text-center">
+              <div className="h-16 w-16 rounded-full bg-white/5 flex items-center justify-center mb-3 border border-white/10">
+                <Trophy className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <p className="text-muted-foreground mb-4">Нет конкурсов. Создайте первый.</p>
+              <Button onClick={openCreate} className="gap-1.5 rounded-xl">
+                <Plus className="h-4 w-4" /> Создать конкурс
+              </Button>
             </Card>
           ) : (
-            list.map((c) => (
-              <Card key={c.id}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-lg">{c.name}</CardTitle>
-                  <span className="text-sm text-muted-foreground">{STATUS_LABELS[c.status] ?? c.status}</span>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <p className="text-sm text-muted-foreground">
-                    {new Date(c.startAt).toLocaleString("ru")} — {new Date(c.endAt).toLocaleString("ru")}
-                  </p>
+            list.map((c, idx) => (
+              <motion.div
+                key={c.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.04 }}
+                whileHover={{ y: -2 }}
+              >
+                <Card className="bg-background/60 backdrop-blur-3xl border-white/10 rounded-[2rem] p-5 shadow-xl">
+                  <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/20 border border-white/10 flex items-center justify-center shadow-inner shrink-0">
+                        <Trophy className="h-5 w-5 text-primary" />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="text-base font-bold tracking-tight truncate">{c.name}</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {new Date(c.startAt).toLocaleString("ru")} — {new Date(c.endAt).toLocaleString("ru")}
+                        </p>
+                      </div>
+                    </div>
+                    {statusBadge(c.status)}
+                  </div>
+
                   {isContestActive(c) && (
-                    <p className="text-sm font-medium flex items-center gap-1.5 text-primary">
+                    <div className="rounded-xl border border-primary/20 bg-primary/5 backdrop-blur-md px-3 py-2 mb-3 flex items-center gap-1.5 text-sm font-medium text-primary">
                       <Clock className="h-4 w-4" />
                       {formatTimeLeft(c.endAt)}
-                    </p>
-                  )}
-                  <p className="text-sm">
-                    Розыгрыш: {DRAW_TYPES.find((t) => t.value === c.drawType)?.label ?? c.drawType}. Призы: 1 — {c.prize1Value}, 2 — {c.prize2Value}, 3 — {c.prize3Value}.
-                  </p>
-                  {c.winners.length > 0 && (
-                    <div className="text-sm">
-                      Победители: {c.winners.map((w) => `#${w.place} ${w.client?.telegramUsername ?? w.client?.email ?? w.client?.id ?? "—"}`).join(", ")}
                     </div>
                   )}
-                  <div className="flex flex-wrap gap-2 pt-2">
+
+                  <div className="rounded-2xl border border-white/5 bg-foreground/[0.03] dark:bg-white/[0.02] p-4 space-y-2 mb-3">
+                    <p className="text-xs text-muted-foreground">
+                      Розыгрыш: <span className="text-foreground font-medium">{DRAW_TYPES.find((t) => t.value === c.drawType)?.label ?? c.drawType}</span>
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {([1, 2, 3] as const).map((place) => {
+                        const colors = {
+                          1: { text: "text-amber-500 dark:text-amber-400", grad: "from-amber-500/15 to-amber-500/5" },
+                          2: { text: "text-slate-400 dark:text-slate-300", grad: "from-slate-400/15 to-slate-400/5" },
+                          3: { text: "text-orange-500 dark:text-orange-400", grad: "from-orange-500/15 to-orange-500/5" },
+                        }[place];
+                        const value = c[`prize${place}Value` as "prize1Value" | "prize2Value" | "prize3Value"];
+                        return (
+                          <div key={place} className={cn("rounded-xl bg-gradient-to-br border border-white/10 p-2.5 flex items-center gap-2", colors.grad)}>
+                            <Award className={cn("h-4 w-4 shrink-0", colors.text)} />
+                            <div className="min-w-0">
+                              <p className="text-[10px] text-muted-foreground">{place} место</p>
+                              <p className="text-xs font-semibold truncate">{value || "—"}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {c.winners.length > 0 && (
+                    <div className="rounded-2xl border border-violet-500/20 bg-violet-500/5 backdrop-blur-md p-3 mb-3">
+                      <p className="text-xs font-medium text-violet-500 dark:text-violet-400 mb-1.5">Победители</p>
+                      <p className="text-xs text-muted-foreground break-words">
+                        {c.winners.map((w) => `#${w.place} ${w.client?.telegramUsername ?? w.client?.email ?? w.client?.id ?? "—"}`).join(", ")}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-2">
                     {c.status === "draft" && (
-                      <Button variant="default" size="sm" onClick={() => handleLaunch(c.id)} disabled={launchingId !== null}>
-                        {launchingId === c.id ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
+                      <Button size="sm" onClick={() => handleLaunch(c.id)} disabled={launchingId !== null} className="gap-1.5 rounded-xl">
+                        {launchingId === c.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                         Запустить
                       </Button>
                     )}
-                    <Button variant="outline" size="sm" onClick={() => openEdit(c)}>
-                      <Pencil className="h-4 w-4 mr-1" />
+                    <Button variant="outline" size="sm" onClick={() => openEdit(c)} className="gap-1.5 rounded-xl">
+                      <Pencil className="h-3.5 w-3.5" />
                       Изменить
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => loadParticipantsPreview(c.id)}>
-                      <Users className="h-4 w-4 mr-1" />
+                    <Button variant="outline" size="sm" onClick={() => loadParticipantsPreview(c.id)} className="gap-1.5 rounded-xl">
+                      <Users className="h-3.5 w-3.5" />
                       Участники
                     </Button>
                     {canDraw(c) && (
-                      <Button variant="default" size="sm" onClick={() => runDraw(c.id)} disabled={drawingId !== null}>
-                        {drawingId === c.id ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Shuffle className="h-4 w-4 mr-1" />}
+                      <Button size="sm" onClick={() => runDraw(c.id)} disabled={drawingId !== null} className="gap-1.5 rounded-xl">
+                        {drawingId === c.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shuffle className="h-4 w-4" />}
                         Провести розыгрыш
                       </Button>
                     )}
                     {deleteConfirmId === c.id ? (
                       <>
-                        <Button variant="destructive" size="sm" onClick={() => handleDelete(c.id)} disabled={saving}>
+                        <Button variant="destructive" size="sm" onClick={() => handleDelete(c.id)} disabled={saving} className="rounded-xl">
                           Удалить?
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setDeleteConfirmId(null)}>Отмена</Button>
+                        <Button variant="ghost" size="sm" onClick={() => setDeleteConfirmId(null)} className="rounded-xl">Отмена</Button>
                       </>
                     ) : (
-                      <Button variant="ghost" size="sm" onClick={() => setDeleteConfirmId(c.id)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDeleteConfirmId(c.id)}
+                        className="gap-1.5 rounded-xl border-red-500/30 text-red-500 dark:text-red-400 hover:bg-red-500/10 hover:border-red-500/50"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
                   </div>
-                </CardContent>
-              </Card>
+                </Card>
+              </motion.div>
             ))
           )}
         </div>
       )}
 
       {(detailId && (detail || participantsPreview)) && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>{detail?.name ?? "Участники"}</CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => { setDetailId(null); setDetail(null); setParticipantsPreview(null); }}>
-              <X className="h-4 w-4" />
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {detail && isContestActive(detail) && (
-              <p className="text-sm font-medium flex items-center gap-1.5 text-primary">
-                <Clock className="h-4 w-4" />
-                {formatTimeLeft(detail.endAt)}
-              </p>
-            )}
-            {participantsPreview !== null && (
-              <div>
-                <p className="text-sm font-medium">Превью участников (по условиям конкурса): {participantsPreview.total} чел.</p>
-                {participantsPreview.participants.length > 0 && (
-                  <ul className="text-sm text-muted-foreground mt-2 list-disc pl-4">
-                    {participantsPreview.participants.slice(0, 20).map((p, i) => (
-                      <li key={i}>
-                        clientId: {p.clientId}, дней: {p.totalDaysBought}, оплат: {p.paymentsCount}
-                        {p.referralsCount != null && `, рефералов: ${p.referralsCount}`}
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
+          <Card className="bg-background/60 backdrop-blur-3xl border-white/10 rounded-[2rem] p-5 shadow-xl">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-cyan-500/5 border border-white/10 flex items-center justify-center shadow-inner shrink-0">
+                  <Users className="h-5 w-5 text-cyan-500 dark:text-cyan-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold tracking-tight">{detail?.name ?? "Участники"}</h3>
+                  <p className="text-xs text-muted-foreground">Превью и победители</p>
+                </div>
+              </div>
+              <Button variant="ghost" size="icon" className="rounded-full" onClick={() => { setDetailId(null); setDetail(null); setParticipantsPreview(null); }}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="space-y-4">
+              {detail && isContestActive(detail) && (
+                <div className="rounded-xl border border-primary/20 bg-primary/5 backdrop-blur-md px-3 py-2 flex items-center gap-1.5 text-sm font-medium text-primary">
+                  <Clock className="h-4 w-4" />
+                  {formatTimeLeft(detail.endAt)}
+                </div>
+              )}
+              {participantsPreview !== null && (
+                <div className="rounded-2xl border border-white/5 bg-foreground/[0.03] dark:bg-white/[0.02] p-4">
+                  <p className="text-sm font-medium mb-2">
+                    Превью участников (по условиям конкурса):
+                    <span className="ml-2 inline-flex items-center rounded-full bg-primary/10 text-primary border border-primary/20 px-2.5 py-0.5 text-xs font-semibold">
+                      {participantsPreview.total} чел.
+                    </span>
+                  </p>
+                  {participantsPreview.participants.length > 0 && (
+                    <ul className="text-xs text-muted-foreground mt-2 space-y-1">
+                      {participantsPreview.participants.slice(0, 20).map((p, i) => (
+                        <li key={i} className="rounded-lg bg-foreground/[0.04] dark:bg-white/[0.04] border border-white/5 px-2.5 py-1.5">
+                          <span className="font-mono">clientId: {p.clientId}</span>
+                          <span className="mx-2">·</span>
+                          дней: <span className="text-foreground font-medium">{p.totalDaysBought}</span>
+                          <span className="mx-2">·</span>
+                          оплат: <span className="text-foreground font-medium">{p.paymentsCount}</span>
+                          {p.referralsCount != null && (
+                            <>
+                              <span className="mx-2">·</span>
+                              рефералов: <span className="text-foreground font-medium">{p.referralsCount}</span>
+                            </>
+                          )}
+                        </li>
+                      ))}
+                      {participantsPreview.total > 20 && (
+                        <li className="text-center pt-1 text-muted-foreground/70">… и ещё {participantsPreview.total - 20}</li>
+                      )}
+                    </ul>
+                  )}
+                </div>
+              )}
+              {detail?.winners && detail.winners.length > 0 && (
+                <div className="rounded-2xl border border-violet-500/20 bg-violet-500/5 backdrop-blur-md p-4">
+                  <p className="text-sm font-medium text-violet-500 dark:text-violet-400 mb-2 flex items-center gap-1.5">
+                    <Award className="h-4 w-4" /> Победители
+                  </p>
+                  <ul className="text-sm space-y-1.5">
+                    {detail.winners.map((w) => (
+                      <li key={w.place} className="rounded-lg bg-foreground/[0.04] dark:bg-white/[0.04] border border-white/5 px-3 py-2 flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center rounded-full bg-violet-500/10 text-violet-500 dark:text-violet-400 border border-violet-500/20 px-2 py-0.5 text-[11px] font-semibold">
+                          {w.place} место
+                        </span>
+                        <span className="font-medium">{w.client?.telegramUsername ?? w.client?.email ?? w.client?.id}</span>
+                        <span className="text-muted-foreground">— {w.prizeType}: {w.prizeValue}</span>
+                        {w.appliedAt && (
+                          <span className="inline-flex items-center rounded-full bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-medium">
+                            начислено
+                          </span>
+                        )}
                       </li>
                     ))}
-                    {participantsPreview.total > 20 && <li>… и ещё {participantsPreview.total - 20}</li>}
                   </ul>
-                )}
-              </div>
-            )}
-            {detail?.winners && detail.winners.length > 0 && (
-              <div>
-                <p className="text-sm font-medium">Победители</p>
-                <ul className="text-sm mt-2 space-y-1">
-                  {detail.winners.map((w) => (
-                    <li key={w.place}>
-                      {w.place} место: {w.client?.telegramUsername ?? w.client?.email ?? w.client?.id} — {w.prizeType}: {w.prizeValue}
-                      {w.appliedAt ? " (начислено)" : ""}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                </div>
+              )}
+            </div>
+          </Card>
+        </motion.div>
       )}
     </div>
   );

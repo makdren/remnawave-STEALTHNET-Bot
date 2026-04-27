@@ -13,6 +13,7 @@ import { applyExtraOptionByPaymentId } from "../extra-options/extra-options.serv
 import { distributeReferralRewards } from "../referral/referral.service.js";
 import { notifyBalanceToppedUp, notifyTariffActivated, notifyProxySlotsCreated, notifySingboxSlotsCreated } from "../notification/telegram-notify.service.js";
 import { createNalogReceipt } from "../nalog/nalog.service.js";
+import { recordPromoCodeUsageFromPayment } from "../payment/promo-code-usage.util.js";
 
 function hasExtraOptionInMetadata(metadata: string | null): boolean {
   if (!metadata?.trim()) return false;
@@ -92,6 +93,7 @@ yookassaWebhooksRouter.post("/yookassa", async (req, res) => {
     where: { id: payment.id },
     data: { status: "PAID", paidAt: new Date(), externalId: yookassaId },
   });
+  await recordPromoCodeUsageFromPayment(payment.id);
 
   // Сохраняем способ оплаты для рекуррентных платежей
   const pm = body.object?.payment_method;
