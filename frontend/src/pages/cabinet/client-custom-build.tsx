@@ -15,7 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useCabinetMiniapp } from "@/pages/cabinet/cabinet-layout";
-import { openPaymentInBrowser } from "@/lib/open-payment-url";
+import { PayNowPanel } from "@/components/payment/pay-now-panel";
 import { cn } from "@/lib/utils";
 
 function formatMoney(amount: number, currency: string) {
@@ -40,6 +40,8 @@ export function ClientCustomBuildPage() {
   const [payLoading, setPayLoading] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
   const [promoCode, setPromoCode] = useState("");
+  const [readyUrl, setReadyUrl] = useState<{ url: string; provider: string } | null>(null);
+  const [paymentProviders, setPaymentProviders] = useState<{ id: string; label: string; sortOrder: number }[]>([]);
 
   const cb = config?.customBuildConfig;
   const maxDays = cb?.maxDays ?? 360;
@@ -48,6 +50,7 @@ export function ClientCustomBuildPage() {
   useEffect(() => {
     api.getPublicConfig().then((c) => {
       setConfig(c);
+      setPaymentProviders(c.paymentProviders ?? []);
       if (c.customBuildConfig) {
         setDays(Math.min(30, c.customBuildConfig.maxDays));
         setDevices(Math.min(1, c.customBuildConfig.maxDevices));
@@ -107,8 +110,7 @@ export function ClientCustomBuildPage() {
         customBuild: customBuildPayload,
         promoCode: promoCode.trim() || undefined,
       });
-      setPayModalOpen(false);
-      if (res.confirmationUrl) openPaymentInBrowser(res.confirmationUrl);
+      if (res.confirmationUrl) setReadyUrl({ url: res.confirmationUrl, provider: "ЮKassa" });
     } catch (e) {
       setPayError(e instanceof Error ? e.message : "Ошибка создания платежа");
     } finally {
@@ -126,8 +128,7 @@ export function ClientCustomBuildPage() {
         customBuild: customBuildPayload,
         promoCode: promoCode.trim() || undefined,
       });
-      setPayModalOpen(false);
-      if (res.paymentUrl) openPaymentInBrowser(res.paymentUrl);
+      if (res.paymentUrl) setReadyUrl({ url: res.paymentUrl, provider: "Platega" });
     } catch (e) {
       setPayError(e instanceof Error ? e.message : "Ошибка создания платежа");
     } finally {
@@ -144,8 +145,7 @@ export function ClientCustomBuildPage() {
         paymentType: "AC",
         customBuild: customBuildPayload,
       });
-      setPayModalOpen(false);
-      if (res.paymentUrl) openPaymentInBrowser(res.paymentUrl);
+      if (res.paymentUrl) setReadyUrl({ url: res.paymentUrl, provider: "ЮMoney" });
     } catch (e) {
       setPayError(e instanceof Error ? e.message : "Ошибка создания платежа");
     } finally {
@@ -163,8 +163,7 @@ export function ClientCustomBuildPage() {
         currency: cb.currency,
         promoCode: promoCode.trim() || undefined,
       });
-      setPayModalOpen(false);
-      if (res.payUrl) openPaymentInBrowser(res.payUrl);
+      if (res.payUrl) setReadyUrl({ url: res.payUrl, provider: "Crypto Bot" });
     } catch (e) {
       setPayError(e instanceof Error ? e.message : "Ошибка создания платежа");
     } finally {
@@ -182,8 +181,43 @@ export function ClientCustomBuildPage() {
         currency: cb.currency,
         promoCode: promoCode.trim() || undefined,
       });
-      setPayModalOpen(false);
-      if (res.payUrl) openPaymentInBrowser(res.payUrl);
+      if (res.payUrl) setReadyUrl({ url: res.payUrl, provider: "Heleket" });
+    } catch (e) {
+      setPayError(e instanceof Error ? e.message : "Ошибка создания платежа");
+    } finally {
+      setPayLoading(false);
+    }
+  }
+
+  async function payByLava() {
+    if (!token || !cb) return;
+    setPayError(null);
+    setPayLoading(true);
+    try {
+      const res = await api.lavaCreatePayment(token, {
+        customBuild: customBuildPayload,
+        currency: cb.currency,
+        promoCode: promoCode.trim() || undefined,
+      });
+      if (res.payUrl) setReadyUrl({ url: res.payUrl, provider: "LAVA" });
+    } catch (e) {
+      setPayError(e instanceof Error ? e.message : "Ошибка создания платежа");
+    } finally {
+      setPayLoading(false);
+    }
+  }
+
+  async function payByOverpay() {
+    if (!token || !cb) return;
+    setPayError(null);
+    setPayLoading(true);
+    try {
+      const res = await api.overpayCreatePayment(token, {
+        customBuild: customBuildPayload,
+        currency: cb.currency,
+        promoCode: promoCode.trim() || undefined,
+      });
+      if (res.payUrl) setReadyUrl({ url: res.payUrl, provider: "Overpay" });
     } catch (e) {
       setPayError(e instanceof Error ? e.message : "Ошибка создания платежа");
     } finally {
@@ -319,7 +353,14 @@ export function ClientCustomBuildPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={payModalOpen} onOpenChange={setPayModalOpen}>
+      <Dialog
+        open={payModalOpen}
+        onOpenChange={(open) => {
+          if (payLoading) return;
+          setPayModalOpen(open);
+          if (!open) setReadyUrl(null);
+        }}
+      >
         <DialogContent className={cn("sm:max-w-md", isMobileOrMiniapp && "max-w-[calc(100vw-2rem)] rounded-[2rem]")}>
           <DialogHeader>
             <DialogTitle>Оплата — Гибкий тариф</DialogTitle>
@@ -328,6 +369,15 @@ export function ClientCustomBuildPage() {
             </DialogDescription>
           </DialogHeader>
 
+          {readyUrl ? (
+            <PayNowPanel
+              url={readyUrl.url}
+              provider={readyUrl.provider}
+              onBack={() => setReadyUrl(null)}
+              onPaid={() => { setPayModalOpen(false); setReadyUrl(null); }}
+              compact={isMobileOrMiniapp}
+            />
+          ) : (<>
           {/* Промокод — как в тарифах */}
           <div className={cn("space-y-3", !isMobileOrMiniapp && "bg-background/40 border border-border/50 rounded-2xl p-4 focus-within:border-primary/50 focus-within:bg-background/60 hover:border-primary/30 transition-all duration-300 relative overflow-hidden group")}>
             {!isMobileOrMiniapp && <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />}
@@ -393,138 +443,84 @@ export function ClientCustomBuildPage() {
                 </Button>
               )}
 
-              {config?.cryptopayEnabled && (
-                <Button
-                  size="lg"
-                  variant="outline"
-                  onClick={payByCryptopay}
-                  disabled={payLoading}
-                  className={cn("w-full", isMobileOrMiniapp ? "justify-start gap-4 px-6 h-16 rounded-2xl border-white/5 bg-card/40 hover:bg-card/60" : "gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative")}
-                >
-                  {isMobileOrMiniapp ? (
-                    <>
-                      <div className="p-2 rounded-xl bg-yellow-500/10">
-                        {payLoading ? <Loader2 className="h-6 w-6 animate-spin text-yellow-500" /> : <Zap className="h-6 w-6 text-yellow-500" />}
-                      </div>
-                      <span className="text-base font-bold">Crypto Bot</span>
-                    </>
-                  ) : (
-                    <>
-                      <div className="absolute left-6 p-1.5 rounded-lg bg-yellow-500/10 group-hover:bg-yellow-500/20 transition-colors">
-                        {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-yellow-500" /> : <Zap className="h-5 w-5 text-yellow-500" />}
-                      </div>
-                      <span className="text-base font-medium">⚡ Crypto Bot (Криптовалюта)</span>
-                    </>
-                  )}
-                </Button>
-              )}
+              {(() => {
+                const providerLabel = (id: string, fallback: string) => paymentProviders.find((p) => p.id === id)?.label || fallback;
+                const btnCls = cn("w-full", isMobileOrMiniapp ? "justify-start gap-4 px-6 h-16 rounded-2xl border-white/5 bg-card/40 hover:bg-card/60" : "gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative");
 
-              {config?.heleketEnabled && (
-                <Button
-                  size="lg"
-                  variant="outline"
-                  onClick={payByHeleket}
-                  disabled={payLoading}
-                  className={cn("w-full", isMobileOrMiniapp ? "justify-start gap-4 px-6 h-16 rounded-2xl border-white/5 bg-card/40 hover:bg-card/60" : "gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative")}
-                >
-                  {isMobileOrMiniapp ? (
-                    <>
-                      <div className="p-2 rounded-xl bg-orange-500/10">
-                        {payLoading ? <Loader2 className="h-6 w-6 animate-spin text-orange-500" /> : <Zap className="h-6 w-6 text-orange-500" />}
-                      </div>
-                      <span className="text-base font-bold">Heleket</span>
-                    </>
-                  ) : (
-                    <>
-                      <div className="absolute left-6 p-1.5 rounded-lg bg-orange-500/10 group-hover:bg-orange-500/20 transition-colors">
-                        {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-orange-500" /> : <Zap className="h-5 w-5 text-orange-500" />}
-                      </div>
-                      <span className="text-base font-medium">⚡ Heleket (Криптовалюта)</span>
-                    </>
-                  )}
-                </Button>
-              )}
+                const colorMap: Record<string, { bg10: string; bg20: string; text: string }> = {
+                  cryptopay: { bg10: "bg-yellow-500/10", bg20: "group-hover:bg-yellow-500/20", text: "text-yellow-500" },
+                  heleket: { bg10: "bg-orange-500/10", bg20: "group-hover:bg-orange-500/20", text: "text-orange-500" },
+                  yookassa: { bg10: "bg-green-500/10", bg20: "group-hover:bg-green-500/20", text: "text-green-500" },
+                  yoomoney: { bg10: "bg-green-500/10", bg20: "group-hover:bg-green-500/20", text: "text-green-500" },
+                  lava: { bg10: "bg-sky-500/10", bg20: "group-hover:bg-sky-500/20", text: "text-sky-500" },
+                  overpay: { bg10: "bg-indigo-500/10", bg20: "group-hover:bg-indigo-500/20", text: "text-indigo-500" },
+                };
 
-              {config?.yookassaEnabled && cb.currency.toUpperCase() === "RUB" && (
-                <Button
-                  size="lg"
-                  variant="outline"
-                  onClick={payByYookassa}
-                  disabled={payLoading}
-                  className={cn("w-full", isMobileOrMiniapp ? "justify-start gap-4 px-6 h-16 rounded-2xl border-white/5 bg-card/40 hover:bg-card/60" : "gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative")}
-                >
-                  {isMobileOrMiniapp ? (
-                    <>
-                      <div className="p-2 rounded-xl bg-green-500/10">
-                        {payLoading ? <Loader2 className="h-6 w-6 animate-spin text-green-500" /> : <CreditCard className="h-6 w-6 text-green-500" />}
-                      </div>
-                      <span className="text-base font-bold">СБП / Карты РФ</span>
-                    </>
-                  ) : (
-                    <>
-                      <div className="absolute left-6 p-1.5 rounded-lg bg-green-500/10 group-hover:bg-green-500/20 transition-colors">
-                        {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-green-500" /> : <CreditCard className="h-5 w-5 text-green-500" />}
-                      </div>
-                      <span className="text-base font-medium">💳 СБП</span>
-                    </>
-                  )}
-                </Button>
-              )}
+                type ProviderEntry = { id: string; enabled: boolean; onClick: () => void; label: string; icon: "crypto" | "card" };
+                const providers: ProviderEntry[] = [
+                  { id: "cryptopay", enabled: !!config?.cryptopayEnabled, onClick: () => payByCryptopay(), label: providerLabel("cryptopay", "Crypto Bot"), icon: "crypto" },
+                  { id: "heleket", enabled: !!config?.heleketEnabled, onClick: () => payByHeleket(), label: providerLabel("heleket", "Heleket"), icon: "crypto" },
+                  { id: "yookassa", enabled: !!config?.yookassaEnabled && cb.currency.toUpperCase() === "RUB", onClick: () => payByYookassa(), label: providerLabel("yookassa", "СБП / Карты РФ"), icon: "card" },
+                  { id: "yoomoney", enabled: !!config?.yoomoneyEnabled && cb.currency.toUpperCase() === "RUB", onClick: () => payByYoomoney(), label: providerLabel("yoomoney", "ЮMoney / Карты"), icon: "card" },
+                  { id: "lava", enabled: !!config?.lavaEnabled && cb.currency.toUpperCase() === "RUB", onClick: () => payByLava(), label: providerLabel("lava", "LAVA"), icon: "card" },
+                  { id: "overpay", enabled: !!config?.overpayEnabled, onClick: () => payByOverpay(), label: providerLabel("overpay", "Overpay"), icon: "card" },
+                ];
 
-              {config?.yoomoneyEnabled && cb.currency.toUpperCase() === "RUB" && (
-                <Button
-                  size="lg"
-                  variant="outline"
-                  onClick={payByYoomoney}
-                  disabled={payLoading}
-                  className={cn("w-full", isMobileOrMiniapp ? "justify-start gap-4 px-6 h-16 rounded-2xl border-white/5 bg-card/40 hover:bg-card/60" : "gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative")}
-                >
-                  {isMobileOrMiniapp ? (
-                    <>
-                      <div className="p-2 rounded-xl bg-green-500/10">
-                        {payLoading ? <Loader2 className="h-6 w-6 animate-spin text-green-500" /> : <CreditCard className="h-6 w-6 text-green-500" />}
-                      </div>
-                      <span className="text-base font-bold">ЮMoney / Карты</span>
-                    </>
-                  ) : (
-                    <>
-                      <div className="absolute left-6 p-1.5 rounded-lg bg-green-500/10 group-hover:bg-green-500/20 transition-colors">
-                        {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-green-500" /> : <CreditCard className="h-5 w-5 text-green-500" />}
-                      </div>
-                      <span className="text-base font-medium">💳 Карты</span>
-                    </>
-                  )}
-                </Button>
-              )}
+                const sortedProviders = paymentProviders.length > 0
+                  ? paymentProviders.map((pp) => providers.find((p) => p.id === pp.id)).filter((p): p is ProviderEntry => !!p)
+                  : providers;
 
-              {(config?.plategaMethods?.length ?? 0) > 0 && config!.plategaMethods!.map((m) => (
-                <Button
-                  key={m.id}
-                  size="lg"
-                  variant="outline"
-                  onClick={() => payByPlatega(m.id)}
-                  disabled={payLoading}
-                  className={cn("w-full", isMobileOrMiniapp ? "justify-start gap-4 px-6 h-16 rounded-2xl border-white/5 bg-card/40 hover:bg-card/60" : "gap-3 hover:bg-background/80 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-xl h-14 border-border/50 group justify-center px-6 relative")}
-                >
-                  {isMobileOrMiniapp ? (
-                    <>
-                      <div className="p-2 rounded-xl bg-green-500/10">
-                        {payLoading ? <Loader2 className="h-6 w-6 animate-spin text-green-500" /> : <CreditCard className="h-6 w-6 text-green-500" />}
-                      </div>
-                      <span className="text-base font-bold">{m.label}</span>
-                    </>
-                  ) : (
-                    <>
-                      <div className="absolute left-6 p-1.5 rounded-lg bg-green-500/10 group-hover:bg-green-500/20 transition-colors">
-                        {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-green-500" /> : <CreditCard className="h-5 w-5 text-green-500" />}
-                      </div>
-                      <span className="text-base font-medium">💳 {m.label}</span>
-                    </>
-                  )}
-                </Button>
-              ))}
+                const plategaMethods = config?.plategaMethods ?? [];
+
+                return (
+                  <>
+                    {sortedProviders.filter((p) => p.enabled).map((p) => {
+                      const c = colorMap[p.id] ?? colorMap.yookassa;
+                      return (
+                      <Button key={p.id} size="lg" variant="outline" onClick={p.onClick} disabled={payLoading} className={btnCls}>
+                        {isMobileOrMiniapp ? (
+                          <>
+                            <div className={cn("p-2 rounded-xl", c.bg10)}>
+                              {payLoading ? <Loader2 className={cn("h-6 w-6 animate-spin", c.text)} /> : p.icon === "crypto" ? <Zap className={cn("h-6 w-6", c.text)} /> : <CreditCard className={cn("h-6 w-6", c.text)} />}
+                            </div>
+                            <span className="text-base font-bold">{p.label}</span>
+                          </>
+                        ) : (
+                          <>
+                            <div className={cn("absolute left-6 p-1.5 rounded-lg transition-colors", c.bg10, c.bg20)}>
+                              {payLoading ? <Loader2 className={cn("h-5 w-5 animate-spin", c.text)} /> : p.icon === "crypto" ? <Zap className={cn("h-5 w-5", c.text)} /> : <CreditCard className={cn("h-5 w-5", c.text)} />}
+                            </div>
+                            <span className="text-base font-medium">{p.icon === "crypto" ? "⚡" : "💳"} {p.label}</span>
+                          </>
+                        )}
+                      </Button>
+                      );
+                    })}
+                    {plategaMethods.map((m) => (
+                      <Button key={m.id} size="lg" variant="outline" onClick={() => payByPlatega(m.id)} disabled={payLoading} className={btnCls}>
+                        {isMobileOrMiniapp ? (
+                          <>
+                            <div className="p-2 rounded-xl bg-green-500/10">
+                              {payLoading ? <Loader2 className="h-6 w-6 animate-spin text-green-500" /> : <CreditCard className="h-6 w-6 text-green-500" />}
+                            </div>
+                            <span className="text-base font-bold">{m.label}</span>
+                          </>
+                        ) : (
+                          <>
+                            <div className="absolute left-6 p-1.5 rounded-lg bg-green-500/10 group-hover:bg-green-500/20 transition-colors">
+                              {payLoading ? <Loader2 className="h-5 w-5 animate-spin text-green-500" /> : <CreditCard className="h-5 w-5 text-green-500" />}
+                            </div>
+                            <span className="text-base font-medium">💳 {m.label}</span>
+                          </>
+                        )}
+                      </Button>
+                    ))}
+                  </>
+                );
+              })()}
             </div>
           </div>
+          </>)}
         </DialogContent>
       </Dialog>
     </div>

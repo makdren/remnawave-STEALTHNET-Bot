@@ -2,6 +2,7 @@
  * Рассылка: отправка сообщения клиентам через Telegram и/или Email.
  */
 
+import { randomUUID } from "node:crypto";
 import { prisma } from "../../db.js";
 import { getSystemConfig } from "../client/client.service.js";
 import { sendEmail } from "../mail/mail.service.js";
@@ -151,9 +152,21 @@ export type BroadcastAttachment = {
   originalname: string;
 };
 
+export type BroadcastProgress = {
+  totalTelegram: number;
+  totalEmail: number;
+  sentTelegram: number;
+  sentEmail: number;
+  failedTelegram: number;
+  failedEmail: number;
+  currentChannel?: "telegram" | "email";
+};
+
 /**
  * Запустить рассылку: Telegram и/или Email.
  * subject используется только для email. attachment — опциональное изображение или файл.
+ * onProgress — опциональный коллбек для трекинга прогресса (обновляется после
+ * каждого отправленного/зафейленного получателя и в момент переключения канала).
  */
 export async function runBroadcast(options: {
   channel: BroadcastChannel;
@@ -162,8 +175,9 @@ export async function runBroadcast(options: {
   attachment?: BroadcastAttachment;
   buttonText?: string;
   buttonUrl?: string;
+  onProgress?: (p: BroadcastProgress) => void;
 }): Promise<BroadcastResult> {
-  const { channel, subject, message, attachment, buttonText, buttonUrl } = options;
+  const { channel, subject, message, attachment, buttonText, buttonUrl, onProgress } = options;
   const result: BroadcastResult = {
     ok: true,
     sentTelegram: 0,
@@ -179,7 +193,31 @@ export async function runBroadcast(options: {
   const isImage = attachment?.mimetype?.startsWith("image/") ?? false;
   const replyMarkup = buildReplyMarkup(buttonText, buttonUrl, config.publicAppUrl);
 
+  // Предварительно считаем получателей, чтобы фронт мог сразу показать "X из Y".
+  const [totalTelegram, totalEmail] = await Promise.all([
+    doTelegram ? prisma.client.count({ where: { telegramId: { not: null } } }) : Promise.resolve(0),
+    doEmail ? prisma.client.count({ where: { email: { not: null } } }) : Promise.resolve(0),
+  ]);
+  const progress: BroadcastProgress = {
+    totalTelegram,
+    totalEmail,
+    sentTelegram: 0,
+    sentEmail: 0,
+    failedTelegram: 0,
+    failedEmail: 0,
+  };
+  const report = () => {
+    progress.sentTelegram = result.sentTelegram;
+    progress.sentEmail = result.sentEmail;
+    progress.failedTelegram = result.failedTelegram;
+    progress.failedEmail = result.failedEmail;
+    onProgress?.(progress);
+  };
+  report();
+
   if (doTelegram) {
+    progress.currentChannel = "telegram";
+    report();
     const botToken = config.telegramBotToken?.trim();
     if (!botToken) {
       result.errors.push("Telegram: не задан токен бота (Настройки → Почта и Telegram)");
@@ -219,11 +257,14 @@ export async function runBroadcast(options: {
           result.failedTelegram++;
           if (result.errors.length < 10) result.errors.push(`Telegram ${tid}: ${send.error ?? "error"}`);
         }
+        report();
       }
     }
   }
 
   if (doEmail) {
+    progress.currentChannel = "email";
+    report();
     const smtpConfig = {
       host: config.smtpHost || "",
       port: config.smtpPort ?? 587,
@@ -258,6 +299,7 @@ export async function runBroadcast(options: {
           result.failedEmail++;
           if (result.errors.length < 10) result.errors.push(`Email ${email}: ${send.error ?? "error"}`);
         }
+        report();
       }
     }
   }
@@ -275,4 +317,84 @@ export async function getBroadcastRecipientsCount(): Promise<{ withTelegram: num
     prisma.client.count({ where: { email: { not: null } } }),
   ]);
   return { withTelegram, withEmail };
+}
+
+// ───────────────────────── Background jobs ─────────────────────────
+// Рассылка для больших аудиторий занимает минуты; HTTP-запрос на фронтенде
+// обрывается по таймауту (nginx/браузер), хотя сама отправка на бэкенде
+// успешно завершается. Поэтому запускаем рассылку как фоновую задачу и
+// отдаём на фронт jobId — он опрашивает статус.
+
+export type BroadcastJobStatus = "running" | "completed" | "error";
+
+export type BroadcastJob = {
+  id: string;
+  status: BroadcastJobStatus;
+  startedAt: Date;
+  finishedAt?: Date;
+  error?: string;
+  result?: BroadcastResult;
+  progress: BroadcastProgress;
+};
+
+const broadcastJobs = new Map<string, BroadcastJob>();
+
+// Автоочистка: удаляем завершённые джобы старше 1 часа раз в 10 минут.
+setInterval(() => {
+  const cutoff = Date.now() - 60 * 60 * 1000;
+  for (const [id, job] of broadcastJobs) {
+    if (job.finishedAt && job.finishedAt.getTime() < cutoff) broadcastJobs.delete(id);
+  }
+}, 10 * 60 * 1000).unref?.();
+
+export function startBroadcastJob(options: {
+  channel: BroadcastChannel;
+  subject: string;
+  message: string;
+  attachment?: BroadcastAttachment;
+  buttonText?: string;
+  buttonUrl?: string;
+}): string {
+  const jobId = randomUUID();
+  const job: BroadcastJob = {
+    id: jobId,
+    status: "running",
+    startedAt: new Date(),
+    progress: {
+      totalTelegram: 0,
+      totalEmail: 0,
+      sentTelegram: 0,
+      sentEmail: 0,
+      failedTelegram: 0,
+      failedEmail: 0,
+    },
+  };
+  broadcastJobs.set(jobId, job);
+
+  // Запускаем в фоне — HTTP-запрос на POST /admin/broadcast возвращается сразу
+  // с jobId, а реальная отправка продолжается без таймаут-рисков.
+  void (async () => {
+    try {
+      job.result = await runBroadcast({
+        ...options,
+        onProgress: (p) => {
+          // Копируем в состояние джобы, чтобы статус-эндпоинт всегда
+          // возвращал актуальные счётчики.
+          job.progress = { ...p };
+        },
+      });
+      job.status = "completed";
+    } catch (e) {
+      job.status = "error";
+      job.error = e instanceof Error ? e.message : String(e);
+    } finally {
+      job.finishedAt = new Date();
+    }
+  })();
+
+  return jobId;
+}
+
+export function getBroadcastJob(jobId: string): BroadcastJob | null {
+  return broadcastJobs.get(jobId) ?? null;
 }

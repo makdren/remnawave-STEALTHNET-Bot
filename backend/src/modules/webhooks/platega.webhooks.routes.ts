@@ -14,6 +14,7 @@ import { createSingboxSlotsByPaymentId } from "../singbox/singbox-slots-activati
 import { applyExtraOptionByPaymentId } from "../extra-options/extra-options.service.js";
 import { distributeReferralRewards } from "../referral/referral.service.js";
 import { notifyBalanceToppedUp, notifyTariffActivated, notifyProxySlotsCreated, notifySingboxSlotsCreated } from "../notification/telegram-notify.service.js";
+import { recordPromoCodeUsageFromPayment } from "../payment/promo-code-usage.util.js";
 
 function hasExtraOptionInMetadata(metadata: string | null): boolean {
   if (!metadata?.trim()) return false;
@@ -314,6 +315,7 @@ plategaWebhooksRouter.post("/platega", async (req, res) => {
 
     // Надёжная пост-обработка: даже если платеж уже PAID, повторный webhook
     // догонит активацию тарифа/рефералку.
+    await recordPromoCodeUsageFromPayment(payment.id);
     await ensureTariffActivation(payment.id);
     if (payment.tariffId) {
       await notifyTariffActivated(payment.clientId, payment.id).catch(() => {});

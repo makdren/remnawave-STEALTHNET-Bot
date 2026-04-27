@@ -9,7 +9,11 @@ RUN npm run build
 
 FROM node:22-alpine
 
-RUN apk add --no-cache postgresql-client
+# Fallback-зеркала для apk: dl-cdn.alpinelinux.org иногда недоступен.
+RUN set -eux; \
+    apk add --no-cache postgresql-client \
+    || (printf 'https://mirror.yandex.ru/mirrors/alpine/v3.19/main\nhttps://mirror.yandex.ru/mirrors/alpine/v3.19/community\n' > /etc/apk/repositories && apk update && apk add --no-cache postgresql-client) \
+    || (printf 'https://mirrors.tuna.tsinghua.edu.cn/alpine/v3.19/main\nhttps://mirrors.tuna.tsinghua.edu.cn/alpine/v3.19/community\n' > /etc/apk/repositories && apk update && apk add --no-cache postgresql-client)
 
 WORKDIR /app
 ENV NODE_ENV=production

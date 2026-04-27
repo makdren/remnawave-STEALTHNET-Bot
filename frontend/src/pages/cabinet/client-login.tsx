@@ -41,6 +41,7 @@ export function ClientLoginPage() {
   const [tgAuthPending, setTgAuthPending] = useState(false);
   const [showTgFallback, setShowTgFallback] = useState(false);
   const [telegramBotId, setTelegramBotId] = useState<string | null>(null);
+  const [tgPreToken, setTgPreToken] = useState<string | null>(null);
   const tgPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const tgFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [searchParams] = useSearchParams();
@@ -108,24 +109,44 @@ export function ClientLoginPage() {
     };
   }, []);
 
-  const handleTelegramLogin = useCallback(async () => {
-    if (!telegramBotUsername || tgAuthPending) return;
-    setError("");
-    setTgAuthPending(true);
-    setShowTgFallback(false);
+  useEffect(() => {
+    if (!telegramBotUsername) return;
+    if (tgPreToken) return;
+    if (tgAuthPending) return;
+    let cancelled = false;
+    let attempt = 0;
+    const maxRetries = 2;
 
-    try {
-      const { token } = await api.clientTelegramLoginToken();
+    const fetchToken = () => {
+      api
+        .clientTelegramLoginToken()
+        .then(({ token }) => {
+          if (!cancelled) setTgPreToken(token);
+        })
+        .catch(() => {
+          attempt++;
+          if (!cancelled && attempt <= maxRetries) {
+            setTimeout(fetchToken, 1500 * attempt);
+          }
+        });
+    };
+    fetchToken();
 
-      // Открываем Telegram через deep link (tg:// протокол — работает без VPN)
-      const deepLink = `tg://resolve?domain=${telegramBotUsername}&start=auth_${token}`;
-      window.open(deepLink, "_blank");
+    return () => {
+      cancelled = true;
+    };
+  }, [telegramBotUsername, tgPreToken, tgAuthPending]);
 
-      // Через 15 секунд показываем фоллбэк-кнопку (веб-версия OAuth)
+  // Запуск поллинга статуса подтверждения токена ботом.
+  const startTelegramPolling = useCallback(
+    (token: string) => {
+      setError("");
+      setTgAuthPending(true);
+      setShowTgFallback(false);
+
       if (tgFallbackTimerRef.current) clearTimeout(tgFallbackTimerRef.current);
       tgFallbackTimerRef.current = setTimeout(() => setShowTgFallback(true), 15_000);
 
-      // Поллинг каждые 2 секунды
       if (tgPollRef.current) clearInterval(tgPollRef.current);
       let attempts = 0;
       const maxAttempts = 150; // 5 минут
@@ -150,11 +171,57 @@ export function ClientLoginPage() {
           // Ошибка поллинга — продолжаем
         }
       }, 2000);
-    } catch (err) {
-      setTgAuthPending(false);
-      setError(err instanceof Error ? err.message : t("cabinet.login.error_telegram"));
+    },
+    [loginByTelegramDeepLink, navigate, t],
+  );
+
+  const buildTelegramDeepLink = useCallback(
+    (token: string) => {
+      if (!telegramBotUsername) return null;
+      const bot = telegramBotUsername.replace(/^@/, "");
+      return `https://t.me/${encodeURIComponent(bot)}?start=auth_${encodeURIComponent(token)}`;
+    },
+    [telegramBotUsername],
+  );
+
+  const handleTelegramLogin = useCallback(() => {
+    if (loading || tgAuthPending || !telegramBotUsername) return;
+
+    if (tgPreToken) {
+      const url = buildTelegramDeepLink(tgPreToken);
+      if (!url) return;
+      const token = tgPreToken;
+      setTgPreToken(null);
+      startTelegramPolling(token);
+      window.open(url, "_blank");
+      return;
     }
-  }, [telegramBotUsername, tgAuthPending, loginByTelegramDeepLink, navigate, t]);
+
+    // Токен ещё не подгрузился — синхронно открываем пустую вкладку,
+    // затем async-получаем токен и навигируем.
+    const newTab = window.open("about:blank", "_blank");
+
+    (async () => {
+      try {
+        const { token } = await api.clientTelegramLoginToken();
+        const url = buildTelegramDeepLink(token);
+        if (!url) {
+          if (newTab && !newTab.closed) newTab.close();
+          setError(t("cabinet.login.error_telegram"));
+          return;
+        }
+        startTelegramPolling(token);
+        if (newTab && !newTab.closed) {
+          newTab.location.href = url;
+        } else {
+          window.open(url, "_blank");
+        }
+      } catch (err) {
+        if (newTab && !newTab.closed) newTab.close();
+        setError(err instanceof Error ? err.message : t("cabinet.login.error_telegram"));
+      }
+    })();
+  }, [loading, tgAuthPending, telegramBotUsername, tgPreToken, buildTelegramDeepLink, startTelegramPolling, t]);
 
   // Обработка OAuth авторизации через Telegram (popup)
   const tgOAuthPopupRef = useRef<Window | null>(null);
@@ -366,7 +433,7 @@ export function ClientLoginPage() {
       >
         <div className="flex items-center justify-center gap-2 mb-6 min-h-[2.5rem]">
           {brand.logo ? (
-            <span className="flex items-center justify-center h-11 px-3 rounded-xl dark:bg-transparent bg-zinc-900">
+            <span className="flex items-center justify-center h-11 px-3">
               <img src={brand.logo} alt="" className="h-8 max-w-[140px] object-contain" />
             </span>
           ) : (

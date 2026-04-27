@@ -6,11 +6,12 @@ import {
   type CreateSingboxNodeResponse,
   type SingboxNodeDetail,
 } from "@/lib/api";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Server, Plus, Copy, Check, Loader2, Pencil, Trash2, FileJson, Layers, Tag } from "lucide-react";
+import { motion } from "framer-motion";
+import { Server, Plus, Copy, Check, Loader2, Pencil, Trash2, FileJson, Layers, Tag, Boxes } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import type { SingboxCategoryItem, SingboxTariffListItem } from "@/lib/api";
 
 function formatBytes(s: string): string {
@@ -46,13 +48,19 @@ function formatDate(iso: string | null): string {
 
 function statusBadge(status: string) {
   const map: Record<string, string> = {
-    ONLINE: "bg-green-500/15 text-green-700 dark:text-green-400",
-    OFFLINE: "bg-muted text-muted-foreground",
-    DISABLED: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+    ONLINE: "bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border-emerald-500/20",
+    OFFLINE: "bg-foreground/[0.05] dark:bg-white/[0.05] text-muted-foreground border-white/10",
+    DISABLED: "bg-amber-500/10 text-amber-500 dark:text-amber-400 border-amber-500/20",
+  };
+  const dotColor: Record<string, string> = {
+    ONLINE: "bg-emerald-400 shadow-[0_0_4px_#10b981]",
+    OFFLINE: "bg-muted-foreground/40",
+    DISABLED: "bg-amber-400 shadow-[0_0_4px_#fbbf24]",
   };
   const label = status === "ONLINE" ? "Онлайн" : status === "DISABLED" ? "Отключена" : "Офлайн";
   return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${map[status] ?? "bg-muted"}`}>
+    <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium backdrop-blur-md", map[status] ?? map.OFFLINE)}>
+      <span className={cn("h-1.5 w-1.5 rounded-full", dotColor[status] ?? dotColor.OFFLINE)} />
       {label}
     </span>
   );
@@ -370,36 +378,47 @@ export function SingboxPage() {
   }
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2">
-            <Server className="h-6 w-6" />
-            Sing-box
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Ноды VLESS / Shadowsocks / Trojan / Hysteria2. Категории и тарифы для продажи доступов.
-          </p>
+    <div className="space-y-5 px-4 sm:px-6 md:px-8 pt-6 pb-10 relative">
+      <div className="fixed -z-10 bg-primary/15 blur-[120px] top-[-50px] left-[-50px] w-[300px] h-[300px] rounded-full pointer-events-none" />
+      <div className="fixed -z-10 bg-purple-500/10 blur-[100px] top-[20%] right-[-50px] w-[250px] h-[250px] rounded-full pointer-events-none" />
+
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between bg-background/40 backdrop-blur-3xl border border-white/10 p-6 rounded-[2rem] shadow-2xl"
+      >
+        <div className="flex items-center gap-4">
+          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center shadow-inner border border-white/10">
+            <Boxes className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60">
+              Sing-box
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Ноды VLESS / Shadowsocks / Trojan / Hysteria2. Категории и тарифы для продажи доступов.
+            </p>
+          </div>
         </div>
         {activeTab === "nodes" && (
-          <Button onClick={() => { setAddOpen(true); setAddResult(null); setNewNodeName(""); setNewNodeProtocol("VLESS"); setNewNodePort("443"); }}>
-            <Plus className="h-4 w-4 mr-2" />
+          <Button onClick={() => { setAddOpen(true); setAddResult(null); setNewNodeName(""); setNewNodeProtocol("VLESS"); setNewNodePort("443"); }} className="gap-2 rounded-xl">
+            <Plus className="h-4 w-4" />
             Добавить ноду
           </Button>
         )}
-      </div>
+      </motion.div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full max-w-md grid-cols-3">
-          <TabsTrigger value="nodes" className="flex items-center gap-1.5">
+        <TabsList className="grid w-full max-w-md grid-cols-3 bg-foreground/[0.03] dark:bg-white/[0.02] border border-white/5 rounded-xl p-1">
+          <TabsTrigger value="nodes" className="flex items-center gap-1.5 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md">
             <Server className="h-4 w-4" />
             Ноды
           </TabsTrigger>
-          <TabsTrigger value="categories" className="flex items-center gap-1.5">
+          <TabsTrigger value="categories" className="flex items-center gap-1.5 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md">
             <Layers className="h-4 w-4" />
             Категории
           </TabsTrigger>
-          <TabsTrigger value="tariffs" className="flex items-center gap-1.5">
+          <TabsTrigger value="tariffs" className="flex items-center gap-1.5 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md">
             <Tag className="h-4 w-4" />
             Тарифы
           </TabsTrigger>
@@ -407,233 +426,273 @@ export function SingboxPage() {
 
         <TabsContent value="nodes" className="mt-4">
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
+        <Card className="bg-background/60 backdrop-blur-3xl border-white/10 rounded-[2rem] py-16 shadow-xl flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Загружаем ноды…</p>
+        </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Ноды</CardTitle>
-              <CardDescription>Список sing-box нод</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {nodes.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Нод пока нет. Нажмите «Добавить ноду».</p>
-              ) : (
-                <ul className="space-y-2">
-                  {nodes.map((n) => (
-                    <li
-                      key={n.id}
-                      className={`flex items-center justify-between rounded-lg border p-3 cursor-pointer transition-colors ${
-                        detailId === n.id ? "border-primary bg-primary/5" : "hover:bg-muted/50"
-                      }`}
-                      onClick={() => setDetailId(n.id)}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <Server className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        <span className="font-medium truncate">{n.name || n.id.slice(0, 8)}</span>
-                        {statusBadge(n.status)}
-                        <span className="text-xs text-muted-foreground">{n.protocol}</span>
-                        {n.hasCustomConfig && (
-                          <span title="Есть кастомный конфиг"><FileJson className="h-3.5 w-3.5 text-muted-foreground" /></span>
-                        )}
+          <Card className="bg-background/60 backdrop-blur-3xl border-white/10 rounded-[2rem] p-5 shadow-xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-primary/15 to-primary/5 border border-white/10 flex items-center justify-center shadow-inner shrink-0">
+                <Server className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold tracking-tight">Ноды</h3>
+                <p className="text-xs text-muted-foreground">Список sing-box нод</p>
+              </div>
+            </div>
+            {nodes.length === 0 ? (
+              <p className="text-muted-foreground text-sm py-6 text-center">Нод пока нет. Нажмите «Добавить ноду».</p>
+            ) : (
+              <ul className="space-y-2">
+                {nodes.map((n) => (
+                  <motion.li
+                    key={n.id}
+                    whileHover={{ y: -1 }}
+                    className={cn(
+                      "relative overflow-hidden flex items-center justify-between gap-2 rounded-xl border p-3 cursor-pointer transition-all backdrop-blur-md",
+                      detailId === n.id
+                        ? "border-primary/40 bg-primary/5 shadow-md"
+                        : "border-white/10 bg-foreground/[0.02] dark:bg-white/[0.02] hover:bg-foreground/[0.05] dark:hover:bg-white/[0.04] hover:border-white/20"
+                    )}
+                    onClick={() => setDetailId(n.id)}
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 border border-white/10 flex items-center justify-center shrink-0">
+                        <Server className="h-4 w-4 text-primary" />
                       </div>
-                      <span className="text-xs text-muted-foreground">{n.slotsCount} сл.</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-medium truncate">{n.name || n.id.slice(0, 8)}</span>
+                          {n.hasCustomConfig && (
+                            <FileJson className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {statusBadge(n.status)}
+                          <span className="text-[10px] text-muted-foreground">{n.protocol}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <span className="inline-flex items-center rounded-full bg-foreground/[0.05] dark:bg-white/[0.05] border border-white/10 px-2 py-0.5 text-[10px] text-muted-foreground shrink-0">
+                      {n.slotsCount} сл.
+                    </span>
+                  </motion.li>
+                ))}
+              </ul>
+            )}
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Детали ноды</CardTitle>
-              <CardDescription>
-                {detailId ? (detailLoading ? "Загрузка…" : "Клик по ноде — детали и конфиг") : "Выберите ноду"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {!detailId ? (
-                <p className="text-muted-foreground text-sm">Выберите ноду из списка слева.</p>
-              ) : detailLoading ? (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <Card className="bg-background/60 backdrop-blur-3xl border-white/10 rounded-[2rem] p-5 shadow-xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-cyan-500/5 border border-white/10 flex items-center justify-center shadow-inner shrink-0">
+                <FileJson className="h-5 w-5 text-cyan-500 dark:text-cyan-400" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold tracking-tight">Детали ноды</h3>
+                <p className="text-xs text-muted-foreground">
+                  {detailId ? (detailLoading ? "Загрузка…" : "Клик по ноде — детали и конфиг") : "Выберите ноду"}
+                </p>
+              </div>
+            </div>
+            {!detailId ? (
+              <p className="text-muted-foreground text-sm py-6 text-center">Выберите ноду из списка слева.</p>
+            ) : detailLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : detailNode ? (
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-white/5 bg-foreground/[0.03] dark:bg-white/[0.02] p-4 grid gap-2 text-sm">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Название</span><span className="font-medium">{detailNode.name || "—"}</span></div>
+                  <div className="flex justify-between items-center"><span className="text-muted-foreground">Статус</span>{statusBadge(detailNode.status)}</div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Хост</span><span className="font-mono text-xs">{detailNode.publicHost || "—"}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Порт / протокол</span><span className="font-mono text-xs">{detailNode.port} / {detailNode.protocol}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Heartbeat</span><span className="text-xs">{formatDate(detailNode.lastSeenAt)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Трафик</span><span className="text-xs tabular-nums">↓ {formatBytes(detailNode.trafficInBytes)} ↑ {formatBytes(detailNode.trafficOutBytes)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Слотов</span><span className="font-semibold">{detailNode.slots.length}</span></div>
                 </div>
-              ) : detailNode ? (
-                <div className="space-y-4">
-                  <div className="grid gap-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Название</span>
-                      <span>{detailNode.name || "—"}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Статус</span>
-                      {statusBadge(detailNode.status)}
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Хост</span>
-                      <span className="font-mono text-xs">{detailNode.publicHost || "—"}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Порт / протокол</span>
-                      <span>{detailNode.port} / {detailNode.protocol}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Последний heartbeat</span>
-                      <span>{formatDate(detailNode.lastSeenAt)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Трафик</span>
-                      <span>↓ {formatBytes(detailNode.trafficInBytes)} ↑ {formatBytes(detailNode.trafficOutBytes)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Слотов</span>
-                      <span>{detailNode.slots.length}</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" onClick={openConfigEditor}>
-                      <FileJson className="h-4 w-4 mr-1" />
-                      Редактировать конфиг (JSON)
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => openEdit({ ...detailNode, slotsCount: detailNode.slots.length, hasCustomConfig: !!detailNode.customConfigJson } as SingboxNodeListItem)}>
-                      <Pencil className="h-4 w-4 mr-1" />
-                      Изменить ноду
-                    </Button>
-                    <Button variant="outline" size="sm" className="text-destructive" onClick={() => setNodeToDelete({ ...detailNode, slotsCount: detailNode.slots.length, hasCustomConfig: !!detailNode.customConfigJson } as SingboxNodeListItem)}>
-                      <Trash2 className="h-4 w-4 mr-1" />
-                      Удалить
-                    </Button>
-                  </div>
-                  {detailNode.slots.length > 0 && (
-                    <div>
-                      <Label className="text-muted-foreground">Слоты</Label>
-                      <ul className="mt-1 rounded border divide-y text-sm">
-                        {detailNode.slots.map((s) => (
-                          <li key={s.id} className="px-3 py-2 flex justify-between items-center">
-                            <span className="font-mono text-xs">{s.userIdentifier}</span>
-                            <span className="text-muted-foreground">{formatDate(s.expiresAt)}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" onClick={openConfigEditor} className="gap-1.5 rounded-xl">
+                    <FileJson className="h-4 w-4" />
+                    Конфиг JSON
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => openEdit({ ...detailNode, slotsCount: detailNode.slots.length, hasCustomConfig: !!detailNode.customConfigJson } as SingboxNodeListItem)} className="gap-1.5 rounded-xl">
+                    <Pencil className="h-4 w-4" />
+                    Изменить
+                  </Button>
+                  <Button variant="outline" size="sm" className="gap-1.5 rounded-xl border-red-500/30 text-red-500 dark:text-red-400 hover:bg-red-500/10 hover:border-red-500/50" onClick={() => setNodeToDelete({ ...detailNode, slotsCount: detailNode.slots.length, hasCustomConfig: !!detailNode.customConfigJson } as SingboxNodeListItem)}>
+                    <Trash2 className="h-4 w-4" />
+                    Удалить
+                  </Button>
                 </div>
-              ) : (
-                <p className="text-muted-foreground text-sm">Не удалось загрузить ноду.</p>
-              )}
-            </CardContent>
+                {detailNode.slots.length > 0 && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-2 block">Слоты</Label>
+                    <ul className="rounded-xl border border-white/10 bg-foreground/[0.03] dark:bg-white/[0.02] divide-y divide-white/5 text-sm overflow-hidden">
+                      {detailNode.slots.map((s) => (
+                        <li key={s.id} className="px-3 py-2 flex justify-between items-center">
+                          <span className="font-mono text-xs">{s.userIdentifier}</span>
+                          <span className="text-muted-foreground text-xs">{formatDate(s.expiresAt)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-sm">Не удалось загрузить ноду.</p>
+            )}
           </Card>
         </div>
       )}
         </TabsContent>
 
         <TabsContent value="categories" className="mt-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Категории</CardTitle>
-                <CardDescription>Группы тарифов для магазина доступов</CardDescription>
+          <Card className="bg-background/60 backdrop-blur-3xl border-white/10 rounded-[2rem] p-5 shadow-xl">
+            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-violet-500/20 to-violet-500/5 border border-white/10 flex items-center justify-center shadow-inner shrink-0">
+                  <Layers className="h-5 w-5 text-violet-500 dark:text-violet-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold tracking-tight">Категории</h3>
+                  <p className="text-xs text-muted-foreground">Группы тарифов для магазина доступов</p>
+                </div>
               </div>
-              <Button onClick={() => { setCategoryModal("add"); setCategoryForm({ name: "", sortOrder: "0" }); }}>
-                <Plus className="h-4 w-4 mr-2" />
+              <Button onClick={() => { setCategoryModal("add"); setCategoryForm({ name: "", sortOrder: "0" }); }} size="sm" className="gap-1.5 rounded-xl">
+                <Plus className="h-4 w-4" />
                 Добавить
               </Button>
-            </CardHeader>
-            <CardContent>
-              {categoriesLoading ? (
-                <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-              ) : categories.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Нет категорий. Добавьте категорию, затем тарифы.</p>
-              ) : (
-                <ul className="space-y-3">
-                  {categories.map((c) => (
-                    <li key={c.id} className="rounded-lg border p-3 flex items-center justify-between">
-                      <span className="font-medium">{c.name}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">{c.tariffs.length} тарифов</span>
-                        <Button variant="outline" size="sm" onClick={() => { setCategoryModal({ edit: c }); setCategoryForm({ name: c.name, sortOrder: String(c.sortOrder) }); }}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="outline" size="sm" className="text-destructive" onClick={() => handleDeleteCategory(c.id)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+            </div>
+            {categoriesLoading ? (
+              <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+            ) : categories.length === 0 ? (
+              <p className="text-muted-foreground text-sm py-8 text-center">Нет категорий. Добавьте категорию, затем тарифы.</p>
+            ) : (
+              <ul className="space-y-2">
+                {categories.map((c, i) => (
+                  <motion.li
+                    key={c.id}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.03 }}
+                    whileHover={{ y: -1 }}
+                    className="rounded-xl border border-white/10 bg-foreground/[0.03] dark:bg-white/[0.02] p-3 flex items-center justify-between hover:border-white/20 transition-all"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-violet-500/15 to-violet-500/5 border border-white/10 flex items-center justify-center shrink-0">
+                        <Layers className="h-4 w-4 text-violet-500 dark:text-violet-400" />
                       </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
+                      <span className="font-medium truncate">{c.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="inline-flex items-center rounded-full bg-foreground/[0.05] dark:bg-white/[0.05] border border-white/10 px-2 py-0.5 text-[10px] text-muted-foreground">
+                        {c.tariffs.length} тарифов
+                      </span>
+                      <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => { setCategoryModal({ edit: c }); setCategoryForm({ name: c.name, sortOrder: String(c.sortOrder) }); }}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg border-red-500/30 text-red-500 dark:text-red-400 hover:bg-red-500/10 hover:border-red-500/50" onClick={() => handleDeleteCategory(c.id)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </motion.li>
+                ))}
+              </ul>
+            )}
           </Card>
         </TabsContent>
 
         <TabsContent value="tariffs" className="mt-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Тарифы</CardTitle>
-                <CardDescription>Тарифы по категориям. Клиенты покупают по singboxTariffId.</CardDescription>
+          <Card className="bg-background/60 backdrop-blur-3xl border-white/10 rounded-[2rem] p-5 shadow-xl">
+            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-500/5 border border-white/10 flex items-center justify-center shadow-inner shrink-0">
+                  <Tag className="h-5 w-5 text-amber-500 dark:text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold tracking-tight">Тарифы</h3>
+                  <p className="text-xs text-muted-foreground">Тарифы по категориям. Клиенты покупают по singboxTariffId.</p>
+                </div>
               </div>
               <Button
+                size="sm"
+                className="gap-1.5 rounded-xl"
                 onClick={() => {
                   if (categories.length === 0) { alert("Сначала добавьте категорию"); return; }
                   setTariffModal({ kind: "add", categoryId: categories[0]!.id });
                   setTariffForm({ name: "", categoryId: categories[0]!.id, slotCount: "1", durationDays: "30", trafficLimitBytes: "", price: "", currency: "rub", sortOrder: "0", enabled: true });
                 }}
               >
-                <Plus className="h-4 w-4 mr-2" />
-                Добавить тариф
+                <Plus className="h-4 w-4" />
+                Добавить
               </Button>
-            </CardHeader>
-            <CardContent>
-              {categoriesLoading ? (
-                <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-              ) : categories.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Добавьте категорию во вкладке «Категории».</p>
-              ) : (
-                <div className="space-y-4">
-                  {categories.map((cat) => (
-                    <div key={cat.id}>
-                      <h3 className="font-medium text-sm text-muted-foreground mb-2">{cat.name}</h3>
-                      {cat.tariffs.length === 0 ? (
-                        <p className="text-sm text-muted-foreground ml-2">Нет тарифов</p>
-                      ) : (
-                        <ul className="space-y-2">
-                          {cat.tariffs.map((t) => (
-                            <li key={t.id} className="rounded border p-3 flex items-center justify-between">
-                              <div>
-                                <span className="font-medium">{t.name}</span>
-                                <span className="text-xs text-muted-foreground ml-2">
-                                  {t.slotCount} сл. · {t.durationDays} дн. · {formatPrice(t.price, t.currency)}
+            </div>
+            {categoriesLoading ? (
+              <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+            ) : categories.length === 0 ? (
+              <p className="text-muted-foreground text-sm py-8 text-center">Добавьте категорию во вкладке «Категории».</p>
+            ) : (
+              <div className="space-y-5">
+                {categories.map((cat) => (
+                  <div key={cat.id}>
+                    <h3 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground mb-2 px-1">{cat.name}</h3>
+                    {cat.tariffs.length === 0 ? (
+                      <p className="text-sm text-muted-foreground ml-2">Нет тарифов</p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {cat.tariffs.map((t) => (
+                          <motion.li
+                            key={t.id}
+                            whileHover={{ y: -1 }}
+                            className={cn(
+                              "rounded-xl border p-3 flex items-center justify-between gap-3 backdrop-blur-md transition-all flex-wrap",
+                              t.enabled
+                                ? "border-white/10 bg-foreground/[0.03] dark:bg-white/[0.02] hover:border-white/20"
+                                : "border-amber-500/20 bg-amber-500/[0.04] hover:border-amber-500/30"
+                            )}
+                          >
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 border border-white/10 flex items-center justify-center shrink-0">
+                                <Tag className="h-4 w-4 text-primary" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-medium truncate">{t.name}</p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  {t.slotCount} сл. · {t.durationDays} дн. · <span className="font-semibold text-emerald-500 dark:text-emerald-400">{formatPrice(t.price, t.currency)}</span>
                                   {t.trafficLimitBytes ? ` · ${formatBytes(t.trafficLimitBytes)}` : ""}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {!t.enabled && (
+                                <span className="inline-flex items-center rounded-full bg-amber-500/10 text-amber-500 dark:text-amber-400 border border-amber-500/20 px-2 py-0.5 text-[10px] font-medium">
+                                  Выкл
                                 </span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {!t.enabled && <span className="text-xs text-amber-600">Выкл</span>}
-                                <Button variant="outline" size="sm" onClick={() => {
-                                  setTariffModal({ kind: "edit", tariff: { ...t, categoryId: cat.id, categoryName: cat.name, sortOrder: 0 } as SingboxTariffListItem });
-                                  setTariffForm({
-                                    name: t.name, categoryId: cat.id, slotCount: String(t.slotCount), durationDays: String(t.durationDays),
-                                    trafficLimitBytes: t.trafficLimitBytes ? String(Math.round(Number(t.trafficLimitBytes) / (1024 ** 3))) : "", price: String(t.price), currency: t.currency.toLowerCase(), sortOrder: "0", enabled: t.enabled,
-                                  });
-                                }}>
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button variant="outline" size="sm" className="text-destructive" onClick={() => handleDeleteTariff(t.id)}>
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
+                              )}
+                              <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => {
+                                setTariffModal({ kind: "edit", tariff: { ...t, categoryId: cat.id, categoryName: cat.name, sortOrder: 0 } as SingboxTariffListItem });
+                                setTariffForm({
+                                  name: t.name, categoryId: cat.id, slotCount: String(t.slotCount), durationDays: String(t.durationDays),
+                                  trafficLimitBytes: t.trafficLimitBytes ? String(Math.round(Number(t.trafficLimitBytes) / (1024 ** 3))) : "", price: String(t.price), currency: t.currency.toLowerCase(), sortOrder: "0", enabled: t.enabled,
+                                });
+                              }}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg border-red-500/30 text-red-500 dark:text-red-400 hover:bg-red-500/10 hover:border-red-500/50" onClick={() => handleDeleteTariff(t.id)}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </motion.li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </Card>
         </TabsContent>
       </Tabs>

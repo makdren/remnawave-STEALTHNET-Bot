@@ -26,6 +26,21 @@ const EMAIL_DELAY_MS = 200;
  */
 const RECURRING_COOLDOWN_DAYS = 30;
 
+/**
+ * «Окно актуальности» для one-time триггеров (в днях).
+ *
+ * Проблема: без верхней границы критерий «createdAt <= now-delay» захватывает всех клиентов
+ * старше N дней — при создании нового правила это приводит к одномоментному спаму по
+ * всей базе. Ограничиваем выборку клиентами, у которых событие-триггер наступило недавно
+ * (в пределах этого окна).
+ *
+ * Cron работает ежедневно — 3 дня дают достаточный буфер на случай простоя / ребилдов.
+ */
+const ONE_TIME_WINDOW_DAYS = 3;
+
+/** Окно для subscription_expired: показывать только недавно истёкшие (чтобы не спамить годами). */
+const EXPIRED_WINDOW_DAYS = 7;
+
 const LOG_PREFIX = "[auto-broadcast]";
 
 export type TriggerType =
@@ -136,7 +151,71 @@ async function getRecentlySentClientIds(ruleId: string, cooldownDays: number): P
 // ─── Eligible clients ─────────────────────────────────────────────
 
 /**
- * Получить ID клиентов, подходящих под правило (с учётом дедупликации).
+ * Фильтр «есть канал, пригодный для правила». Без него клиенты без telegramId (для
+ * telegram-правила) попадали в eligible, отправка пропускалась, лог не писался —
+ * и клиент висел как «подходящий» навечно, завышая eligibleCount в админке.
+ */
+function channelFilter(channel: string): Record<string, unknown> {
+  if (channel === "telegram") return { telegramId: { not: null } };
+  if (channel === "email") return { email: { not: null } };
+  // both — хотя бы один из каналов
+  return { OR: [{ telegramId: { not: null } }, { email: { not: null } }] };
+}
+
+/**
+ * Стэкинг дат подписки, как в activateTariffForClient:
+ * base = max(prevExpire, paidAt); newExpire = base + durationDays.
+ * Используем для реконструкции expireAt в базе данных без похода в Remnawave.
+ *
+ * Если вернули null — значит у клиента нет ни одного завершённого платёжного
+ * цикла с тарифом (и сроком его жизни).
+ */
+function computeStackedExpireAt(
+  payments: Array<{ paidAt: Date; durationDays: number }>,
+): Date | null {
+  if (payments.length === 0) return null;
+  // Гарантируем порядок по времени (возрастанию)
+  const ordered = [...payments].sort((a, b) => a.paidAt.getTime() - b.paidAt.getTime());
+  let expire: Date | null = null;
+  for (const p of ordered) {
+    const base: Date = expire && expire.getTime() > p.paidAt.getTime() ? expire : p.paidAt;
+    expire = new Date(base.getTime() + p.durationDays * 24 * 60 * 60 * 1000);
+  }
+  return expire;
+}
+
+/**
+ * Собрать текущий expireAt для всех клиентов по PAID-платежам основного тарифа.
+ * Один запрос + in-memory стэкинг по clientId.
+ */
+async function getClientMainExpiries(): Promise<Map<string, Date>> {
+  const payments = await prisma.payment.findMany({
+    where: {
+      status: "PAID",
+      tariffId: { not: null },
+      paidAt: { not: null },
+    },
+    select: { clientId: true, paidAt: true, tariff: { select: { durationDays: true } } },
+    orderBy: { paidAt: "asc" },
+  });
+  const byClient = new Map<string, Array<{ paidAt: Date; durationDays: number }>>();
+  for (const p of payments) {
+    if (!p.clientId || !p.paidAt || p.tariff?.durationDays == null) continue;
+    const arr = byClient.get(p.clientId) ?? [];
+    arr.push({ paidAt: p.paidAt, durationDays: p.tariff.durationDays });
+    byClient.set(p.clientId, arr);
+  }
+  const out = new Map<string, Date>();
+  for (const [clientId, arr] of byClient) {
+    const expire = computeStackedExpireAt(arr);
+    if (expire) out.set(clientId, expire);
+  }
+  return out;
+}
+
+/**
+ * Получить ID клиентов, подходящих под правило (с учётом дедупликации, окна,
+ * канала доставки и статуса авто-продления).
  */
 export async function getEligibleClientIds(ruleId: string): Promise<string[]> {
   const rule = await prisma.autoBroadcastRule.findUnique({
@@ -144,56 +223,46 @@ export async function getEligibleClientIds(ruleId: string): Promise<string[]> {
   });
   if (!rule) return [];
 
-  // Получаем sent-set в зависимости от типа триггера
   const sentSet = isRecurring(rule.triggerType)
     ? await getRecentlySentClientIds(ruleId, RECURRING_COOLDOWN_DAYS)
     : await getEverSentClientIds(ruleId);
 
   const now = new Date();
   const dayMs = 24 * 60 * 60 * 1000;
+  const delayDays = Math.max(0, rule.delayDays);
+
+  // Базовая часть WHERE: не заблокирован + есть канал доставки, подходящий правилу
+  const baseWhere = { isBlocked: false, ...channelFilter(rule.channel) };
 
   let clients: { id: string }[] = [];
 
   switch (rule.triggerType as TriggerType) {
     // ── after_registration ──────────────────────────────────────
-    // Зарегистрирован N дней назад (или ранее). Широкое окно: от 0 до now-delayDays.
-    // Дедупликация через sentSet (one-time) гарантирует однократную отправку.
+    // Окно: createdAt ∈ [now-(delay+window), now-delay]. Без верхней границы при
+    // включении нового правила уведомление ушло бы всем старым клиентам.
     case "after_registration": {
-      const registeredBefore = new Date(now.getTime() - rule.delayDays * dayMs);
+      const windowEnd = new Date(now.getTime() - delayDays * dayMs);
+      const windowStart = new Date(windowEnd.getTime() - ONE_TIME_WINDOW_DAYS * dayMs);
       clients = await prisma.client.findMany({
-        where: { createdAt: { lte: registeredBefore }, isBlocked: false },
+        where: {
+          ...baseWhere,
+          createdAt: { gte: windowStart, lte: windowEnd },
+        },
         select: { id: true },
       });
-      break;
-    }
-
-    // ── inactivity ──────────────────────────────────────────────
-    // Нет оплат за последние N дней. Recurring: может повторяться.
-    case "inactivity": {
-      const since = new Date(now.getTime() - rule.delayDays * dayMs);
-      const paidClientIds = await prisma.payment.findMany({
-        where: { status: "PAID", paidAt: { gte: since } },
-        select: { clientId: true },
-        distinct: ["clientId"],
-      });
-      const activeSet = new Set(paidClientIds.map((p) => p.clientId));
-      const all = await prisma.client.findMany({
-        where: { isBlocked: false, createdAt: { lt: since } },
-        select: { id: true },
-      });
-      clients = all.filter((c) => !activeSet.has(c.id));
       break;
     }
 
     // ── no_payment ──────────────────────────────────────────────
-    // Зарегистрирован N дней назад, ни разу не платил. Широкое окно + one-time.
+    // Зарегистрирован в окне [now-(delay+window), now-delay], ни разу не платил.
     case "no_payment": {
-      const registeredBefore = new Date(now.getTime() - rule.delayDays * dayMs);
+      const windowEnd = new Date(now.getTime() - delayDays * dayMs);
+      const windowStart = new Date(windowEnd.getTime() - ONE_TIME_WINDOW_DAYS * dayMs);
       clients = await prisma.client.findMany({
         where: {
-          isBlocked: false,
-          createdAt: { lte: registeredBefore },
-          payments: { none: { status: "PAID" } },
+          ...baseWhere,
+          createdAt: { gte: windowStart, lte: windowEnd },
+          payments: { none: { status: "PAID", amount: { gt: 0 } } },
         },
         select: { id: true },
       });
@@ -201,13 +270,14 @@ export async function getEligibleClientIds(ruleId: string): Promise<string[]> {
     }
 
     // ── trial_not_connected ─────────────────────────────────────
-    // Зарегистрирован N дней назад, триал не подключал. One-time.
+    // Зарегистрирован в окне, триал не активировал, подписки нет.
     case "trial_not_connected": {
-      const registeredBefore = new Date(now.getTime() - rule.delayDays * dayMs);
+      const windowEnd = new Date(now.getTime() - delayDays * dayMs);
+      const windowStart = new Date(windowEnd.getTime() - ONE_TIME_WINDOW_DAYS * dayMs);
       clients = await prisma.client.findMany({
         where: {
-          isBlocked: false,
-          createdAt: { lte: registeredBefore },
+          ...baseWhere,
+          createdAt: { gte: windowStart, lte: windowEnd },
           trialUsed: false,
           remnawaveUuid: null,
         },
@@ -217,15 +287,17 @@ export async function getEligibleClientIds(ruleId: string): Promise<string[]> {
     }
 
     // ── trial_used_never_paid ───────────────────────────────────
-    // Пользовался триалом, но ни разу не платил. One-time.
+    // Использовал триал в окне [now-(delay+window), now-delay], ни разу не платил.
+    // По createdAt (т.к. момент активации триала в БД не фиксируется отдельно).
     case "trial_used_never_paid": {
-      const registeredBefore = new Date(now.getTime() - rule.delayDays * dayMs);
+      const windowEnd = new Date(now.getTime() - delayDays * dayMs);
+      const windowStart = new Date(windowEnd.getTime() - ONE_TIME_WINDOW_DAYS * dayMs);
       clients = await prisma.client.findMany({
         where: {
-          isBlocked: false,
-          createdAt: { lte: registeredBefore },
+          ...baseWhere,
+          createdAt: { gte: windowStart, lte: windowEnd },
           trialUsed: true,
-          payments: { none: { status: "PAID" } },
+          payments: { none: { status: "PAID", amount: { gt: 0 } } },
         },
         select: { id: true },
       });
@@ -233,82 +305,103 @@ export async function getEligibleClientIds(ruleId: string): Promise<string[]> {
     }
 
     // ── no_traffic ──────────────────────────────────────────────
-    // Подключён к VPN (есть remnawaveUuid) N дней, напоминание. One-time.
+    // Подключён к VPN (есть remnawaveUuid), зарегистрирован в окне, не платил
+    // (платный не нужно напоминать «ты не пользуешься»). One-time.
     case "no_traffic": {
-      const registeredBefore = new Date(now.getTime() - rule.delayDays * dayMs);
+      const windowEnd = new Date(now.getTime() - delayDays * dayMs);
+      const windowStart = new Date(windowEnd.getTime() - ONE_TIME_WINDOW_DAYS * dayMs);
       clients = await prisma.client.findMany({
         where: {
-          isBlocked: false,
+          ...baseWhere,
           remnawaveUuid: { not: null },
-          createdAt: { lte: registeredBefore },
+          createdAt: { gte: windowStart, lte: windowEnd },
+          payments: { none: { status: "PAID", amount: { gt: 0 } } },
         },
         select: { id: true },
       });
       break;
     }
 
-    // ── subscription_expired ────────────────────────────────────
-    // Подписка истекла (N дней назад или ранее). Recurring.
-    case "subscription_expired": {
-      const paidWithTariff = await prisma.payment.findMany({
-        where: { status: "PAID", tariffId: { not: null }, paidAt: { not: null } },
-        select: { clientId: true, paidAt: true, tariff: { select: { durationDays: true } } },
-        orderBy: { paidAt: "desc" },
+    // ── inactivity ──────────────────────────────────────────────
+    // Платил когда-то, но в последние delayDays PAID-платежей нет. Recurring.
+    // Исключаем тех, кто вообще никогда не платил (иначе дубль no_payment).
+    case "inactivity": {
+      const since = new Date(now.getTime() - delayDays * dayMs);
+      const all = await prisma.client.findMany({
+        where: {
+          ...baseWhere,
+          // Хотя бы один платный платёж когда-либо
+          payments: { some: { status: "PAID", amount: { gt: 0 } } },
+        },
+        select: { id: true },
       });
-      // Для каждого клиента берём последний платёж → считаем expiry
-      const clientLastExpire = new Map<string, Date>();
-      for (const p of paidWithTariff) {
-        if (p.clientId && p.paidAt && p.tariff?.durationDays != null && !clientLastExpire.has(p.clientId)) {
-          const expireAt = new Date(p.paidAt.getTime() + p.tariff.durationDays * dayMs);
-          clientLastExpire.set(p.clientId, expireAt);
-        }
-      }
+      const recentlyPaidIds = new Set(
+        (
+          await prisma.payment.findMany({
+            where: { status: "PAID", amount: { gt: 0 }, paidAt: { gte: since } },
+            select: { clientId: true },
+            distinct: ["clientId"],
+          })
+        ).map((p) => p.clientId),
+      );
+      clients = all.filter((c) => !recentlyPaidIds.has(c.id));
+      break;
+    }
+
+    // ── subscription_expired ────────────────────────────────────
+    // Подписка истекла в окне [now-(delay+EXPIRED_WINDOW), now-delay].
+    // Исключаем клиентов с включённым авто-продлением.
+    case "subscription_expired": {
+      const windowEnd = new Date(now.getTime() - delayDays * dayMs);
+      const windowStart = new Date(windowEnd.getTime() - EXPIRED_WINDOW_DAYS * dayMs);
+      const expiries = await getClientMainExpiries();
       const expiredIds: string[] = [];
-      const expiredSince = rule.delayDays > 0
-        ? new Date(now.getTime() - rule.delayDays * dayMs)
-        : now;
-      for (const [clientId, expireAt] of clientLastExpire) {
-        if (expireAt <= expiredSince) {
+      for (const [clientId, expireAt] of expiries) {
+        if (expireAt >= windowStart && expireAt <= windowEnd) {
           expiredIds.push(clientId);
         }
       }
-      // Фильтруем заблокированных
-      const blockedSet = new Set(
-        (await prisma.client.findMany({ where: { isBlocked: true }, select: { id: true } })).map((c) => c.id),
-      );
-      clients = expiredIds.filter((id) => !blockedSet.has(id)).map((id) => ({ id }));
+      if (expiredIds.length === 0) {
+        clients = [];
+      } else {
+        clients = await prisma.client.findMany({
+          where: {
+            ...baseWhere,
+            id: { in: expiredIds },
+            autoRenewEnabled: false,
+          },
+          select: { id: true },
+        });
+      }
       break;
     }
 
     // ── subscription_ending_soon ────────────────────────────────
-    // Подписка заканчивается через N дней. Recurring (за N, N-1, ... дней).
-    // delayDays не ограничен хардкодом 1-3 — можно уведомлять за любое количество дней.
+    // Подписка истекает через N дней — окно [now + (N-1), now + N] суток.
+    // Исключаем клиентов с включённым авто-продлением.
     case "subscription_ending_soon": {
-      const daysLeft = Math.max(1, rule.delayDays);
+      const daysLeft = Math.max(1, delayDays);
       const windowStart = new Date(now.getTime() + (daysLeft - 1) * dayMs);
       const windowEnd = new Date(now.getTime() + daysLeft * dayMs);
-      const paidWithTariff = await prisma.payment.findMany({
-        where: { status: "PAID", tariffId: { not: null }, paidAt: { not: null } },
-        select: { clientId: true, paidAt: true, tariff: { select: { durationDays: true } } },
-        orderBy: { paidAt: "desc" },
-      });
-      const clientLastExpire = new Map<string, Date>();
-      for (const p of paidWithTariff) {
-        if (p.clientId && p.paidAt && p.tariff?.durationDays != null && !clientLastExpire.has(p.clientId)) {
-          const expireAt = new Date(p.paidAt.getTime() + p.tariff.durationDays * dayMs);
-          clientLastExpire.set(p.clientId, expireAt);
-        }
-      }
+      const expiries = await getClientMainExpiries();
       const endingSoonIds: string[] = [];
-      for (const [clientId, expireAt] of clientLastExpire) {
+      for (const [clientId, expireAt] of expiries) {
         if (expireAt >= windowStart && expireAt < windowEnd) {
           endingSoonIds.push(clientId);
         }
       }
-      const blockedSet = new Set(
-        (await prisma.client.findMany({ where: { isBlocked: true }, select: { id: true } })).map((c) => c.id),
-      );
-      clients = endingSoonIds.filter((id) => !blockedSet.has(id)).map((id) => ({ id }));
+      if (endingSoonIds.length === 0) {
+        clients = [];
+      } else {
+        clients = await prisma.client.findMany({
+          where: {
+            ...baseWhere,
+            id: { in: endingSoonIds },
+            autoRenewEnabled: false,
+          },
+          select: { id: true },
+        });
+      }
       break;
     }
 
@@ -317,11 +410,10 @@ export async function getEligibleClientIds(ruleId: string): Promise<string[]> {
       return [];
   }
 
-  // Убираем уже отправленных (one-time = навсегда, recurring = за кулдаун)
   const eligible = clients.map((c) => c.id).filter((id) => !sentSet.has(id));
 
   console.log(
-    `${LOG_PREFIX} Rule "${rule.name}" (${rule.triggerType}, delay=${rule.delayDays}): ` +
+    `${LOG_PREFIX} Rule "${rule.name}" (${rule.triggerType}, delay=${rule.delayDays}, channel=${rule.channel}): ` +
     `${clients.length} matched, ${sentSet.size} already sent, ${eligible.length} eligible`,
   );
 

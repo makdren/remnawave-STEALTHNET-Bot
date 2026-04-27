@@ -121,13 +121,14 @@ export async function createAdditionalSubscription(
     internalSquadUuids: string[];
     trafficResetMode?: string;
   },
+  options?: { skipConfigCheck?: boolean },
 ): Promise<GiftResult<{ secondarySubscriptionId: string; subscriptionIndex: number }>> {
   if (!isRemnaConfigured()) {
     return { ok: false, error: "Сервис временно недоступен", status: 503 };
   }
 
   const config = await getSystemConfig();
-  if (!config.giftSubscriptionsEnabled) {
+  if (!options?.skipConfigCheck && !config.giftSubscriptionsEnabled) {
     return { ok: false, error: "Дополнительные подписки отключены", status: 403 };
   }
 
@@ -385,9 +386,10 @@ export async function createGiftCode(
   rootClientId: string,
   secondarySubscriptionId: string,
   giftMessage?: string,
+  options?: { skipConfigCheck?: boolean },
 ): Promise<GiftResult<{ code: string; expiresAt: Date; tariffName: string | null }>> {
   const config = await getSystemConfig();
-  if (!config.giftSubscriptionsEnabled) {
+  if (!options?.skipConfigCheck && !config.giftSubscriptionsEnabled) {
     return { ok: false, error: "Подарки отключены", status: 403 };
   }
 
@@ -913,7 +915,7 @@ export async function adminCreateGiftCode(
     return { ok: false, error: "Тариф не найден", status: 404 };
   }
 
-  // Создаём подписку
+  // Создаём подписку (админ обходит проверку giftSubscriptionsEnabled)
   const subResult = await createAdditionalSubscription(ownerClientId, {
     id: tariff.id,
     name: tariff.name,
@@ -923,16 +925,17 @@ export async function adminCreateGiftCode(
     deviceLimit: tariff.deviceLimit,
     internalSquadUuids: tariff.internalSquadUuids ?? [],
     trafficResetMode: tariff.trafficResetMode ?? undefined,
-  });
+  }, { skipConfigCheck: true });
   if (!subResult.ok) {
     return subResult;
   }
 
-  // Создаём подарочный код
+  // Создаём подарочный код (админ обходит проверку giftSubscriptionsEnabled)
   const codeResult = await createGiftCode(
     ownerClientId,
     subResult.data.secondarySubscriptionId,
     giftMessage,
+    { skipConfigCheck: true },
   );
   if (!codeResult.ok) {
     return codeResult;

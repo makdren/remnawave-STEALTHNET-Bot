@@ -6,7 +6,7 @@ import {
   type AutoBroadcastRulePayload,
   type AutoBroadcastTriggerType,
 } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +18,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CalendarClock, Plus, Play, Trash2, Pencil, Loader2, Clock, MousePointerClick } from "lucide-react";
+import { motion } from "framer-motion";
+import {
+  CalendarClock,
+  Plus,
+  Play,
+  Trash2,
+  Pencil,
+  Loader2,
+  Clock,
+  MousePointerClick,
+  Send,
+  Users,
+  AlertTriangle,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const BUTTON_ACTIONS = [
   { value: "", label: "Без кнопки" },
@@ -265,149 +279,227 @@ export function AutoBroadcastPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Авто-рассылка</h1>
-          <p className="text-muted-foreground">
-            Настраиваемые правила: после регистрации, неактивность, без платежа — чтобы не терять клиентов
-          </p>
+    <div className="space-y-5 px-4 sm:px-6 md:px-8 pt-6 pb-10 relative">
+      <div className="fixed -z-10 bg-primary/15 blur-[120px] top-[-50px] left-[-50px] w-[300px] h-[300px] rounded-full pointer-events-none" />
+      <div className="fixed -z-10 bg-purple-500/10 blur-[100px] top-[20%] right-[-50px] w-[250px] h-[250px] rounded-full pointer-events-none" />
+
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between bg-background/40 backdrop-blur-3xl border border-white/10 p-6 rounded-[2rem] shadow-2xl"
+      >
+        <div className="flex items-center gap-4">
+          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center shadow-inner border border-white/10">
+            <CalendarClock className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60">
+              Авто-рассылка
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Настраиваемые правила: после регистрации, неактивность, без платежа — чтобы не терять клиентов
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={handleRunAll} disabled={runAllLoading || rules.length === 0}>
+          <Button
+            variant="outline"
+            onClick={handleRunAll}
+            disabled={runAllLoading || rules.length === 0}
+            className="gap-1.5 rounded-xl"
+          >
             {runAllLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
             Запустить все
           </Button>
-          <Button onClick={openCreate}>
+          <Button onClick={openCreate} className="gap-1.5 rounded-xl">
             <Plus className="h-4 w-4" />
             Добавить правило
           </Button>
         </div>
-      </div>
+      </motion.div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5" />
-            Расписание
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Cron: минута час день месяц день_недели. Например <code className="rounded bg-muted px-1">0 9 * * *</code> — каждый день в 9:00. Пусто = по умолчанию 9:00.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSaveSchedule} className="flex flex-wrap items-end gap-3">
-            <div className="min-w-[200px] flex-1 space-y-2">
-              <Label htmlFor="schedule-cron">Выражение cron</Label>
-              <Input
-                id="schedule-cron"
-                value={scheduleCron}
-                onChange={(e) => setScheduleCron(e.target.value)}
-                placeholder="0 9 * * *"
-                className="font-mono"
-              />
-            </div>
-            <Button type="submit" disabled={scheduleSaving}>
-              {scheduleSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Сохранить расписание
-            </Button>
-          </form>
-        </CardContent>
+      {/* Schedule card */}
+      <Card className="bg-background/60 backdrop-blur-3xl border-white/10 rounded-[2rem] p-5 shadow-xl">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-cyan-500/5 border border-white/10 flex items-center justify-center shadow-inner shrink-0">
+            <Clock className="h-5 w-5 text-cyan-500 dark:text-cyan-400" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold tracking-tight">Расписание</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Cron: минута час день месяц день_недели. Например{" "}
+              <code className="rounded-md bg-foreground/[0.05] dark:bg-white/[0.05] border border-white/10 px-1.5 py-0.5 text-[11px]">
+                0 9 * * *
+              </code>{" "}
+              — каждый день в 9:00. Пусто = по умолчанию 9:00.
+            </p>
+          </div>
+        </div>
+        <form onSubmit={handleSaveSchedule} className="flex flex-wrap items-end gap-3">
+          <div className="min-w-[200px] flex-1 space-y-1.5">
+            <Label htmlFor="schedule-cron" className="text-xs text-muted-foreground">
+              Выражение cron
+            </Label>
+            <Input
+              id="schedule-cron"
+              value={scheduleCron}
+              onChange={(e) => setScheduleCron(e.target.value)}
+              placeholder="0 9 * * *"
+              className="rounded-xl bg-foreground/[0.03] dark:bg-white/[0.02] border-white/10 focus-visible:ring-primary/50"
+            />
+          </div>
+          <Button type="submit" disabled={scheduleSaving} className="gap-2 rounded-xl">
+            {scheduleSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Сохранить расписание
+          </Button>
+        </form>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarClock className="h-5 w-5" />
-            Правила
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex items-center gap-2 text-muted-foreground py-8">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              Загрузка…
+      {/* Rules card */}
+      <Card className="bg-background/60 backdrop-blur-3xl border-white/10 rounded-[2rem] p-5 shadow-xl">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/20 border border-white/10 flex items-center justify-center shadow-inner shrink-0">
+            <Send className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold tracking-tight">Правила</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Все настроенные сценарии авто-рассылки
+            </p>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Загружаем правила…</p>
+          </div>
+        ) : rules.length === 0 ? (
+          <div className="flex flex-col items-center text-center py-12">
+            <div className="h-16 w-16 rounded-full bg-white/5 flex items-center justify-center mb-3 border border-white/10">
+              <CalendarClock className="h-8 w-8 text-muted-foreground" />
             </div>
-          ) : rules.length === 0 ? (
-            <p className="text-muted-foreground py-6">Правил пока нет. Добавьте первое.</p>
-          ) : (
-            <div className="space-y-3">
-              {rules.map((rule) => (
-                <div
-                  key={rule.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium">{rule.name}</span>
-                      {!rule.enabled && (
-                        <span className="rounded bg-muted px-2 py-0.5 text-xs">выкл</span>
-                      )}
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {TRIGGER_LABELS[rule.triggerType]}
-                      {rule.triggerType === "subscription_ending_soon"
-                        ? ` · за ${rule.delayDays} дн. до окончания`
-                        : ` · через ${rule.delayDays} дн.`}{" "}
-                      · {CHANNEL_LABELS[rule.channel]}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Отправлено: {rule.sentCount ?? 0} · Сейчас подходят: {eligibleCounts[rule.id] ?? "—"}
-                    </p>
+            <p className="text-muted-foreground">Правил пока нет</p>
+            <p className="text-xs text-muted-foreground/70 mt-1">Добавьте первое правило, чтобы начать</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {rules.map((rule, idx) => (
+              <motion.div
+                key={rule.id}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.03 }}
+                whileHover={{ y: -2 }}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-foreground/[0.03] dark:bg-white/[0.02] p-4 transition-all hover:border-white/20 hover:shadow-lg"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-sm">{rule.name}</span>
+                    {rule.enabled ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 text-[11px] font-medium backdrop-blur-md">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_4px_#10b981]" />
+                        Активно
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/40 text-muted-foreground border border-white/10 px-2.5 py-0.5 text-[11px] font-medium backdrop-blur-md">
+                        Выключено
+                      </span>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleRunOne(rule.id)}
-                      disabled={runningRuleId !== null}
-                    >
-                      {runningRuleId === rule.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Play className="h-4 w-4" />
-                      )}
-                      Запустить
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => openEdit(rule)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleDelete(rule.id)} className="text-destructive">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    <span className="text-foreground/80">{TRIGGER_LABELS[rule.triggerType]}</span>
+                    {rule.triggerType === "subscription_ending_soon"
+                      ? ` · за ${rule.delayDays} дн. до окончания`
+                      : ` · через ${rule.delayDays} дн.`}{" "}
+                    · <span className="text-cyan-500 dark:text-cyan-400">{CHANNEL_LABELS[rule.channel]}</span>
+                  </p>
+                  <div className="flex items-center gap-3 mt-2 text-[11px] text-muted-foreground">
+                    <span className="inline-flex items-center gap-1">
+                      <Send className="h-3 w-3" />
+                      Отправлено: <span className="text-foreground font-medium">{rule.sentCount ?? 0}</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <Users className="h-3 w-3" />
+                      Подходят сейчас:{" "}
+                      <span className="text-foreground font-medium">{eligibleCounts[rule.id] ?? "—"}</span>
+                    </span>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRunOne(rule.id)}
+                    disabled={runningRuleId !== null}
+                    className="gap-1.5 rounded-xl"
+                  >
+                    {runningRuleId === rule.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Play className="h-3.5 w-3.5" />
+                    )}
+                    Запустить
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-lg"
+                    onClick={() => openEdit(rule)}
+                    title="Редактировать"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-lg text-red-500 dark:text-red-400 hover:bg-red-500/10"
+                    onClick={() => handleDelete(rule.id)}
+                    title="Удалить"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </Card>
 
       <Dialog open={showForm} onOpenChange={(open) => !open && closeForm()}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="bg-background/80 backdrop-blur-3xl border-white/10 rounded-[2rem] max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingId ? "Редактировать правило" : "Новое правило"}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold tracking-tight">
+              <div className="h-9 w-9 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-white/10 flex items-center justify-center shadow-inner">
+                {editingId ? <Pencil className="h-4 w-4 text-primary" /> : <Plus className="h-4 w-4 text-primary" />}
+              </div>
+              {editingId ? "Редактировать правило" : "Новое правило"}
+            </DialogTitle>
             <DialogDescription className="sr-only">Форма правила авторассылки</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSave} className="space-y-4 py-4">
-              {formError && (
-                <p className="text-sm text-destructive rounded bg-destructive/10 px-3 py-2">{formError}</p>
-              )}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Название</Label>
-                  <Input
-                    value={form.name}
-                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                    placeholder="Например: Напоминание через 3 дня"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Триггер</Label>
-                  <select
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    value={form.triggerType}
-                    onChange={(e) => {
+          <form onSubmit={handleSave} className="space-y-4 pt-2">
+            {formError && (
+              <div className="flex items-start gap-2 rounded-2xl border border-red-500/30 bg-red-500/10 backdrop-blur-md px-4 py-3 text-sm text-red-500 dark:text-red-400">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <p>{formError}</p>
+              </div>
+            )}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Название</Label>
+                <Input
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="Например: Напоминание через 3 дня"
+                  className="rounded-xl bg-foreground/[0.03] dark:bg-white/[0.02] border-white/10 focus-visible:ring-primary/50"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Триггер</Label>
+                <select
+                  className="flex h-10 w-full rounded-xl border border-white/10 bg-foreground/[0.03] dark:bg-white/[0.02] px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                  value={form.triggerType}
+                  onChange={(e) => {
                     const t = e.target.value as AutoBroadcastTriggerType;
                     setForm((f) => ({
                       ...f,
@@ -418,141 +510,164 @@ export function AutoBroadcastPage() {
                           : f.delayDays,
                     }));
                   }}
-                  >
-                    {(Object.keys(TRIGGER_LABELS) as AutoBroadcastTriggerType[]).map((t) => (
-                      <option key={t} value={t}>
-                        {TRIGGER_LABELS[t]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                >
+                  {(Object.keys(TRIGGER_LABELS) as AutoBroadcastTriggerType[]).map((t) => (
+                    <option key={t} value={t}>
+                      {TRIGGER_LABELS[t]}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>
-                    {form.triggerType === "subscription_ending_soon"
-                      ? "За сколько дней до окончания (1–30)"
-                      : "Через сколько дней (0–365)"}
-                  </Label>
-                  <Input
-                    type="number"
-                    min={form.triggerType === "subscription_ending_soon" ? 1 : 0}
-                    max={form.triggerType === "subscription_ending_soon" ? 30 : 365}
-                    value={form.delayDays}
-                    onChange={(e) => {
-                      const v = Number(e.target.value) || 0;
-                      const min = form.triggerType === "subscription_ending_soon" ? 1 : 0;
-                      const max = form.triggerType === "subscription_ending_soon" ? 30 : 365;
-                      setForm((f) => ({ ...f, delayDays: Math.max(min, Math.min(max, v)) }));
-                    }}
-                  />
-                  {form.triggerType === "subscription_ending_soon" && (
-                    <p className="text-xs text-muted-foreground">
-                      Создайте несколько правил (например, за 7, за 3, за 1 день) — рассылка будет с нужным текстом.
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label>Канал</Label>
-                  <select
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    value={form.channel}
-                    onChange={(e) => setForm((f) => ({ ...f, channel: e.target.value as "telegram" | "email" | "both" }))}
-                  >
-                    <option value="telegram">Telegram</option>
-                    <option value="email">Email</option>
-                    <option value="both">Telegram и Email</option>
-                  </select>
-                </div>
-              </div>
-              {(form.channel === "email" || form.channel === "both") && (
-                <div className="space-y-2">
-                  <Label>Тема письма (для email)</Label>
-                  <Input
-                    value={form.subject ?? ""}
-                    onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
-                    placeholder="Тема письма"
-                  />
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label>Текст сообщения</Label>
-                <textarea
-                  className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={form.message}
-                  onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))}
-                  placeholder="Текст для Telegram / email (до 4096 символов)"
-                  maxLength={4096}
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">
+                  {form.triggerType === "subscription_ending_soon"
+                    ? "За сколько дней до окончания (1–30)"
+                    : "Через сколько дней (0–365)"}
+                </Label>
+                <Input
+                  type="number"
+                  min={form.triggerType === "subscription_ending_soon" ? 1 : 0}
+                  max={form.triggerType === "subscription_ending_soon" ? 30 : 365}
+                  value={form.delayDays}
+                  onChange={(e) => {
+                    const v = Number(e.target.value) || 0;
+                    const min = form.triggerType === "subscription_ending_soon" ? 1 : 0;
+                    const max = form.triggerType === "subscription_ending_soon" ? 30 : 365;
+                    setForm((f) => ({ ...f, delayDays: Math.max(min, Math.min(max, v)) }));
+                  }}
+                  className="rounded-xl bg-foreground/[0.03] dark:bg-white/[0.02] border-white/10 focus-visible:ring-primary/50"
                 />
-                <p className="text-xs text-muted-foreground">{form.message.length} / 4096</p>
+                {form.triggerType === "subscription_ending_soon" && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Создайте несколько правил (например, за 7, за 3, за 1 день) — рассылка будет с нужным текстом.
+                  </p>
+                )}
               </div>
-              {(form.channel === "telegram" || form.channel === "both") && (
-                <div className="space-y-3 rounded-lg border border-dashed p-4">
-                  <div className="flex items-center gap-2 text-sm font-medium">
-                    <MousePointerClick className="h-4 w-4" />
-                    Кнопка под сообщением (только Telegram)
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Канал</Label>
+                <select
+                  className="flex h-10 w-full rounded-xl border border-white/10 bg-foreground/[0.03] dark:bg-white/[0.02] px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                  value={form.channel}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, channel: e.target.value as "telegram" | "email" | "both" }))
+                  }
+                >
+                  <option value="telegram">Telegram</option>
+                  <option value="email">Email</option>
+                  <option value="both">Telegram и Email</option>
+                </select>
+              </div>
+            </div>
+            {(form.channel === "email" || form.channel === "both") && (
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Тема письма (для email)</Label>
+                <Input
+                  value={form.subject ?? ""}
+                  onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
+                  placeholder="Тема письма"
+                  className="rounded-xl bg-foreground/[0.03] dark:bg-white/[0.02] border-white/10 focus-visible:ring-primary/50"
+                />
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Текст сообщения</Label>
+              <textarea
+                className="flex min-h-[140px] w-full rounded-xl border border-white/10 bg-foreground/[0.03] dark:bg-white/[0.02] px-4 py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 resize-y"
+                value={form.message}
+                onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))}
+                placeholder="Текст для Telegram / email (до 4096 символов)"
+                maxLength={4096}
+              />
+              <p className="text-[11px] text-muted-foreground">{form.message.length} / 4096</p>
+            </div>
+            {(form.channel === "telegram" || form.channel === "both") && (
+              <div className="rounded-2xl border border-white/10 bg-foreground/[0.03] dark:bg-white/[0.02] p-4 space-y-3">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <MousePointerClick className="h-4 w-4 text-primary" />
+                  Кнопка под сообщением (только Telegram)
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Действие кнопки</Label>
+                    <select
+                      className="flex h-10 w-full rounded-xl border border-white/10 bg-background/60 px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                      value={buttonAction}
+                      onChange={(e) => setButtonAction(e.target.value)}
+                    >
+                      {BUTTON_ACTIONS.map((a) => (
+                        <option key={a.value} value={a.value}>
+                          {a.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-1">
-                      <Label>Действие кнопки</Label>
-                      <select
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        value={buttonAction}
-                        onChange={(e) => setButtonAction(e.target.value)}
-                      >
-                        {BUTTON_ACTIONS.map((a) => (
-                          <option key={a.value} value={a.value}>{a.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                    {buttonAction && (
-                      <div className="space-y-1">
-                        <Label>Текст кнопки</Label>
-                        <Input
-                          value={form.buttonText ?? ""}
-                          onChange={(e) => setForm((f) => ({ ...f, buttonText: e.target.value }))}
-                          placeholder="Открыть тарифы"
-                          maxLength={64}
-                        />
-                      </div>
-                    )}
-                  </div>
-                  {buttonAction === "__custom_url__" && (
-                    <div className="space-y-1">
-                      <Label>Ссылка (URL)</Label>
+                  {buttonAction && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Текст кнопки</Label>
                       <Input
-                        value={buttonCustomUrl}
-                        onChange={(e) => setButtonCustomUrl(e.target.value)}
-                        placeholder="https://example.com/tariffs"
-                        maxLength={500}
+                        value={form.buttonText ?? ""}
+                        onChange={(e) => setForm((f) => ({ ...f, buttonText: e.target.value }))}
+                        placeholder="Открыть тарифы"
+                        maxLength={64}
+                        className="h-10 rounded-xl bg-background/60 border-white/10 focus-visible:ring-primary/50"
                       />
                     </div>
                   )}
-                  <p className="text-xs text-muted-foreground">
-                    Выберите действие — под сообщением появится inline-кнопка, открывающая выбранный раздел бота.
-                  </p>
                 </div>
-              )}
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="form-enabled"
-                  checked={form.enabled}
-                  onChange={(e) => setForm((f) => ({ ...f, enabled: e.target.checked }))}
-                  className="rounded border-input"
-                />
-                <Label htmlFor="form-enabled">Включено (участвует в запуске «Запустить все»)</Label>
+                {buttonAction === "__custom_url__" && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Ссылка (URL)</Label>
+                    <Input
+                      value={buttonCustomUrl}
+                      onChange={(e) => setButtonCustomUrl(e.target.value)}
+                      placeholder="https://example.com/tariffs"
+                      maxLength={500}
+                      className="h-10 rounded-xl bg-background/60 border-white/10 focus-visible:ring-primary/50"
+                    />
+                  </div>
+                )}
+                <p className="text-[11px] text-muted-foreground">
+                  Выберите действие — под сообщением появится inline-кнопка, открывающая выбранный раздел бота.
+                </p>
               </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={closeForm}>
-                  Отмена
-                </Button>
-                <Button type="submit" disabled={formSaving}>
-                  {formSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  {editingId ? "Сохранить" : "Создать"}
-                </Button>
-              </DialogFooter>
-            </form>
+            )}
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-foreground/[0.03] dark:bg-white/[0.02] px-4 py-3">
+              <div>
+                <Label htmlFor="form-enabled" className="text-sm font-semibold cursor-pointer">
+                  Включено
+                </Label>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Участвует в запуске «Запустить все»
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, enabled: !f.enabled }))}
+                className={cn(
+                  "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                  form.enabled ? "bg-emerald-500" : "bg-muted-foreground/30"
+                )}
+              >
+                <span
+                  className={cn(
+                    "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg ring-0 transition-transform",
+                    form.enabled ? "translate-x-5" : "translate-x-0"
+                  )}
+                />
+              </button>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={closeForm} className="rounded-xl">
+                Отмена
+              </Button>
+              <Button type="submit" disabled={formSaving} className="gap-2 rounded-xl">
+                {formSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {editingId ? "Сохранить" : "Создать"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

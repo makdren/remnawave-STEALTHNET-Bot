@@ -45,9 +45,16 @@ import { getServerStats, getSshConfig, updateSshConfig } from "../server/server.
 import { syncFromRemna, syncToRemna, createRemnaUsersForClientsWithoutUuid } from "../sync/sync.service.js";
 import { distributeReferralRewards } from "../referral/referral.service.js";
 import { markPaymentPaid } from "../payment/mark-paid.service.js";
+import { activateTariffForClient } from "../tariff/tariff-activation.service.js";
 import { registerBackupRoutes } from "../backup/backup.routes.js";
-import { runBroadcast, getBroadcastRecipientsCount } from "../broadcast/broadcast.service.js";
-import { uploadMascotImage, uploadVideo, mascotUrl, videoUploadUrl, removeUploadedFile } from "../../lib/upload.js";
+import { getBroadcastRecipientsCount, startBroadcastJob, getBroadcastJob } from "../broadcast/broadcast.service.js";
+import { uploadMascotImage, uploadVideo, uploadTicketAttachment, mascotUrl, videoUploadUrl, removeUploadedFile } from "../../lib/upload.js";
+import {
+  filesToAttachments,
+  serializeAttachments,
+  parseAttachments,
+  pickField as pickTicketField,
+} from "../ticket/attachments.js";
 import {
   notifyAdminsAboutSupportReply,
   notifyAdminsAboutTicketStatusChange,
@@ -392,8 +399,24 @@ adminRouter.patch("/payments/:id", asyncRoute(async (req, res) => {
   });
 }));
 
-/** Сериализация тарифа для JSON (BigInt → number) */
-function tariffToJson(t: { id: string; categoryId: string; name: string; description: string | null; durationDays: number; internalSquadUuids: string[]; trafficLimitBytes: bigint | null; trafficResetMode: string; deviceLimit: number | null; price: number; currency: string; sortOrder: number; createdAt: Date; updatedAt: Date }) {
+/** Сериализация тарифа для JSON (BigInt → number) с опциями цен. */
+function tariffToJson(t: {
+  id: string;
+  categoryId: string;
+  name: string;
+  description: string | null;
+  durationDays: number;
+  internalSquadUuids: string[];
+  trafficLimitBytes: bigint | null;
+  trafficResetMode: string;
+  deviceLimit: number | null;
+  price: number;
+  currency: string;
+  sortOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+  priceOptions?: { id: string; durationDays: number; price: number; sortOrder: number }[];
+}) {
   return {
     id: t.id,
     categoryId: t.categoryId,
@@ -407,6 +430,12 @@ function tariffToJson(t: { id: string; categoryId: string; name: string; descrip
     price: t.price,
     currency: t.currency,
     sortOrder: t.sortOrder,
+    priceOptions: (t.priceOptions ?? []).map((o) => ({
+      id: o.id,
+      durationDays: o.durationDays,
+      price: o.price,
+      sortOrder: o.sortOrder,
+    })),
     createdAt: t.createdAt.toISOString(),
     updatedAt: t.updatedAt.toISOString(),
   };
@@ -419,7 +448,14 @@ adminRouter.get("/tariff-categories", async (_req, res) => {
   try {
     const list = await prisma.tariffCategory.findMany({
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-      include: { tariffs: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] } },
+      include: {
+        tariffs: {
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          include: {
+            priceOptions: { orderBy: [{ sortOrder: "asc" }, { durationDays: "asc" }] },
+          },
+        },
+      },
     });
     return res.json({
       items: list.map((c) => ({
@@ -508,18 +544,23 @@ adminRouter.delete("/tariff-categories/:id", async (req, res) => {
 // ——— Тарифы ———
 const tariffIdSchema = z.object({ id: z.string().min(1) });
 const TRAFFIC_RESET_MODES = ["no_reset", "on_purchase", "monthly", "monthly_rolling"] as const;
+const priceOptionInputSchema = z.object({
+  durationDays: z.number().int().min(1).max(3650),
+  price: z.number().min(0),
+});
 const createTariffSchema = z.object({
   categoryId: z.string().min(1),
   name: z.string().min(1).max(255),
   description: z.string().max(5000).nullable().optional(),
-  durationDays: z.number().int().min(1).max(3650),
+  durationDays: z.number().int().min(1).max(3650).optional(), // legacy: будет проигнорирован если priceOptions заданы
   internalSquadUuids: z.array(z.string().uuid()).min(1),
   trafficLimitBytes: z.number().int().nonnegative().nullable().optional(),
   trafficResetMode: z.enum(TRAFFIC_RESET_MODES).optional(),
   deviceLimit: z.number().int().nonnegative().nullable().optional(),
-  price: z.number().min(0).optional(),
+  price: z.number().min(0).optional(), // legacy: используется как fallback если priceOptions не заданы
   currency: z.string().max(10).optional(),
   sortOrder: z.number().int().optional(),
+  priceOptions: z.array(priceOptionInputSchema).min(1).max(20).optional(),
 });
 const updateTariffSchema = z.object({
   name: z.string().min(1).max(255).optional(),
@@ -532,6 +573,8 @@ const updateTariffSchema = z.object({
   price: z.number().min(0).optional(),
   currency: z.string().max(10).optional(),
   sortOrder: z.number().int().optional(),
+  // priceOptions: при обновлении заменяет существующие. min(1) если задано.
+  priceOptions: z.array(priceOptionInputSchema).min(1).max(20).optional(),
 });
 
 adminRouter.get("/tariffs", async (req, res) => {
@@ -540,6 +583,9 @@ adminRouter.get("/tariffs", async (req, res) => {
   const list = await prisma.tariff.findMany({
     where,
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    include: {
+      priceOptions: { orderBy: [{ sortOrder: "asc" }, { durationDays: "asc" }] },
+    },
   });
   return res.json({ items: list.map(tariffToJson) });
 });
@@ -549,20 +595,47 @@ adminRouter.post("/tariffs", async (req, res) => {
   if (!body.success) return res.status(400).json({ message: "Неверные данные", errors: body.error.flatten() });
   const category = await prisma.tariffCategory.findUnique({ where: { id: body.data.categoryId } });
   if (!category) return res.status(400).json({ message: "Категория не найдена" });
+
+  // Определяем legacy duration/price из priceOptions если они заданы (минимальная опция = legacy).
+  // Это нужно потому что Tariff.durationDays и Tariff.price обязательные поля схемы (NOT NULL).
+  let legacyDays = body.data.durationDays;
+  let legacyPrice = body.data.price ?? 0;
+  if (body.data.priceOptions && body.data.priceOptions.length > 0) {
+    const sorted = [...body.data.priceOptions].sort((a, b) => a.price - b.price);
+    legacyPrice = sorted[0].price;
+    legacyDays = sorted[0].durationDays;
+  }
+  if (legacyDays == null) {
+    return res.status(400).json({ message: "Не указана длительность или опции цен" });
+  }
+
   const created = await prisma.tariff.create({
     data: {
       categoryId: body.data.categoryId,
       name: body.data.name,
       description: body.data.description ?? null,
-      durationDays: body.data.durationDays,
+      durationDays: legacyDays,
       internalSquadUuids: body.data.internalSquadUuids,
       trafficLimitBytes: body.data.trafficLimitBytes != null ? BigInt(body.data.trafficLimitBytes) : null,
       trafficResetMode: body.data.trafficResetMode ?? "no_reset",
       deviceLimit: body.data.deviceLimit ?? null,
-      price: body.data.price ?? 0,
+      price: legacyPrice,
       currency: (body.data.currency ?? "usd").toLowerCase(),
       sortOrder: body.data.sortOrder ?? 0,
+      priceOptions: body.data.priceOptions
+        ? {
+          create: body.data.priceOptions.map((o, idx) => ({
+            durationDays: o.durationDays,
+            price: o.price,
+            sortOrder: idx,
+          })),
+        }
+        : {
+          // Если priceOptions не заданы — создаём одну дефолтную из legacy полей
+          create: [{ durationDays: legacyDays, price: legacyPrice, sortOrder: 0 }],
+        },
     },
+    include: { priceOptions: { orderBy: [{ sortOrder: "asc" }, { durationDays: "asc" }] } },
   });
   return res.status(201).json(tariffToJson(created));
 });
@@ -575,17 +648,42 @@ adminRouter.patch("/tariffs/:id", async (req, res) => {
   const data: { name?: string; description?: string | null; durationDays?: number; internalSquadUuids?: string[]; trafficLimitBytes?: bigint | null; trafficResetMode?: string; deviceLimit?: number | null; price?: number; currency?: string; sortOrder?: number } = {};
   if (body.data.name != null) data.name = body.data.name;
   if (body.data.description !== undefined) data.description = body.data.description ?? null;
-  if (body.data.durationDays != null) data.durationDays = body.data.durationDays;
   if (body.data.internalSquadUuids != null) data.internalSquadUuids = body.data.internalSquadUuids;
   if (body.data.trafficLimitBytes !== undefined) data.trafficLimitBytes = body.data.trafficLimitBytes != null ? BigInt(body.data.trafficLimitBytes) : null;
   if (body.data.trafficResetMode !== undefined) data.trafficResetMode = body.data.trafficResetMode;
   if (body.data.deviceLimit !== undefined) data.deviceLimit = body.data.deviceLimit ?? null;
-  if (body.data.price !== undefined) data.price = body.data.price;
   if (body.data.currency !== undefined) data.currency = body.data.currency.toLowerCase();
   if (body.data.sortOrder != null) data.sortOrder = body.data.sortOrder;
-  const updated = await prisma.tariff.update({
-    where: { id: idParse.data.id },
-    data,
+  // Если priceOptions переданы — синхронизируем legacy поля с минимальной опцией.
+  if (body.data.priceOptions && body.data.priceOptions.length > 0) {
+    const sorted = [...body.data.priceOptions].sort((a, b) => a.price - b.price);
+    data.price = sorted[0].price;
+    data.durationDays = sorted[0].durationDays;
+  } else {
+    // Иначе разрешаем менять legacy поля напрямую (на случай редактирования существующих тарифов).
+    if (body.data.durationDays != null) data.durationDays = body.data.durationDays;
+    if (body.data.price !== undefined) data.price = body.data.price;
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    if (body.data.priceOptions && body.data.priceOptions.length > 0) {
+      // Полная замена опций цен: удалить старые → создать новые (CASCADE на Payment.tariffPriceOptionId
+      // делает SET NULL, существующие платежи сохранятся, но потеряют ссылку).
+      await tx.tariffPriceOption.deleteMany({ where: { tariffId: idParse.data.id } });
+      await tx.tariffPriceOption.createMany({
+        data: body.data.priceOptions.map((o, idx) => ({
+          tariffId: idParse.data.id,
+          durationDays: o.durationDays,
+          price: o.price,
+          sortOrder: idx,
+        })),
+      });
+    }
+    return tx.tariff.update({
+      where: { id: idParse.data.id },
+      data,
+      include: { priceOptions: { orderBy: [{ sortOrder: "asc" }, { durationDays: "asc" }] } },
+    });
   });
   return res.json(tariffToJson(updated));
 });
@@ -617,6 +715,7 @@ adminRouter.get("/clients", async (req, res) => {
           { telegramId: { contains: search } },
           { referralCode: { contains: search, mode: "insensitive" as const } },
           { id: { contains: search } },
+          { remnawaveUuid: { contains: search, mode: "insensitive" as const } },
         ],
       });
     }
@@ -646,24 +745,25 @@ adminRouter.get("/clients", async (req, res) => {
           isBlocked: true,
           blockReason: true,
           referralPercent: true,
+          personalDiscountPercent: true,
           createdAt: true,
           _count: { select: { referrals: true } },
         },
       }),
       prisma.client.count({ where: whereClause }),
     ]);
-    let items: ((typeof clients)[number] & { activeNode?: string | null })[] = clients;
+    let items: ((typeof clients)[number] & { activeNode?: string | null; onlineAt?: string | null })[] = clients;
 
-    // Попробуем обогатить клиентов информацией об активной ноде Remna (если Remna настроен)
+    // Попробуем обогатить клиентов информацией об активной ноде и onlineAt из Remna
     if (isRemnaConfigured()) {
       const withRemna = clients.filter((c) => c.remnawaveUuid);
-      const map: Record<string, string | null> = {};
+      const map: Record<string, { activeNode: string | null; onlineAt: string | null }> = {};
       await Promise.all(
         withRemna.map(async (c) => {
           try {
             const resRemna = await remnaGetUser(c.remnawaveUuid!);
             if (resRemna.error || !resRemna.data) {
-              map[c.id] = null;
+              map[c.id] = { activeNode: null, onlineAt: null };
               return;
             }
             const raw = resRemna.data as Record<string, unknown>;
@@ -680,15 +780,19 @@ adminRouter.get("/clients", async (req, res) => {
                 label = (first.name || first.uuid || "").trim() || null;
               }
             }
-            map[c.id] = label;
+            // Извлекаем onlineAt из userTraffic
+            const traffic = resp.userTraffic as Record<string, unknown> | undefined;
+            const onlineAt = typeof traffic?.onlineAt === "string" ? traffic.onlineAt : null;
+            map[c.id] = { activeNode: label, onlineAt };
           } catch {
-            map[c.id] = null;
+            map[c.id] = { activeNode: null, onlineAt: null };
           }
         })
       );
       items = clients.map((c) => ({
         ...c,
-        activeNode: map[c.id] ?? null,
+        activeNode: map[c.id]?.activeNode ?? null,
+        onlineAt: map[c.id]?.onlineAt ?? null,
       }));
     }
 
@@ -697,6 +801,53 @@ adminRouter.get("/clients", async (req, res) => {
     console.error("GET /admin/clients error:", e);
     const msg = e instanceof Error ? e.message : String(e);
     return res.status(500).json({ message: "Ошибка загрузки клиентов. Выполните: cd backend && npx prisma db push", error: msg });
+  }
+});
+
+/**
+ * POST /api/admin/clients/online-statuses
+ * Лёгкий эндпоинт для поллинга онлайн-статусов клиентов.
+ * Принимает { uuids: string[] } (remnawaveUuid), возвращает { [uuid]: { onlineAt: string | null } }
+ */
+adminRouter.post("/clients/online-statuses", async (req, res) => {
+  try {
+    const { uuids } = req.body as { uuids?: string[] };
+    if (!Array.isArray(uuids) || uuids.length === 0) {
+      return res.json({});
+    }
+    // Ограничим до 100 uuid за запрос
+    const limited = uuids.slice(0, 100);
+    const result: Record<string, { onlineAt: string | null }> = {};
+
+    if (!isRemnaConfigured()) {
+      for (const uuid of limited) result[uuid] = { onlineAt: null };
+      return res.json(result);
+    }
+
+    await Promise.all(
+      limited.map(async (uuid) => {
+        try {
+          const resRemna = await remnaGetUser(uuid);
+          if (resRemna.error || !resRemna.data) {
+            result[uuid] = { onlineAt: null };
+            return;
+          }
+          const raw = resRemna.data as Record<string, unknown>;
+          const resp = (raw.response ?? raw) as Record<string, unknown>;
+          const traffic = resp.userTraffic as Record<string, unknown> | undefined;
+          result[uuid] = {
+            onlineAt: typeof traffic?.onlineAt === "string" ? traffic.onlineAt : null,
+          };
+        } catch {
+          result[uuid] = { onlineAt: null };
+        }
+      })
+    );
+
+    return res.json(result);
+  } catch (e) {
+    console.error("POST /admin/clients/online-statuses error:", e);
+    return res.status(500).json({ message: "Ошибка получения статусов" });
   }
 });
 
@@ -721,6 +872,7 @@ adminRouter.get("/clients/:id", async (req, res) => {
       isBlocked: true,
       blockReason: true,
       referralPercent: true,
+      personalDiscountPercent: true,
       createdAt: true,
       _count: { select: { referrals: true } },
     },
@@ -737,6 +889,7 @@ const updateClientSchema = z.object({
   isBlocked: z.boolean().optional(),
   blockReason: z.string().nullable().optional(),
   referralPercent: z.number().min(0).max(100).nullable().optional(),
+  personalDiscountPercent: z.number().min(0).max(100).nullable().optional(),
 });
 
 adminRouter.patch("/clients/:id", async (req, res) => {
@@ -754,6 +907,7 @@ adminRouter.patch("/clients/:id", async (req, res) => {
   if (body.data.isBlocked !== undefined) updates.isBlocked = body.data.isBlocked;
   if (body.data.blockReason !== undefined) updates.blockReason = body.data.blockReason;
   if (body.data.referralPercent !== undefined) updates.referralPercent = body.data.referralPercent;
+  if (body.data.personalDiscountPercent !== undefined) updates.personalDiscountPercent = body.data.personalDiscountPercent;
   const updated = await prisma.client.update({
     where: { id: parsed.data.id },
     data: updates,
@@ -771,6 +925,7 @@ adminRouter.patch("/clients/:id", async (req, res) => {
       isBlocked: true,
       blockReason: true,
       referralPercent: true,
+      personalDiscountPercent: true,
       createdAt: true,
       _count: { select: { referrals: true } },
     },
@@ -895,6 +1050,27 @@ adminRouter.patch("/clients/:id/remna", async (req, res) => {
   return res.json(result.data ?? {});
 });
 
+/**
+ * Отвязать клиента от Remna (обнулить remnawaveUuid).
+ *
+ * Кейс: Remna-пользователь удалён (руками в панели Remna), но клиент в нашей БД остался
+ * с «повисшим» remnawaveUuid → syncToRemna не находит его в Remna и выдаёт «fetch failed».
+ * Этот endpoint разрывает связь — клиент остаётся, но считается «без VPN»; при следующей
+ * покупке тарифа будет создан новый Remna-пользователь.
+ */
+adminRouter.post("/clients/:id/remna/unlink", async (req, res) => {
+  const parsed = clientIdParam.safeParse(req.params);
+  if (!parsed.success) return res.status(400).json({ message: "Invalid client id" });
+  const client = await prisma.client.findUnique({
+    where: { id: parsed.data.id },
+    select: { id: true, remnawaveUuid: true },
+  });
+  if (!client) return res.status(404).json({ message: "Клиент не найден" });
+  if (!client.remnawaveUuid) return res.status(400).json({ message: "Клиент уже не привязан к Remna" });
+  await prisma.client.update({ where: { id: client.id }, data: { remnawaveUuid: null } });
+  return res.json({ ok: true });
+});
+
 adminRouter.post("/clients/:id/remna/revoke-subscription", async (req, res) => {
   const parsed = clientIdParam.safeParse(req.params);
   if (!parsed.success) return res.status(400).json({ message: "Invalid client id" });
@@ -933,6 +1109,116 @@ adminRouter.post("/clients/:id/remna/reset-traffic", async (req, res) => {
   const result = await remnaResetUserTraffic(remnaUuid);
   if (result.error) return res.status(result.status >= 400 ? result.status : 500).json({ message: result.error });
   return res.json(result.data ?? {});
+});
+
+const grantTariffSchema = z.object({
+  tariffId: z.string().min(1),
+  // Опционально: конкретная опция длительности из priceOptions тарифа.
+  // Если не указано — используется опция с минимальной ценой (default).
+  tariffPriceOptionId: z.string().min(1).optional(),
+  note: z.string().max(500).optional(),
+  createPaymentRecord: z.boolean().optional(),
+});
+
+/**
+ * POST /admin/clients/:id/grant-tariff
+ * Выдаёт тариф клиенту вручную (без оплаты). Создаёт запись Payment со статусом PAID,
+ * amount=0, provider="admin_grant", и активирует подписку в Remnawave.
+ * Подходит для компенсаций, бонусов, корректировок — без начисления реферальных бонусов.
+ */
+adminRouter.post("/clients/:id/grant-tariff", async (req, res) => {
+  const parsed = clientIdParam.safeParse(req.params);
+  if (!parsed.success) return res.status(400).json({ message: "Invalid client id" });
+  const body = grantTariffSchema.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ message: "Invalid input" });
+
+  const clientId = parsed.data.id;
+  const { tariffId, tariffPriceOptionId, note, createPaymentRecord = true } = body.data;
+
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { id: true, remnawaveUuid: true, email: true, telegramId: true, telegramUsername: true },
+  });
+  if (!client) return res.status(404).json({ message: "Клиент не найден" });
+
+  const tariff = await prisma.tariff.findUnique({
+    where: { id: tariffId },
+    include: { priceOptions: { orderBy: [{ sortOrder: "asc" }, { durationDays: "asc" }] } },
+  });
+  if (!tariff) return res.status(404).json({ message: "Тариф не найден" });
+
+  // Выбираем опцию: явный priceOptionId → найти и проверить; иначе — опция с минимальной ценой
+  // (или fallback на legacy tariff.durationDays + tariff.price если опций нет).
+  let selectedOption: { id: string; durationDays: number; price: number } | null = null;
+  if (tariffPriceOptionId) {
+    const opt = tariff.priceOptions.find((o) => o.id === tariffPriceOptionId);
+    if (!opt) return res.status(400).json({ message: "Опция цены не найдена в этом тарифе" });
+    selectedOption = { id: opt.id, durationDays: opt.durationDays, price: opt.price };
+  } else if (tariff.priceOptions.length > 0) {
+    const sorted = [...tariff.priceOptions].sort((a, b) => a.price - b.price);
+    selectedOption = { id: sorted[0].id, durationDays: sorted[0].durationDays, price: sorted[0].price };
+  }
+
+  const adminId = (req as unknown as { adminId: string }).adminId;
+  const now = new Date();
+
+  let paymentId: string | null = null;
+  if (createPaymentRecord) {
+    const orderId = `admin-grant-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    try {
+      const payment = await prisma.payment.create({
+        data: {
+          clientId,
+          orderId,
+          amount: 0,
+          currency: tariff.currency,
+          status: "PAID",
+          provider: "admin_grant",
+          tariffId: tariff.id,
+          tariffPriceOptionId: selectedOption?.id ?? null,
+          paidAt: now,
+          metadata: JSON.stringify({ grantedBy: adminId, note: note ?? null, kind: "admin_grant" }),
+        },
+        select: { id: true },
+      });
+      paymentId = payment.id;
+    } catch (e) {
+      console.error("[admin/grant-tariff] Не удалось создать Payment:", e);
+    }
+  }
+
+  const activation = await activateTariffForClient(
+    client,
+    {
+      id: tariff.id,
+      durationDays: selectedOption?.durationDays ?? tariff.durationDays,
+      trafficLimitBytes: tariff.trafficLimitBytes,
+      deviceLimit: tariff.deviceLimit,
+      internalSquadUuids: tariff.internalSquadUuids,
+      trafficResetMode: tariff.trafficResetMode ?? undefined,
+      price: selectedOption?.price ?? tariff.price,
+    },
+    selectedOption ? { durationDays: selectedOption.durationDays, price: selectedOption.price } : undefined,
+  );
+
+  if (!activation.ok) {
+    if (paymentId) {
+      await prisma.payment.update({
+        where: { id: paymentId },
+        data: { status: "FAILED", metadata: JSON.stringify({ grantedBy: adminId, note: note ?? null, kind: "admin_grant", error: activation.error }) },
+      }).catch(() => { /* ignore */ });
+    }
+    return res.status(activation.status && activation.status >= 400 ? activation.status : 500).json({
+      ok: false,
+      message: activation.error ?? "Ошибка активации тарифа",
+    });
+  }
+
+  return res.json({
+    ok: true,
+    paymentId,
+    tariff: { id: tariff.id, name: tariff.name, durationDays: tariff.durationDays },
+  });
 });
 
 const squadActionSchema = z.object({ squadUuid: z.string().uuid() });
@@ -1090,6 +1376,8 @@ const updateSettingsSchema = z.object({
   plategaMerchantId: z.string().max(200).nullable().optional(),
   plategaSecret: z.string().max(500).nullable().optional(),
   plategaMethods: z.string().max(2000).nullable().optional(),
+  paymentProvidersConfig: z.string().max(5000).nullable().optional(),
+  gramadsApiKey: z.string().max(1000).nullable().optional(),
   yoomoneyClientId: z.string().max(200).nullable().optional(),
   yoomoneyClientSecret: z.string().max(500).nullable().optional(),
   yoomoneyReceiverWallet: z.string().max(50).nullable().optional(),
@@ -1100,6 +1388,13 @@ const updateSettingsSchema = z.object({
   cryptopayTestnet: z.boolean().optional(),
   heleketMerchantId: z.string().max(500).nullable().optional(),
   heleketApiKey: z.string().max(500).nullable().optional(),
+  lavaShopId: z.string().max(200).nullable().optional(),
+  lavaSecretKey: z.string().max(500).nullable().optional(),
+  lavaAdditionalKey: z.string().max(500).nullable().optional(),
+  overpayApiUrl: z.string().max(500).nullable().optional(),
+  overpayProjectId: z.string().max(100).nullable().optional(),
+  overpayLogin: z.string().max(200).nullable().optional(),
+  overpayPassword: z.string().max(500).nullable().optional(),
   groqApiKey: z.string().max(500).nullable().optional(),
   groqModel: z.string().max(100).nullable().optional(),
   groqFallback1: z.string().max(100).nullable().optional(),
@@ -1516,6 +1811,16 @@ adminRouter.patch("/settings", async (req, res) => {
     const val = updates.plategaMethods ?? "";
     await prisma.systemSetting.upsert({ where: { key: "platega_methods" }, create: { key: "platega_methods", value: val }, update: { value: val } });
   }
+  if (updates.paymentProvidersConfig !== undefined) {
+    const val = updates.paymentProvidersConfig ?? "";
+    await prisma.systemSetting.upsert({ where: { key: "payment_providers_config" }, create: { key: "payment_providers_config", value: val }, update: { value: val } });
+  }
+  if (updates.gramadsApiKey !== undefined) {
+    const val = updates.gramadsApiKey && updates.gramadsApiKey !== "********" ? updates.gramadsApiKey : (updates.gramadsApiKey === "" ? "" : undefined);
+    if (val !== undefined) {
+      await prisma.systemSetting.upsert({ where: { key: "gramads_api_key" }, create: { key: "gramads_api_key", value: val }, update: { value: val } });
+    }
+  }
   if (updates.yoomoneyClientId !== undefined) {
     const val = updates.yoomoneyClientId ?? "";
     await prisma.systemSetting.upsert({ where: { key: "yoomoney_client_id" }, create: { key: "yoomoney_client_id", value: val }, update: { value: val } });
@@ -1555,6 +1860,34 @@ adminRouter.patch("/settings", async (req, res) => {
   if (updates.heleketApiKey !== undefined) {
     const val = updates.heleketApiKey ?? "";
     await prisma.systemSetting.upsert({ where: { key: "heleket_api_key" }, create: { key: "heleket_api_key", value: val }, update: { value: val } });
+  }
+  if (updates.lavaShopId !== undefined) {
+    const val = updates.lavaShopId ?? "";
+    await prisma.systemSetting.upsert({ where: { key: "lava_shop_id" }, create: { key: "lava_shop_id", value: val }, update: { value: val } });
+  }
+  if (updates.lavaSecretKey !== undefined) {
+    const val = updates.lavaSecretKey ?? "";
+    await prisma.systemSetting.upsert({ where: { key: "lava_secret_key" }, create: { key: "lava_secret_key", value: val }, update: { value: val } });
+  }
+  if (updates.lavaAdditionalKey !== undefined) {
+    const val = updates.lavaAdditionalKey ?? "";
+    await prisma.systemSetting.upsert({ where: { key: "lava_additional_key" }, create: { key: "lava_additional_key", value: val }, update: { value: val } });
+  }
+  if (updates.overpayApiUrl !== undefined) {
+    const val = updates.overpayApiUrl ?? "";
+    await prisma.systemSetting.upsert({ where: { key: "overpay_api_url" }, create: { key: "overpay_api_url", value: val }, update: { value: val } });
+  }
+  if (updates.overpayProjectId !== undefined) {
+    const val = updates.overpayProjectId ?? "";
+    await prisma.systemSetting.upsert({ where: { key: "overpay_project_id" }, create: { key: "overpay_project_id", value: val }, update: { value: val } });
+  }
+  if (updates.overpayLogin !== undefined) {
+    const val = updates.overpayLogin ?? "";
+    await prisma.systemSetting.upsert({ where: { key: "overpay_login" }, create: { key: "overpay_login", value: val }, update: { value: val } });
+  }
+  if (updates.overpayPassword !== undefined) {
+    const val = updates.overpayPassword ?? "";
+    await prisma.systemSetting.upsert({ where: { key: "overpay_password" }, create: { key: "overpay_password", value: val }, update: { value: val } });
   }
   if (updates.groqApiKey !== undefined) {
     const val = updates.groqApiKey ?? "";
@@ -2136,7 +2469,13 @@ adminRouter.get("/tickets/:id", asyncRoute(async (req, res) => {
     createdAt: ticket.createdAt.toISOString(),
     updatedAt: ticket.updatedAt.toISOString(),
     client: ticket.client,
-    messages: ticket.messages.map((m) => ({ id: m.id, authorType: m.authorType, content: m.content, createdAt: m.createdAt.toISOString() })),
+    messages: ticket.messages.map((m) => ({
+      id: m.id,
+      authorType: m.authorType,
+      content: m.content,
+      attachments: parseAttachments(m.attachments),
+      createdAt: m.createdAt.toISOString(),
+    })),
   });
 }));
 
@@ -2157,22 +2496,41 @@ adminRouter.patch("/tickets/:id", asyncRoute(async (req, res) => {
   return res.json({ id: ticket.id, status: ticket.status });
 }));
 
-const adminTicketMessageSchema = z.object({ content: z.string().min(1).max(10000) });
-adminRouter.post("/tickets/:id/messages", asyncRoute(async (req, res) => {
-  const body = adminTicketMessageSchema.safeParse(req.body);
+// Ответ поддержки. multipart/form-data — если приложены фото.
+const adminTicketMessageSchema = z.object({ content: z.string().max(10000).optional().default("") });
+adminRouter.post("/tickets/:id/messages", uploadTicketAttachment.array("files", 5), asyncRoute(async (req, res) => {
+  const content = pickTicketField(req, "content");
+  const body = adminTicketMessageSchema.safeParse({ content });
   if (!body.success) return res.status(400).json({ message: "Invalid input", errors: body.error.flatten() });
   const ticket = await prisma.ticket.findUnique({ where: { id: req.params.id } });
   if (!ticket) return res.status(404).json({ message: "Тикет не найден" });
+  const attachments = filesToAttachments(req.files as Express.Multer.File[] | undefined);
+  const trimmed = body.data.content.trim();
+  if (!trimmed && attachments.length === 0) {
+    return res.status(400).json({ message: "Пустое сообщение" });
+  }
   const msg = await prisma.ticketMessage.create({
-    data: { ticketId: ticket.id, authorType: "support", content: body.data.content.trim() },
+    data: {
+      ticketId: ticket.id,
+      authorType: "support",
+      content: trimmed,
+      attachments: serializeAttachments(attachments),
+    },
   });
   await prisma.ticket.update({ where: { id: ticket.id }, data: { updatedAt: new Date() } });
   notifyAdminsAboutSupportReply({
     ticketId: ticket.id,
     clientId: ticket.clientId,
-    content: body.data.content.trim(),
+    content: trimmed,
+    attachmentsCount: attachments.length,
   }).catch(() => {});
-  return res.status(201).json({ id: msg.id, authorType: msg.authorType, content: msg.content, createdAt: msg.createdAt.toISOString() });
+  return res.status(201).json({
+    id: msg.id,
+    authorType: msg.authorType,
+    content: msg.content,
+    attachments: parseAttachments(msg.attachments),
+    createdAt: msg.createdAt.toISOString(),
+  });
 }));
 
 // Синхронизация с Remna
@@ -2255,7 +2613,9 @@ adminRouter.post(
       req.file && req.file.buffer
         ? { buffer: req.file.buffer, mimetype: req.file.mimetype || "application/octet-stream", originalname: req.file.originalname || "file" }
         : undefined;
-    const result = await runBroadcast({
+    // Запускаем рассылку в фоне. Для больших баз синхронная отправка
+    // упирается в таймаут nginx/браузера, хотя на бэкенде всё идёт успешно.
+    const jobId = startBroadcastJob({
       channel,
       subject: subject ?? "",
       message,
@@ -2263,7 +2623,24 @@ adminRouter.post(
       buttonText,
       buttonUrl,
     });
-    return res.json(result);
+    return res.json({ jobId });
+  })
+);
+
+adminRouter.get(
+  "/broadcast/status/:jobId",
+  asyncRoute(async (req, res) => {
+    const job = getBroadcastJob(req.params.jobId);
+    if (!job) return res.status(404).json({ message: "Job not found" });
+    return res.json({
+      id: job.id,
+      status: job.status,
+      progress: job.progress,
+      result: job.result ?? null,
+      error: job.error ?? null,
+      startedAt: job.startedAt.toISOString(),
+      finishedAt: job.finishedAt ? job.finishedAt.toISOString() : null,
+    });
   })
 );
 
@@ -2783,7 +3160,7 @@ adminRouter.get("/analytics", async (_req, res) => {
 
   // ─── Доход по провайдерам ───
   const providerSeries = Object.entries(revenueByProvider).map(([provider, amount]) => ({
-    provider: provider === "balance" ? "Баланс" : provider === "platega" ? "Platega" : provider === "cryptopay" ? "Crypto Pay" : provider === "heleket" ? "Heleket" : provider,
+    provider: provider === "balance" ? "Баланс" : provider === "platega" ? "Platega" : provider === "cryptopay" ? "Crypto Pay" : provider === "heleket" ? "Heleket" : provider === "overpay" ? "Overpay" : provider,
     amount,
   }));
 
@@ -3202,21 +3579,37 @@ adminRouter.delete("/sales-report/:paymentId", async (req, res) => {
 // ═══════════════════════════════════════════════════════════════
 
 export const ADMIN_ALLOWED_SECTIONS = [
+  // Overview
   "dashboard",
-  "remna-nodes",
+  "remna-nodes", // виджет нод Remna на дашборде
+  "analytics",
+  "sales-report",
+  "traffic-abuse",
+  "geo-map",
+  // Management
   "clients",
+  "proxy",
+  "singbox",
+  "backup",
+  "tickets",
+  // Subscription
   "tariffs",
   "promo",
   "promo-codes",
-  "analytics",
   "marketing",
-  "sales-report",
+  "referral-network",
+  "secondary-subscriptions",
+  // Tools
+  "video-instructions",
   "broadcast",
   "auto-broadcast",
-  "video-instructions",
-  "backup",
+  "contests",
+  "tour-constructor",
+  "promo-vpn", // Продвижение VPN через Gramads
+  // Settings
   "settings",
   "languages",
+  "api-keys",
 ] as const;
 
 /** Список админов и менеджеров (только ADMIN). */
@@ -3404,6 +3797,13 @@ adminRouter.get("/secondary-subscriptions", asyncRoute(async (req, res) => {
         { giftStatus: null, giftedToClientId: null },
         { giftStatus: "", giftedToClientId: null },
         { giftStatus: "ACTIVATED_SELF" },
+      ],
+    });
+  } else if (giftStatus === "null") {
+    conditions.push({
+      OR: [
+        { giftStatus: null, giftedToClientId: null },
+        { giftStatus: "", giftedToClientId: null },
       ],
     });
   } else if (giftStatus === "ACTIVATED_SELF") {

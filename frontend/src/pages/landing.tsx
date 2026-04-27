@@ -309,6 +309,8 @@ function getPaymentLabels(config: PublicConfig): string[] {
   if (config.yoomoneyEnabled) labels.add("ЮMoney");
   if (config.cryptopayEnabled) labels.add("Крипта");
   if (config.heleketEnabled) labels.add("Heleket");
+  if (config.lavaEnabled) labels.add("LAVA");
+  if (config.overpayEnabled) labels.add("Overpay");
 
   return Array.from(labels).slice(0, 4);
 }
@@ -730,7 +732,9 @@ export function LandingPage({ config }: { config: PublicConfig }) {
                       <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">{pulseTitle}</p>
                     </div>
                     <Button className="h-12 rounded-full px-5 text-white" style={primaryButtonStyle} asChild>
-                      <Link to={lc.showTariffs ? "#tariffs" : buildLink("/cabinet/register")}>{lc.showTariffs ? buttonWatchTariffs : buttonStart}</Link>
+                      {lc.showTariffs
+                        ? <a href="#tariffs">{buttonWatchTariffs}</a>
+                        : <Link to={buildLink("/cabinet/register")}>{buttonStart}</Link>}
                     </Button>
                   </div>
                 </div>

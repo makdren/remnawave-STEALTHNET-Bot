@@ -41,9 +41,9 @@ export async function sendVerificationEmail(
     port: config.port,
     secure: config.secure,
     auth,
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 10000,
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 30000,
   });
 
   const from = config.fromName
@@ -92,9 +92,9 @@ export async function sendLinkEmailVerification(
     port: config.port,
     secure: config.secure,
     auth,
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 10000,
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 30000,
   });
 
   const from = config.fromName

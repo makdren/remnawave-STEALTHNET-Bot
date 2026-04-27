@@ -18,27 +18,66 @@ export interface Admin {
 }
 
 /** Разделы, которые можно выдать менеджеру (без "admins"). */
-export const MANAGER_SECTIONS = [
-  { key: "dashboard", label: "Дашборд" },
-  { key: "remna-nodes", label: "Ноды Remna" },
-  { key: "clients", label: "Клиенты" },
-  { key: "referrals", label: "Реферальная сеть" },
-  { key: "tariffs", label: "Тарифы" },
-  { key: "promo", label: "Промо-ссылки" },
-  { key: "promo-codes", label: "Промокоды" },
-  { key: "analytics", label: "Аналитика" },
-  { key: "traffic-abuse", label: "Анализ трафика" },
-  { key: "marketing", label: "Маркетинг" },
-  { key: "sales-report", label: "Отчёты продаж" },
-  { key: "broadcast", label: "Рассылка" },
-  { key: "auto-broadcast", label: "Авто-рассылка" },
-  { key: "backup", label: "Бэкапы" },
-  { key: "proxy", label: "Прокси" },
-  { key: "singbox", label: "Sing-box" },
-  { key: "contests", label: "Конкурсы" },
+export type ManagerSectionCategory = "overview" | "management" | "subscription" | "tools" | "settings";
+
+export const MANAGER_SECTION_CATEGORIES: { key: ManagerSectionCategory; label: string }[] = [
+  { key: "overview", label: "Обзор" },
+  { key: "management", label: "Управление" },
+  { key: "subscription", label: "Подписка" },
+  { key: "tools", label: "Инструменты" },
   { key: "settings", label: "Настройки" },
-  { key: "api-keys", label: "API ключи" },
-] as const;
+];
+
+export const MANAGER_SECTIONS: { key: string; label: string; category: ManagerSectionCategory }[] = [
+  // Обзор
+  { key: "dashboard", label: "Дашборд", category: "overview" },
+  { key: "remna-nodes", label: "Виджет нод Remna (на дашборде)", category: "overview" },
+  { key: "analytics", label: "Аналитика", category: "overview" },
+  { key: "sales-report", label: "Отчёты продаж", category: "overview" },
+  { key: "traffic-abuse", label: "Анализ трафика", category: "overview" },
+  { key: "geo-map", label: "Карта нод", category: "overview" },
+  // Управление
+  { key: "clients", label: "Клиенты", category: "management" },
+  { key: "proxy", label: "Прокси", category: "management" },
+  { key: "singbox", label: "Sing-box", category: "management" },
+  { key: "backup", label: "Бэкапы", category: "management" },
+  { key: "tickets", label: "Тикеты", category: "management" },
+  // Подписка
+  { key: "tariffs", label: "Тарифы", category: "subscription" },
+  { key: "promo", label: "Промо-ссылки", category: "subscription" },
+  { key: "promo-codes", label: "Промокоды", category: "subscription" },
+  { key: "marketing", label: "Маркетинг", category: "subscription" },
+  { key: "referral-network", label: "Реф. сеть", category: "subscription" },
+  { key: "secondary-subscriptions", label: "Доп. подписки", category: "subscription" },
+  // Инструменты
+  { key: "video-instructions", label: "Видео-инструкции", category: "tools" },
+  { key: "broadcast", label: "Рассылка", category: "tools" },
+  { key: "auto-broadcast", label: "Авто-рассылка", category: "tools" },
+  { key: "contests", label: "Конкурсы", category: "tools" },
+  { key: "tour-constructor", label: "Конструктор тура", category: "tools" },
+  // Настройки
+  { key: "settings", label: "Настройки", category: "settings" },
+  { key: "languages", label: "Языки", category: "settings" },
+  { key: "api-keys", label: "API ключи", category: "settings" },
+];
+
+/** Вложение тикета. URL относительный — `/api/uploads/tickets/...`. */
+export interface TicketAttachmentDto {
+  url: string;
+  mime: string;
+  size: number;
+  name?: string;
+}
+
+/** Сообщение тикета — в ответе клиентского и админского API. */
+export interface TicketMessageDto {
+  id: string;
+  authorType: string;
+  content: string;
+  attachments?: TicketAttachmentDto[];
+  createdAt: string;
+  isRead?: boolean;
+}
 
 export interface AdminListItem {
   id: string;
@@ -117,13 +156,80 @@ export interface AuthState {
   pending2FAToken: string | null;
 }
 
+// ───────── Gramads (Advertising API for Resellers) types ─────────
+export interface GramadsBalanceDto { balance: number; notSuccessExplanation?: number }
+export interface GramadsChartDto { year: number; month: number; day: number; count: number; paidReward: number }
+export interface GramadsIncomesExpensesDto { incomes: GramadsChartDto[]; expenses: GramadsChartDto[]; notSuccessExplanation?: number }
+export interface GramadsDepositDto { id: number; amount: number; depositReason: number; dateCreated: string }
+export interface GramadsDepositPageDto { items: GramadsDepositDto[]; currentPageIndex: number; totalItemsCount: number; totalPagesCount: number }
+export interface GramadsScheduleDto { postId: number; utcScheduleFrom?: string | null; utcScheduleTill?: string | null }
+export interface GramadsRedirectUrlDto { postId: number; linkNumber: number; sourceUrl?: string | null }
+export interface GramadsPostDto {
+  id: number;
+  text?: string | null;
+  buttonText?: string | null;
+  link?: string | null;
+  buttonsInfo?: string | null;
+  extraPriceButtons: number;
+  enabled: boolean;
+  totalShows: number;
+  limit: number;
+  campaignForBot?: string | null;
+  isRestricted: boolean;
+  isArchived: boolean;
+  useRedirects: boolean;
+  extraRate: number;
+  gAlityEnabled: boolean;
+  premiumOnlyEnabled: boolean;
+  favouriteBotsOnly: boolean;
+  groupChatsEnabled: boolean;
+  gramAdsPromoChannelPublished: boolean;
+  isFavourite: boolean;
+  schedule?: GramadsScheduleDto;
+  /** 0=minimum, 1=normal, 2=max */
+  strategy: number;
+  /** 0=pending, 1=approved, 2=rejected */
+  moderationStatus: number;
+  /** 0=yes, 1=no, 2=moderated */
+  postCanBePublished: number;
+  excludedCategories?: number[];
+  excludedLanguages?: string[];
+  redirectUrlDtos?: GramadsRedirectUrlDto[];
+  dateCreated: string;
+  /** 0-7 PostCategory */
+  postCategory: number;
+  /** 0=None, 1=Markdown, 2=HTML */
+  markup: number;
+  exceptedUsersCount: number;
+  impressionPerHours: number;
+  paid: number;
+  notSuccessExplanation?: number;
+}
+export interface GramadsPostPageDto { items: GramadsPostDto[]; currentPageIndex: number; totalItemsCount: number; totalPagesCount: number }
+export interface GramadsTagDto { tag: string; count: number }
+export interface GramadsShowDto {
+  id: number; postId: number; botUsername?: string | null; showedToUserName?: string | null; showedToUserUsername?: string | null;
+  buttonsInfo?: string | null; postText?: string | null; buttonText?: string | null; postLink?: string | null;
+  forUsername?: string | null; postContentBannedFromBot: boolean; language?: string | null; dateShowed: string;
+}
+export interface GramadsShowPageDto { items: GramadsShowDto[]; currentPageIndex: number; totalItemsCount: number; totalPagesCount: number }
+export interface GramadsBotShowedMyPostDto {
+  botId: number; postId: number; botUsername?: string | null; botPic?: string | null; botName?: string | null;
+  views: number; isExcepted: boolean; category: number; isFavourite: boolean;
+}
+
+
 async function request<T>(
   path: string,
   options: RequestInit & { token?: string; _retry?: boolean } = {}
 ): Promise<T> {
   const { token, _retry, ...init } = options;
   const headers = new Headers(init.headers);
-  headers.set("Content-Type", "application/json");
+  // Для FormData Content-Type НЕ выставляем: браузер сам добавит boundary.
+  const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
+  if (!isFormData && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
@@ -470,6 +576,18 @@ export const api = {
     return request(`/admin/clients?${sp.toString()}`, { token });
   },
 
+  /** Лёгкий поллинг онлайн-статусов: принимает массив remnawaveUuid, возвращает { [uuid]: { onlineAt } } */
+  async getClientsOnlineStatuses(
+    token: string,
+    uuids: string[]
+  ): Promise<Record<string, { onlineAt: string | null }>> {
+    return request("/admin/clients/online-statuses", {
+      method: "POST",
+      body: JSON.stringify({ uuids }),
+      token,
+    });
+  },
+
   async getClient(token: string, id: string): Promise<ClientRecord> {
     return request(`/admin/clients/${id}`, { token });
   },
@@ -502,6 +620,12 @@ export const api = {
     return request(`/admin/clients/${clientId}/remna/revoke-subscription`, { method: "POST", token });
   },
 
+  /** Отвязать клиента от Remna (remnawaveUuid = null). Клиент остаётся, связь сбрасывается —
+   *  используется если Remna-пользователь удалён руками в панели Remna и sync зависает. */
+  async clientRemnaUnlink(token: string, clientId: string): Promise<{ ok: boolean }> {
+    return request(`/admin/clients/${clientId}/remna/unlink`, { method: "POST", token });
+  },
+
   async clientRemnaDisable(token: string, clientId: string): Promise<unknown> {
     return request(`/admin/clients/${clientId}/remna/disable`, { method: "POST", token });
   },
@@ -512,6 +636,18 @@ export const api = {
 
   async clientRemnaResetTraffic(token: string, clientId: string): Promise<unknown> {
     return request(`/admin/clients/${clientId}/remna/reset-traffic`, { method: "POST", token });
+  },
+
+  async grantClientTariff(
+    token: string,
+    clientId: string,
+    payload: { tariffId: string; tariffPriceOptionId?: string; note?: string; createPaymentRecord?: boolean }
+  ): Promise<{ ok: boolean; paymentId: string | null; tariff: { id: string; name: string; durationDays: number }; message?: string }> {
+    return request(`/admin/clients/${clientId}/grant-tariff`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+      token,
+    });
   },
 
   async clientRemnaSquadAdd(token: string, clientId: string, squadUuid: string): Promise<unknown> {
@@ -723,7 +859,7 @@ export const api = {
     createdAt: string;
     updatedAt: string;
     client: { id: string; email: string | null; telegramUsername: string | null };
-    messages: { id: string; authorType: string; content: string; createdAt: string }[];
+    messages: TicketMessageDto[];
   }> {
     return request(`/admin/tickets/${id}`, { token });
   },
@@ -731,13 +867,24 @@ export const api = {
   async patchAdminTicket(token: string, id: string, data: { status: "open" | "closed" }): Promise<{ id: string; status: string }> {
     return request(`/admin/tickets/${id}`, { method: "PATCH", body: JSON.stringify(data), token });
   },
-  /** Админ: ответ в тикет (поддержка) */
+  /** Админ: ответ в тикет (поддержка). Можно приложить до 5 фото — тогда уходит multipart/form-data. */
   async postAdminTicketMessage(
     token: string,
     ticketId: string,
-    data: { content: string }
-  ): Promise<{ id: string; authorType: string; content: string; createdAt: string }> {
-    return request(`/admin/tickets/${ticketId}/messages`, { method: "POST", body: JSON.stringify(data), token });
+    data: { content: string; files?: File[] }
+  ): Promise<TicketMessageDto> {
+    const files = data.files ?? [];
+    if (files.length > 0) {
+      const fd = new FormData();
+      fd.append("content", data.content ?? "");
+      for (const f of files) fd.append("files", f);
+      return request(`/admin/tickets/${ticketId}/messages`, { method: "POST", body: fd, token });
+    }
+    return request(`/admin/tickets/${ticketId}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ content: data.content }),
+      token,
+    });
   },
 
   async syncFromRemna(token: string): Promise<SyncResult> {
@@ -757,12 +904,16 @@ export const api = {
     return request("/admin/broadcast/recipients-count", { token });
   },
 
-  /** Запустить рассылку (опционально — изображение или файл вложения). */
+  /**
+   * Поставить рассылку в очередь.
+   * Возвращает jobId — результат нужно опрашивать через `broadcastStatus(jobId)`,
+   * потому что сама рассылка идёт в фоне на бэкенде (может длиться минуты).
+   */
   async broadcast(
     token: string,
     body: { channel: "telegram" | "email" | "both"; subject?: string; message: string; buttonText?: string; buttonUrl?: string },
     attachment?: File | null
-  ): Promise<BroadcastResult> {
+  ): Promise<{ jobId: string }> {
     const form = new FormData();
     form.append("channel", body.channel);
     form.append("message", body.message);
@@ -788,7 +939,20 @@ export const api = {
       const message = (data as { message?: string })?.message ?? res.statusText;
       throw new Error(message);
     }
-    return data as BroadcastResult;
+    return data as { jobId: string };
+  },
+
+  /** Проверить статус фоновой рассылки. */
+  async broadcastStatus(token: string, jobId: string): Promise<{
+    id: string;
+    status: "running" | "completed" | "error";
+    progress: BroadcastProgress;
+    result: BroadcastResult | null;
+    error: string | null;
+    startedAt: string;
+    finishedAt: string | null;
+  }> {
+    return request(`/admin/broadcast/status/${encodeURIComponent(jobId)}`, { token });
   },
 
   /** Авто-рассылка: список правил */
@@ -1122,7 +1286,7 @@ export const api = {
     return request("/client/auth/me", { token });
   },
 
-  async clientSubscription(token: string): Promise<{ subscription: unknown; tariffDisplayName?: string | null; message?: string }> {
+  async clientSubscription(token: string): Promise<{ subscription: unknown; tariffDisplayName?: string | null; currentPricePerDay?: number | null; message?: string }> {
     return request("/client/subscription", { token });
   },
 
@@ -1180,6 +1344,7 @@ export const api = {
       paymentMethod: number;
       description?: string;
       tariffId?: string;
+      tariffPriceOptionId?: string;
       proxyTariffId?: string;
       singboxTariffId?: string;
       promoCode?: string;
@@ -1238,7 +1403,7 @@ export const api = {
 
   async clientPayByBalance(
     token: string,
-    data: { tariffId?: string; proxyTariffId?: string; singboxTariffId?: string; promoCode?: string }
+    data: { tariffId?: string; tariffPriceOptionId?: string; proxyTariffId?: string; singboxTariffId?: string; promoCode?: string }
   ): Promise<{ message: string; paymentId: string; newBalance: number }> {
     return request("/client/payments/balance", { method: "POST", body: JSON.stringify(data), token });
   },
@@ -1269,6 +1434,7 @@ export const api = {
       amount?: number;
       paymentType: "PC" | "AC";
       tariffId?: string;
+      tariffPriceOptionId?: string;
       proxyTariffId?: string;
       singboxTariffId?: string;
       promoCode?: string;
@@ -1298,6 +1464,7 @@ export const api = {
       amount?: number;
       currency?: string;
       tariffId?: string;
+      tariffPriceOptionId?: string;
       proxyTariffId?: string;
       singboxTariffId?: string;
       promoCode?: string;
@@ -1320,6 +1487,7 @@ export const api = {
       amount?: number;
       currency?: string;
       tariffId?: string;
+      tariffPriceOptionId?: string;
       proxyTariffId?: string;
       singboxTariffId?: string;
       promoCode?: string;
@@ -1337,6 +1505,7 @@ export const api = {
       amount?: number;
       currency?: string;
       tariffId?: string;
+      tariffPriceOptionId?: string;
       proxyTariffId?: string;
       singboxTariffId?: string;
       promoCode?: string;
@@ -1347,6 +1516,42 @@ export const api = {
     return request("/client/heleket/create-payment", { method: "POST", body: JSON.stringify(data), token });
   },
 
+  /** LAVA Business — создание счёта (RUB: СБП / Карты / СберPay), возвращает ссылку на оплату */
+  async lavaCreatePayment(
+    token: string,
+    data: {
+      amount?: number;
+      currency?: string;
+      tariffId?: string;
+      tariffPriceOptionId?: string;
+      proxyTariffId?: string;
+      singboxTariffId?: string;
+      promoCode?: string;
+      extraOption?: { kind: "traffic" | "devices" | "servers"; productId: string };
+      customBuild?: { days: number; devices: number; trafficGb?: number };
+    }
+  ): Promise<{ paymentId: string; payUrl: string }> {
+    return request("/client/lava/create-payment", { method: "POST", body: JSON.stringify(data), token });
+  },
+
+  /** Overpay — создание платёжной формы (Карты/СБП), возвращает ссылку на оплату */
+  async overpayCreatePayment(
+    token: string,
+    data: {
+      amount?: number;
+      currency?: string;
+      tariffId?: string;
+      tariffPriceOptionId?: string;
+      proxyTariffId?: string;
+      singboxTariffId?: string;
+      promoCode?: string;
+      extraOption?: { kind: "traffic" | "devices" | "servers"; productId: string };
+      customBuild?: { days: number; devices: number; trafficGb?: number };
+    }
+  ): Promise<{ paymentId: string; payUrl: string }> {
+    return request("/client/overpay/create-payment", { method: "POST", body: JSON.stringify(data), token });
+  },
+
   async clientActivateTrial(token: string): Promise<{ message: string; client: ClientProfile | null }> {
     return request("/client/trial", { method: "POST", token });
   },
@@ -1355,7 +1560,7 @@ export const api = {
     return request("/client/profile", { method: "PATCH", body: JSON.stringify(data), token });
   },
 
-  async clientUpdateAutoRenew(token: string, data: { enabled?: boolean; tariffId?: string | null }): Promise<ClientProfile> {
+  async clientUpdateAutoRenew(token: string, data: { enabled?: boolean; tariffId?: string | null; promoCode?: string | null }): Promise<ClientProfile> {
     return request("/client/auto-renew", { method: "PATCH", body: JSON.stringify(data), token });
   },
 
@@ -1472,31 +1677,57 @@ export const api = {
     status: string;
     createdAt: string;
     updatedAt: string;
-    messages: { id: string; authorType: string; content: string; createdAt: string }[];
+    messages: TicketMessageDto[];
   }> {
     return request(`/client/tickets/${id}`, { token });
   },
-  /** Создать тикет (тема + первое сообщение) */
+  /**
+   * Создать тикет (тема + первое сообщение, опционально — до 5 фото).
+   * При наличии файлов отправляем multipart/form-data.
+   */
   async createTicket(
     token: string,
-    data: { subject: string; message: string }
+    data: { subject: string; message: string; files?: File[] }
   ): Promise<{
     id: string;
     subject: string;
     status: string;
     createdAt: string;
     updatedAt: string;
-    messages: { id: string; authorType: string; content: string; createdAt: string }[];
+    messages: TicketMessageDto[];
   }> {
-    return request("/client/tickets", { method: "POST", body: JSON.stringify(data), token });
+    const files = data.files ?? [];
+    if (files.length > 0) {
+      const fd = new FormData();
+      fd.append("subject", data.subject);
+      fd.append("message", data.message ?? "");
+      for (const f of files) fd.append("files", f);
+      return request("/client/tickets", { method: "POST", body: fd, token });
+    }
+    return request("/client/tickets", {
+      method: "POST",
+      body: JSON.stringify({ subject: data.subject, message: data.message }),
+      token,
+    });
   },
-  /** Ответ в тикет */
+  /** Ответ в тикет. Можно приложить до 5 фото. */
   async replyTicket(
     token: string,
     ticketId: string,
-    data: { content: string }
-  ): Promise<{ id: string; authorType: string; content: string; createdAt: string }> {
-    return request(`/client/tickets/${ticketId}/messages`, { method: "POST", body: JSON.stringify(data), token });
+    data: { content: string; files?: File[] }
+  ): Promise<TicketMessageDto> {
+    const files = data.files ?? [];
+    if (files.length > 0) {
+      const fd = new FormData();
+      fd.append("content", data.content ?? "");
+      for (const f of files) fd.append("files", f);
+      return request(`/client/tickets/${ticketId}/messages`, { method: "POST", body: fd, token });
+    }
+    return request(`/client/tickets/${ticketId}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ content: data.content }),
+      token,
+    });
   },
 
   /** AI Чат (Groq) */
@@ -1590,6 +1821,57 @@ export const api = {
     const res = await fetch(`${API_BASE}/admin/languages/${code}/export`, { headers });
     return res.text();
   },
+
+  // ═══════════ Gramads: "Продвижение VPN" (прокси к https://api.gramads.net) ═══════════
+  /** Статус подключения (валиден ли сохранённый API-ключ) */
+  async gramadsStatus(token: string): Promise<{ configured: boolean; valid: boolean; balance?: GramadsBalanceDto; error?: string }> {
+    return request("/admin/gramads/status", { token });
+  },
+  /** Универсальный вызов: через прокси. */
+  async gramadsCall<T = unknown>(token: string, method: "GET" | "POST", path: string, body?: unknown, query?: Record<string, string | number | boolean | undefined>): Promise<T> {
+    const qs = query
+      ? "?" + Object.entries(query).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`).join("&")
+      : "";
+    const full = `/admin/gramads/proxy${path.startsWith("/") ? path : "/" + path}${qs}`;
+    const init: RequestInit = { method, token } as RequestInit & { token?: string };
+    const options: RequestInit & { token?: string } = { ...init, token };
+    if (body !== undefined && method !== "GET") {
+      (options as RequestInit).body = JSON.stringify(body);
+    }
+    return request<T>(full, options);
+  },
+  async gramadsGetBalance(token: string) { return api.gramadsCall<GramadsBalanceDto>(token, "GET", "/Wallet/GetBalance"); },
+  async gramadsGetIncomesAndExpenses(token: string, getDaysCount = 30) { return api.gramadsCall<GramadsIncomesExpensesDto>(token, "GET", "/Wallet/GetIncomesAndExpenses", undefined, { getDaysCount }); },
+  async gramadsGetMyTopups(token: string, count = 20, pageIndex = 0) { return api.gramadsCall<GramadsDepositPageDto>(token, "GET", "/Wallet/GetMyTopups", undefined, { count, pageIndex }); },
+  async gramadsGetMyPosts(token: string, args: { count?: number; pageIndex?: number; isArchived?: boolean; activeOnly?: boolean; tag?: string } = {}) {
+    return api.gramadsCall<GramadsPostPageDto>(token, "GET", "/PostManagement/GetMyPosts", undefined, args);
+  },
+  async gramadsGetMyPost(token: string, postId: number) { return api.gramadsCall<GramadsPostDto>(token, "GET", "/PostManagement/GetMyPost", undefined, { postId }); },
+  async gramadsGetStatistics(token: string, postId: number, getDaysCount = 30) { return api.gramadsCall<GramadsChartDto[] | unknown>(token, "GET", "/PostManagement/GetStatistics", undefined, { postId, getDaysCount }); },
+  async gramadsGetTags(token: string) { return api.gramadsCall<GramadsTagDto[]>(token, "GET", "/PostManagement/GetTags"); },
+  async gramadsGetShows(token: string, postId: number, count = 20, pageIndex = 0) { return api.gramadsCall<GramadsShowPageDto>(token, "GET", "/PostManagement/GetShows", undefined, { postId, count, pageIndex }); },
+  async gramadsGetBotsShowedMyPost(token: string, postId: number) { return api.gramadsCall<GramadsBotShowedMyPostDto[]>(token, "GET", "/PostManagement/GetBotsShowedMyPost", undefined, { postId }); },
+  async gramadsAddPost(token: string, post: Partial<GramadsPostDto>) { return api.gramadsCall<GramadsPostDto>(token, "POST", "/PostManagement/AddPost", post); },
+  async gramadsTestPost(token: string, post: Partial<GramadsPostDto>) { return api.gramadsCall<number>(token, "POST", "/PostManagement/TestPost", post); },
+  /**
+   * Все Switch*-эндпоинты Gramads ожидают в теле полный PostDto (см. Swagger).
+   * Если прислать только `{id}`, сервер биндит остальные поля в дефолты и ничего не меняет —
+   * поэтому нужно передавать текущее состояние поста, а переключаемый флаг — в нужном значении.
+   */
+  async gramadsSwitchEnabled(token: string, post: GramadsPostDto) { return api.gramadsCall<GramadsPostDto>(token, "POST", "/PostManagement/SwitchEnabled", post); },
+  async gramadsSwitchIsFavourite(token: string, post: GramadsPostDto) { return api.gramadsCall<GramadsPostDto>(token, "POST", "/PostManagement/SwitchIsFavourite", post); },
+  async gramadsSwitchPremiumOnlyEnabled(token: string, post: GramadsPostDto) { return api.gramadsCall<GramadsPostDto>(token, "POST", "/PostManagement/SwitchPremiumOnlyEnabled", post); },
+  async gramadsSwitchGroupsEnabled(token: string, post: GramadsPostDto) { return api.gramadsCall<GramadsPostDto>(token, "POST", "/PostManagement/SwitchGroupsEnabled", post); },
+  async gramadsSwitchFavouriteBotsOnlyEnabled(token: string, post: GramadsPostDto) { return api.gramadsCall<GramadsPostDto>(token, "POST", "/PostManagement/SwitchFavouriteBotsOnlyEnabled", post); },
+  async gramadsSwitchGAlityEnabled(token: string, post: GramadsPostDto) { return api.gramadsCall<GramadsPostDto>(token, "POST", "/PostManagement/SwitchGAlityEnabled", post); },
+  async gramadsSetLimit(token: string, post: GramadsPostDto) { return api.gramadsCall<GramadsPostDto>(token, "POST", "/PostManagement/SetLimit", post); },
+  async gramadsSetSchedule(token: string, schedule: { postId: number; utcScheduleFrom?: string | null; utcScheduleTill?: string | null }) { return api.gramadsCall<GramadsPostDto>(token, "POST", "/PostManagement/SetSchedule", schedule); },
+  async gramadsDeleteSchedule(token: string, post: GramadsPostDto) { return api.gramadsCall<GramadsPostDto>(token, "POST", "/PostManagement/DeleteSchedule", post); },
+  async gramadsSetExtraRate(token: string, post: GramadsPostDto) { return api.gramadsCall<GramadsPostDto>(token, "POST", "/PostManagement/SetExtraRate", post); },
+  async gramadsSetIpressionPerHours(token: string, post: GramadsPostDto) { return api.gramadsCall<GramadsPostDto>(token, "POST", "/PostManagement/SetIpressionPerHours", post); },
+  async gramadsChangeStrategy(token: string, post: GramadsPostDto) { return api.gramadsCall<GramadsPostDto>(token, "POST", "/PostManagement/ChangeStrategy", post); },
+  async gramadsSetExcludedCategories(token: string, post: GramadsPostDto) { return api.gramadsCall<GramadsPostDto>(token, "POST", "/PostManagement/SetExcludedCategories", post); },
+  async gramadsSetExcludedLanguages(token: string, post: GramadsPostDto) { return api.gramadsCall<GramadsPostDto>(token, "POST", "/PostManagement/SetExcludedLanguages", post); },
 };
 
 export interface ClientReferralStats {
@@ -1630,6 +1912,16 @@ export interface BroadcastResult {
   failedTelegram: number;
   failedEmail: number;
   errors: string[];
+}
+
+export interface BroadcastProgress {
+  totalTelegram: number;
+  totalEmail: number;
+  sentTelegram: number;
+  sentEmail: number;
+  failedTelegram: number;
+  failedEmail: number;
+  currentChannel?: "telegram" | "email";
 }
 
 export type AutoBroadcastTriggerType =
@@ -1724,6 +2016,14 @@ export type UpdateSettingsPayload = {
   cryptopayTestnet?: boolean;
   heleketMerchantId?: string | null;
   heleketApiKey?: string | null;
+  lavaShopId?: string | null;
+  lavaSecretKey?: string | null;
+  lavaAdditionalKey?: string | null;
+  overpayApiUrl?: string | null;
+  overpayProjectId?: string | null;
+  overpayLogin?: string | null;
+  overpayPassword?: string | null;
+  paymentProvidersConfig?: string | null;
   groqApiKey?: string | null;
   groqModel?: string | null;
   groqFallback1?: string | null;
@@ -1924,11 +2224,15 @@ export interface ClientRecord {
   isBlocked: boolean;
   blockReason: string | null;
   referralPercent: number | null;
+  /** Персональная скидка клиента, % (0–100). null = без скидки. */
+  personalDiscountPercent: number | null;
   createdAt: string;
   /** Количество приглашённых рефералов (приходит с бэкенда) */
   _count?: { referrals: number };
   /** Активная нода Remna (если есть) */
   activeNode?: string | null;
+  /** Время последнего подключения к VPN (ISO timestamp) */
+  onlineAt?: string | null;
 }
 
 export type UpdateClientPayload = {
@@ -1939,6 +2243,7 @@ export type UpdateClientPayload = {
   isBlocked?: boolean;
   blockReason?: string | null;
   referralPercent?: number | null;
+  personalDiscountPercent?: number | null;
 };
 
 export type UpdateClientRemnaPayload = {
@@ -2064,6 +2369,14 @@ export interface AdminSettings {
   cryptopayTestnet?: boolean;
   heleketMerchantId?: string | null;
   heleketApiKey?: string | null;
+  lavaShopId?: string | null;
+  lavaSecretKey?: string | null;
+  lavaAdditionalKey?: string | null;
+  overpayApiUrl?: string | null;
+  overpayProjectId?: string | null;
+  overpayLogin?: string | null;
+  overpayPassword?: string | null;
+  paymentProviders?: { id: string; label: string; sortOrder: number }[];
   groqApiKey?: string | null;
   groqModel?: string | null;
   groqFallback1?: string | null;
@@ -2726,6 +3039,13 @@ export interface TariffCategoryWithTariffs extends TariffCategoryRecord {
   tariffs: TariffRecord[];
 }
 
+export interface TariffPriceOption {
+  id: string;
+  durationDays: number;
+  price: number;
+  sortOrder: number;
+}
+
 export interface TariffRecord {
   id: string;
   categoryId: string;
@@ -2739,6 +3059,7 @@ export interface TariffRecord {
   price: number;
   currency: string;
   sortOrder: number;
+  priceOptions: TariffPriceOption[];
   createdAt: string;
   updatedAt: string;
 }
@@ -2747,7 +3068,7 @@ export type CreateTariffPayload = {
   categoryId: string;
   name: string;
   description?: string | null;
-  durationDays: number;
+  durationDays?: number;
   internalSquadUuids: string[];
   trafficLimitBytes?: number | null;
   trafficResetMode?: string;
@@ -2755,6 +3076,7 @@ export type CreateTariffPayload = {
   price?: number;
   currency?: string;
   sortOrder?: number;
+  priceOptions?: { durationDays: number; price: number }[];
 };
 
 export type UpdateTariffPayload = {
@@ -2768,6 +3090,7 @@ export type UpdateTariffPayload = {
   price?: number;
   currency?: string;
   sortOrder?: number;
+  priceOptions?: { durationDays: number; price: number }[];
 };
 
 // ——— Кабинет клиента ———
@@ -2790,10 +3113,14 @@ export interface ClientProfile {
   createdAt?: string;
   autoRenewEnabled?: boolean;
   autoRenewTariffId?: string | null;
+  /** Сохранённый промокод-скидка для автопродления (применяется каждый цикл cron). null = не задан. */
+  autoRenewPromoCode?: string | null;
   /** Название привязанного способа оплаты ЮKassa (например "Банковская карта *4444") */
   yookassaPaymentMethodTitle?: string | null;
   /** Завершён ли онбоардинг (установлен ли пароль для email-регистрации) */
   onboardingCompleted?: boolean;
+  /** Установлен ли пароль для входа через веб. false для юзеров, зарегистрированных через Telegram/Google/Apple без пароля. */
+  hasPassword?: boolean;
 }
 
 export interface ClientAuthResponse {
@@ -2840,7 +3167,18 @@ export interface PublicTariffCategory {
   tariffs: PublicTariff[];
 }
 
-export type PublicTariff = { id: string; name: string; description: string | null; durationDays: number; price: number; currency: string; trafficLimitBytes: number | null; trafficResetMode?: string; deviceLimit: number | null };
+export type PublicTariff = {
+  id: string;
+  name: string;
+  description: string | null;
+  durationDays: number;
+  price: number;
+  currency: string;
+  trafficLimitBytes: number | null;
+  trafficResetMode?: string;
+  deviceLimit: number | null;
+  priceOptions: TariffPriceOption[];
+};
 
 // ——— Промо-группы ———
 export interface PromoGroup {
@@ -3081,6 +3419,9 @@ export interface PublicConfig {
   yookassaEnabled?: boolean;
   cryptopayEnabled?: boolean;
   heleketEnabled?: boolean;
+  lavaEnabled?: boolean;
+  overpayEnabled?: boolean;
+  paymentProviders?: { id: string; label: string; sortOrder: number }[];
   trialEnabled?: boolean;
   trialDays?: number;
   themeAccent?: string;

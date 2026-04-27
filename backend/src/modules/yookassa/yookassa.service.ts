@@ -245,17 +245,27 @@ export async function createYookassaAutopayment(params: AutopaymentParams): Prom
       return { ok: false, error: data.description ?? data.code ?? res.statusText ?? "YooKassa error" };
     }
 
-    // Автоплатёж может быть succeeded или canceled сразу
+    if (!data.id) {
+      return { ok: false, error: "No payment id in response" };
+    }
+
+    // Автоплатёж с capture: true должен мгновенно вернуть succeeded, если карта списалась.
+    // pending / waiting_for_capture — это НЕ готовый к активации платёж (нужна доп. проверка/3DS),
+    // поэтому активировать тариф сейчас нельзя — иначе тариф выдадут, а деньги не спишутся.
+    if (data.status === "succeeded") {
+      return { ok: true, paymentId: data.id, status: data.status };
+    }
+
     if (data.status === "canceled") {
       const reason = data.cancellation_details?.reason ?? "unknown";
       return { ok: false, error: `Автоплатёж отклонён: ${reason}`, reason };
     }
 
-    if (!data.id) {
-      return { ok: false, error: "No payment id in response" };
-    }
-
-    return { ok: true, paymentId: data.id, status: data.status ?? "succeeded" };
+    return {
+      ok: false,
+      error: `Автоплатёж не завершён (статус: ${data.status ?? "unknown"})`,
+      reason: data.status ?? undefined,
+    };
   } catch (e) {
     clearTimeout(timeoutId);
     const message = e instanceof Error ? e.message : String(e);

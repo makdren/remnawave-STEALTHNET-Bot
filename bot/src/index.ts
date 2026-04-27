@@ -17,6 +17,7 @@ import {
   tariffPayButtons,
   tariffsOfCategoryButtons,
   tariffPaymentMethodButtons,
+  tariffOptionPickerButtons,
   proxyTariffPayButtons,
   proxyTariffsOfCategoryButtons,
   proxyCategoryButtons,
@@ -227,6 +228,7 @@ async function enforceSubscription(
   return true;
 }
 
+type TariffPriceOption = { id: string; durationDays: number; price: number; sortOrder: number };
 type TariffItem = {
   id: string;
   name: string;
@@ -237,8 +239,42 @@ type TariffItem = {
   deviceLimit?: number | null;
   price: number;
   currency: string;
+  priceOptions?: TariffPriceOption[];
 };
 type TariffCategory = { id: string; name: string; emoji?: string; emojiKey?: string | null; tariffs: TariffItem[] };
+
+/**
+ * Сортировка опций цен. Опции с durationDays > 0 идут по sortOrder, затем по durationDays.
+ * Возвращает копию массива (не мутирует оригинал).
+ */
+function sortedPriceOptions(options: TariffPriceOption[] | undefined | null): TariffPriceOption[] {
+  if (!options || options.length === 0) return [];
+  return [...options].sort((a, b) => {
+    if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+    return a.durationDays - b.durationDays;
+  });
+}
+
+/** Опция с лучшей ценой за день (для пометки эмодзи). Возвращает id или null. */
+function bestPricePerDayOptionId(options: TariffPriceOption[]): string | null {
+  if (options.length <= 1) return null;
+  let bestId: string | null = null;
+  let bestPerDay = Number.POSITIVE_INFINITY;
+  for (const o of options) {
+    if (o.durationDays <= 0) continue;
+    const perDay = o.price / o.durationDays;
+    if (perDay < bestPerDay) {
+      bestPerDay = perDay;
+      bestId = o.id;
+    }
+  }
+  return bestId;
+}
+
+/** Кэш списка priceOptions тарифа для пользователя — для разрешения индекса из callback_data. */
+const tariffOptionsCache = new Map<number, { tariffId: string; options: TariffPriceOption[] }>();
+/** Выбранная пользователем опция цены тарифа (id опции, длительность, цена). */
+const selectedTariffOption = new Map<number, { tariffId: string; option: TariffPriceOption }>();
 
 // Токены по telegram_id (в памяти; автоматическая переавторизация при потере)
 const tokenStore = new Map<number, string>();
@@ -392,10 +428,19 @@ const RESET_MODE_LABELS: Record<string, string> = {
 
 function formatTariffLine(tariff: TariffItem, fields: Required<BotTariffLineFields>): string {
   const parts: string[] = [];
+  const opts = sortedPriceOptions(tariff.priceOptions);
+  const multi = opts.length > 1;
+  // Минимальная цена и минимальная длительность среди опций (для приставки «от»).
+  const minPrice = multi ? opts.reduce((m, o) => (o.price < m ? o.price : m), opts[0]!.price) : tariff.price;
+  const minDays = multi ? opts.reduce((m, o) => (o.durationDays < m ? o.durationDays : m), opts[0]!.durationDays) : tariff.durationDays;
   if (fields.name) parts.push(tariff.name);
-  if (fields.durationDays) parts.push(`${tariff.durationDays} ${formatDaysRu(tariff.durationDays)}`);
+  if (fields.durationDays) {
+    const prefix = multi ? "от " : "";
+    parts.push(`${prefix}${minDays} ${formatDaysRu(minDays)}`);
+  }
   if (fields.price) {
-    const pricePart = fields.currency ? `${tariff.price} ${tariff.currency}` : `${tariff.price}`;
+    const prefix = multi ? "от " : "";
+    const pricePart = fields.currency ? `${prefix}${minPrice} ${tariff.currency}` : `${prefix}${minPrice}`;
     parts.push(pricePart);
   } else if (fields.currency) {
     parts.push(`${tariff.currency}`);
@@ -1606,6 +1651,26 @@ bot.on("callback_query:data", async (ctx) => {
       if (config?.botAdminTelegramIds?.includes(String(userId))) {
         backMarkup.inline_keyboard.push([{ text: "⚙️ Панель админа", callback_data: "admin:menu" }]);
       }
+
+      // If current message is text-only (no photo/animation) but logo is configured,
+      // delete the text message and re-send the main menu with the logo image.
+      const cbMsg = ctx.callbackQuery?.message;
+      const cbHasPhoto = cbMsg && typeof cbMsg === "object" && "photo" in cbMsg && Array.isArray((cbMsg as { photo: unknown[] }).photo) && (cbMsg as { photo: unknown[] }).photo.length > 0;
+      const cbHasAnimation = cbMsg && typeof cbMsg === "object" && "animation" in cbMsg && (cbMsg as { animation: unknown }).animation != null;
+      const media = logoToMediaSource(config?.logoBot);
+      if (!cbHasPhoto && !cbHasAnimation && media && ctx.chat?.id) {
+        await ctx.deleteMessage().catch(() => {});
+        const caption = text.length > TELEGRAM_CAPTION_MAX ? text.slice(0, TELEGRAM_CAPTION_MAX - 3) + "..." : text;
+        const captionEntities = text.length > TELEGRAM_CAPTION_MAX && entities ? entities.filter((e) => e.offset + e.length <= TELEGRAM_CAPTION_MAX - 3) : entities;
+        const opts = { caption, caption_entities: captionEntities?.length ? captionEntities : undefined, reply_markup: backMarkup };
+        if (media.isGif) {
+          await bot.api.sendAnimation(ctx.chat.id, media.source, opts);
+        } else {
+          await bot.api.sendPhoto(ctx.chat.id, media.source, opts);
+        }
+        return;
+      }
+
       await editMessageContent(ctx, text, backMarkup, entities);
       return;
     }
@@ -2176,8 +2241,11 @@ bot.on("callback_query:data", async (ctx) => {
       try {
         const discountInfoBal = activeDiscountCode.get(userId);
         const promoCode = discountInfoBal?.code;
-        const result = await api.payByBalance(token, { tariffId, promoCode });
+        const sel = selectedTariffOption.get(userId);
+        const tariffPriceOptionId = sel?.tariffId === tariffId ? sel.option.id : undefined;
+        const result = await api.payByBalance(token, { tariffId, tariffPriceOptionId, promoCode });
         if (promoCode) activeDiscountCode.delete(userId);
+        selectedTariffOption.delete(userId);
         await editMessageContent(ctx, `✅ ${result.message}`, backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : "Ошибка оплаты";
@@ -2197,21 +2265,31 @@ bot.on("callback_query:data", async (ctx) => {
       try {
         const discountInfoYm = activeDiscountCode.get(userId);
         const promoCode = discountInfoYm?.code;
+        const sel = selectedTariffOption.get(userId);
+        const opts = sortedPriceOptions(tariff.priceOptions);
+        const eff = sel?.tariffId === tariff.id ? sel.option : (opts.length === 1 ? opts[0]! : null);
+        const effectivePrice = eff?.price ?? tariff.price;
+        const effectiveDays = eff?.durationDays ?? tariff.durationDays;
         const payment = await api.createYoomoneyPayment(token, {
-          amount: tariff.price,
+          amount: effectivePrice,
           paymentType: "AC",
           tariffId: tariff.id,
+          tariffPriceOptionId: eff?.id,
           promoCode,
         });
         if (promoCode) activeDiscountCode.delete(userId);
+        selectedTariffOption.delete(userId);
         const discountArgYm = discountInfoYm ? {
-          originalPrice: formatMoney(tariff.price, tariff.currency),
-          discountedPrice: formatMoney(getDiscountedPrice(tariff.price, discountInfoYm), tariff.currency),
+          originalPrice: formatMoney(effectivePrice, tariff.currency),
+          discountedPrice: formatMoney(getDiscountedPrice(effectivePrice, discountInfoYm), tariff.currency),
         } : undefined;
+        const nameWithDays = (opts.length > 1 || (sel?.tariffId === tariff.id))
+          ? `${tariff.name} · ${effectiveDays} ${formatRuDays(effectiveDays)}`
+          : tariff.name;
         const msg = buildPaymentMessage(config, {
-          name: tariff.name,
-          price: formatMoney(tariff.price, tariff.currency),
-          amount: String(tariff.price),
+          name: nameWithDays,
+          price: formatMoney(effectivePrice, tariff.currency),
+          amount: String(effectivePrice),
           currency: tariff.currency,
           action: "Нажмите кнопку ниже для оплаты через ЮMoney:",
         }, discountArgYm);
@@ -2238,21 +2316,31 @@ bot.on("callback_query:data", async (ctx) => {
       try {
         const discountInfoYk = activeDiscountCode.get(userId);
         const promoCode = discountInfoYk?.code;
+        const sel = selectedTariffOption.get(userId);
+        const opts = sortedPriceOptions(tariff.priceOptions);
+        const eff = sel?.tariffId === tariff.id ? sel.option : (opts.length === 1 ? opts[0]! : null);
+        const effectivePrice = eff?.price ?? tariff.price;
+        const effectiveDays = eff?.durationDays ?? tariff.durationDays;
         const payment = await api.createYookassaPayment(token, {
-          amount: tariff.price,
+          amount: effectivePrice,
           currency: "RUB",
           tariffId: tariff.id,
+          tariffPriceOptionId: eff?.id,
           promoCode,
         });
         if (promoCode) activeDiscountCode.delete(userId);
+        selectedTariffOption.delete(userId);
         const discountArgYk = discountInfoYk ? {
-          originalPrice: formatMoney(tariff.price, tariff.currency),
-          discountedPrice: formatMoney(getDiscountedPrice(tariff.price, discountInfoYk), tariff.currency),
+          originalPrice: formatMoney(effectivePrice, tariff.currency),
+          discountedPrice: formatMoney(getDiscountedPrice(effectivePrice, discountInfoYk), tariff.currency),
         } : undefined;
+        const nameWithDays = (opts.length > 1 || (sel?.tariffId === tariff.id))
+          ? `${tariff.name} · ${effectiveDays} ${formatRuDays(effectiveDays)}`
+          : tariff.name;
         const msg = buildPaymentMessage(config, {
-          name: tariff.name,
-          price: formatMoney(tariff.price, tariff.currency),
-          amount: String(tariff.price),
+          name: nameWithDays,
+          price: formatMoney(effectivePrice, tariff.currency),
+          amount: String(effectivePrice),
           currency: tariff.currency,
           action: "Нажмите кнопку ниже для оплаты через ЮKassa:",
         }, discountArgYk);
@@ -2275,13 +2363,22 @@ bot.on("callback_query:data", async (ctx) => {
       try {
         const discountInfoCp = activeDiscountCode.get(userId);
         const promoCode = discountInfoCp?.code;
-        const payment = await api.createCryptopayPayment(token, { amount: tariff.price, currency: tariff.currency, tariffId: tariff.id, promoCode });
+        const sel = selectedTariffOption.get(userId);
+        const opts = sortedPriceOptions(tariff.priceOptions);
+        const eff = sel?.tariffId === tariff.id ? sel.option : (opts.length === 1 ? opts[0]! : null);
+        const effectivePrice = eff?.price ?? tariff.price;
+        const effectiveDays = eff?.durationDays ?? tariff.durationDays;
+        const payment = await api.createCryptopayPayment(token, { amount: effectivePrice, currency: tariff.currency, tariffId: tariff.id, tariffPriceOptionId: eff?.id, promoCode });
         if (promoCode) activeDiscountCode.delete(userId);
+        selectedTariffOption.delete(userId);
         const discountArgCp = discountInfoCp ? {
-          originalPrice: formatMoney(tariff.price, tariff.currency),
-          discountedPrice: formatMoney(getDiscountedPrice(tariff.price, discountInfoCp), tariff.currency),
+          originalPrice: formatMoney(effectivePrice, tariff.currency),
+          discountedPrice: formatMoney(getDiscountedPrice(effectivePrice, discountInfoCp), tariff.currency),
         } : undefined;
-        const msg = buildPaymentMessage(config, { name: tariff.name, price: formatMoney(tariff.price, tariff.currency), amount: String(tariff.price), currency: tariff.currency, action: "Нажмите кнопку ниже для оплаты через Crypto Bot:" }, discountArgCp);
+        const nameWithDays = (opts.length > 1 || (sel?.tariffId === tariff.id))
+          ? `${tariff.name} · ${effectiveDays} ${formatRuDays(effectiveDays)}`
+          : tariff.name;
+        const msg = buildPaymentMessage(config, { name: nameWithDays, price: formatMoney(effectivePrice, tariff.currency), amount: String(effectivePrice), currency: tariff.currency, action: "Нажмите кнопку ниже для оплаты через Crypto Bot:" }, discountArgCp);
         await editMessageContent(ctx, msg.text, payUrlMarkup(payment.payUrl, config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds), msg.entities);
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : "Ошибка создания платежа";
@@ -2504,6 +2601,44 @@ bot.on("callback_query:data", async (ctx) => {
       return;
     }
 
+    if (data.startsWith("topt:")) {
+      // Выбор пользователем конкретной опции цены тарифа из picker'а.
+      const idxStr = data.slice("topt:".length);
+      const idx = parseInt(idxStr, 10);
+      const cache = tariffOptionsCache.get(userId);
+      if (!cache || !Number.isFinite(idx) || idx < 0 || idx >= cache.options.length) {
+        await editMessageContent(ctx, "Сессия выбора опции истекла. Откройте тарифы заново.", backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
+        return;
+      }
+      const option = cache.options[idx]!;
+      selectedTariffOption.set(userId, { tariffId: cache.tariffId, option });
+      // Перерисовываем экран выбора метода оплаты с уже выбранной опцией.
+      const { items } = await api.getPublicTariffs();
+      const tariff = items?.flatMap((c: TariffCategory) => c.tariffs).find((t: TariffItem) => t.id === cache.tariffId);
+      if (!tariff) {
+        await editMessageContent(ctx, "Тариф не найден.", backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
+        return;
+      }
+      const methods = config?.plategaMethods ?? [];
+      const client = await api.getMe(token);
+      const balanceLabel = client && client.balance >= option.price ? `💰 Оплатить балансом (${formatMoney(client.balance, client.preferredCurrency ?? "RUB")})` : null;
+      const discountInfoOpt = activeDiscountCode.get(userId);
+      const discountArgOpt = discountInfoOpt ? {
+        originalPrice: formatMoney(option.price, tariff.currency),
+        discountedPrice: formatMoney(getDiscountedPrice(option.price, discountInfoOpt), tariff.currency),
+      } : undefined;
+      const nameWithDays = `${tariff.name} · ${option.durationDays} ${formatRuDays(option.durationDays)}`;
+      const pay2 = buildPaymentMessage(config, {
+        name: nameWithDays,
+        price: formatMoney(option.price, tariff.currency),
+        amount: String(option.price),
+        currency: tariff.currency,
+        action: "Выберите способ оплаты:",
+      }, discountArgOpt);
+      await editMessageContent(ctx, pay2.text, tariffPaymentMethodButtons(tariff.id, methods, config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds, balanceLabel, !!config?.yoomoneyEnabled, !!config?.yookassaEnabled, !!config?.cryptopayEnabled, tariff.currency), pay2.entities);
+      return;
+    }
+
     if (data.startsWith("pay_tariff:")) {
       const rest = data.slice("pay_tariff:".length);
       const parts = rest.split(":");
@@ -2516,30 +2651,53 @@ bot.on("callback_query:data", async (ctx) => {
         return;
       }
       const methods = config?.plategaMethods ?? [];
+      // Опции цен тарифа: если несколько — показываем picker (только при первичном входе, без methodIdFromBtn).
+      const opts = sortedPriceOptions(tariff.priceOptions);
+      const existingSelection = selectedTariffOption.get(userId);
+      const matchesThisTariff = existingSelection?.tariffId === tariff.id;
+      if (opts.length > 1 && methodIdFromBtn == null && !matchesThisTariff) {
+        tariffOptionsCache.set(userId, { tariffId: tariff.id, options: opts });
+        const bestId = bestPricePerDayOptionId(opts);
+        const text = `${tariff.name}\n\nВыберите длительность подписки:`;
+        await editMessageContent(ctx, text, tariffOptionPickerButtons(opts, tariff.currency, bestId, config?.botBackLabel ?? null, innerStyles, innerEmojiIds));
+        return;
+      }
+      // Эффективная опция (выбранная пользователем) или fallback на legacy tariff.price/durationDays.
+      const effectiveOption: { id?: string; durationDays: number; price: number } = matchesThisTariff && existingSelection
+        ? { id: existingSelection.option.id, durationDays: existingSelection.option.durationDays, price: existingSelection.option.price }
+        : opts.length === 1
+          ? { id: opts[0]!.id, durationDays: opts[0]!.durationDays, price: opts[0]!.price }
+          : { durationDays: tariff.durationDays, price: tariff.price };
       const client = await api.getMe(token);
-      const balanceLabel = client && client.balance >= tariff.price ? `💰 Оплатить балансом (${formatMoney(client.balance, client.preferredCurrency ?? "RUB")})` : null;
+      const balanceLabel = client && client.balance >= effectiveOption.price ? `💰 Оплатить балансом (${formatMoney(client.balance, client.preferredCurrency ?? "RUB")})` : null;
 
       const discountInfoTariff = activeDiscountCode.get(userId);
       const discountArgTariff = discountInfoTariff ? {
-        originalPrice: formatMoney(tariff.price, tariff.currency),
-        discountedPrice: formatMoney(getDiscountedPrice(tariff.price, discountInfoTariff), tariff.currency),
+        originalPrice: formatMoney(effectiveOption.price, tariff.currency),
+        discountedPrice: formatMoney(getDiscountedPrice(effectiveOption.price, discountInfoTariff), tariff.currency),
       } : undefined;
+
+      const nameWithDays = opts.length > 1 || matchesThisTariff
+        ? `${tariff.name} · ${effectiveOption.durationDays} ${formatRuDays(effectiveOption.durationDays)}`
+        : tariff.name;
 
       if (methodIdFromBtn != null && Number.isFinite(methodIdFromBtn)) {
         const promoCode = discountInfoTariff?.code;
         const payment = await api.createPlategaPayment(token, {
-          amount: tariff.price,
+          amount: effectiveOption.price,
           currency: tariff.currency,
           paymentMethod: methodIdFromBtn,
           description: `Тариф: ${tariff.name}`,
           tariffId: tariff.id,
+          tariffPriceOptionId: effectiveOption.id,
           promoCode,
         });
         if (promoCode) activeDiscountCode.delete(userId);
+        selectedTariffOption.delete(userId);
         const msg = buildPaymentMessage(config, {
-          name: tariff.name,
-          price: formatMoney(tariff.price, tariff.currency),
-          amount: String(tariff.price),
+          name: nameWithDays,
+          price: formatMoney(effectiveOption.price, tariff.currency),
+          amount: String(effectiveOption.price),
           currency: tariff.currency,
           action: "Нажмите кнопку ниже для оплаты:",
         }, discountArgTariff);
@@ -2548,9 +2706,9 @@ bot.on("callback_query:data", async (ctx) => {
       }
       // Показываем способы оплаты (всегда, чтобы была кнопка баланса)
       const pay2 = buildPaymentMessage(config, {
-        name: tariff.name,
-        price: formatMoney(tariff.price, tariff.currency),
-        amount: String(tariff.price),
+        name: nameWithDays,
+        price: formatMoney(effectiveOption.price, tariff.currency),
+        amount: String(effectiveOption.price),
         currency: tariff.currency,
         action: "Выберите способ оплаты:",
       }, discountArgTariff);

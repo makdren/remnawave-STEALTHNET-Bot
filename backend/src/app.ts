@@ -26,6 +26,7 @@ import { apiKeysAdminRouter } from "./modules/api-keys/api-keys.admin.routes.js"
 import { externalApiRouter } from "./modules/api-keys/external-api.routes.js";
 import { geoMapRouter } from "./modules/geo-map/geo-map.routes.js";
 import { giftRouter, giftPublicRouter } from "./modules/gift/gift.routes.js";
+import { paymentRedirectRouter } from "./modules/payment-redirect/payment-redirect.routes.js";
 
 const app = express();
 
@@ -152,6 +153,7 @@ app.use("/api/client/gift", giftRouter);
 app.use("/api/gift/public", giftPublicRouter);
 app.use("/api/public", publicConfigRouter);
 app.use("/api/public", contestPublicRouter);
+app.use("/api/pay", paymentRedirectRouter);
 app.use("/api/v1", externalApiRouter);
 app.use("/api/bot-admin", botAdminRouter);
 app.use("/api/webhooks", remnaWebhooksRouter);

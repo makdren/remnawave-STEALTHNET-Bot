@@ -183,6 +183,15 @@ function isRemnaNotFoundError(status: number, error?: string): boolean {
   return status === 404 || (typeof error === "string" && /not found|not exist/i.test(error));
 }
 
+/** Повторить запрос к Remna один раз при сетевой ошибке («fetch failed» и подобные). */
+async function remnaGetUserWithRetry(uuid: string): Promise<Awaited<ReturnType<typeof remnaGetUser>>> {
+  const first = await remnaGetUser(uuid);
+  if (!first.error || first.status !== 500) return first;
+  // Сетевая/транзитная ошибка — даём Remna секунду и пробуем ещё раз перед тем как сбить синхру.
+  await new Promise((r) => setTimeout(r, 1000));
+  return remnaGetUser(uuid);
+}
+
 /** Синхронизация в Remna: отправляем telegramId и email наших клиентов.
  *  Текущие activeInternalSquads из GET подставляем в PATCH явно, чтобы Remna не обнулял сквады при «частичном» PATCH
  *  (иначе один запуск синхронизации мог бы сбросить сквады всем пользователям).
@@ -209,7 +218,7 @@ export async function syncToRemna(): Promise<{
     const uuid = c.remnawaveUuid;
     if (!uuid) continue;
     try {
-      const getRes = await remnaGetUser(uuid);
+      const getRes = await remnaGetUserWithRetry(uuid);
       if (getRes.error) {
         if (isRemnaNotFoundError(getRes.status, getRes.error)) {
           await prisma.client.update({ where: { id: c.id }, data: { remnawaveUuid: null } });

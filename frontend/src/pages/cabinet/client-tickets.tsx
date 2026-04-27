@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
-import { MessageSquarePlus, Inbox, Loader2, Send, ArrowLeft, CircleDot, CircleCheck, User } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { MessageSquarePlus, Inbox, Loader2, Send, ArrowLeft, CircleDot, CircleCheck, User, Paperclip, X as XIcon, ImageIcon } from "lucide-react";
 import { useClientAuth } from "@/contexts/client-auth";
-import { api } from "@/lib/api";
+import { api, type TicketAttachmentDto, type TicketMessageDto } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,35 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 type TicketItem = { id: string; subject: string; status: string; createdAt: string; updatedAt: string };
-type TicketMessage = { id: string; authorType: string; content: string; createdAt: string };
+type TicketMessage = TicketMessageDto;
+
+// Лимиты должны совпадать с backend (uploadTicketAttachment).
+const MAX_FILES = 5;
+const MAX_FILE_MB = 10;
+const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
+
+/** Мелкий компонент-галерея: превью вложений внутри bubble сообщения. */
+function AttachmentsGallery({ items, align }: { items: TicketAttachmentDto[]; align: "left" | "right" }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <div className={cn("mt-2 grid gap-1.5", items.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
+      {items.map((a, i) => (
+        <a
+          key={`${a.url}-${i}`}
+          href={a.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(
+            "block overflow-hidden rounded-xl border border-white/10 bg-black/5 hover:opacity-90 transition-opacity",
+            align === "right" ? "" : "",
+          )}
+        >
+          <img src={a.url} alt={a.name ?? "attachment"} className="w-full h-36 object-cover" loading="lazy" />
+        </a>
+      ))}
+    </div>
+  );
+}
 
 export function ClientTicketsPage() {
   const { state } = useClientAuth();
@@ -31,10 +59,42 @@ export function ClientTicketsPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [replySending, setReplySending] = useState(false);
+  const [replyFiles, setReplyFiles] = useState<File[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const replyInputRef = useRef<HTMLInputElement>(null);
   const [showNewForm, setShowNewForm] = useState(false);
   const [newSubject, setNewSubject] = useState("");
   const [newMessage, setNewMessage] = useState("");
+  const [newFiles, setNewFiles] = useState<File[]>([]);
   const [createSending, setCreateSending] = useState(false);
+  const newInputRef = useRef<HTMLInputElement>(null);
+
+  /** Добавить файлы, отфильтровав только изображения и ограничив размер/количество. */
+  const addFiles = (
+    setList: (files: File[]) => void,
+    current: File[],
+    incoming: FileList | null,
+  ) => {
+    if (!incoming) return;
+    setUploadError(null);
+    const next: File[] = [...current];
+    for (const f of Array.from(incoming)) {
+      if (next.length >= MAX_FILES) {
+        setUploadError(`Не больше ${MAX_FILES} файлов`);
+        break;
+      }
+      if (!f.type.startsWith("image/")) {
+        setUploadError("Можно прикладывать только изображения");
+        continue;
+      }
+      if (f.size > MAX_FILE_BYTES) {
+        setUploadError(`Файл больше ${MAX_FILE_MB} MB`);
+        continue;
+      }
+      next.push(f);
+    }
+    setList(next);
+  };
 
   const loadList = () => {
     if (!token) return;
@@ -83,22 +143,29 @@ export function ClientTicketsPage() {
   }, [detailId, token]);
 
   const sendReply = () => {
-    if (!token || !detailId || !replyText.trim()) return;
+    if (!token || !detailId) return;
+    if (!replyText.trim() && replyFiles.length === 0) return;
     setReplySending(true);
+    setUploadError(null);
     api
-      .replyTicket(token, detailId, { content: replyText.trim() })
+      .replyTicket(token, detailId, { content: replyText.trim(), files: replyFiles })
       .then((msg) => {
         setDetail((d) => (d ? { ...d, messages: [...d.messages, msg] } : d));
         setReplyText("");
+        setReplyFiles([]);
+        if (replyInputRef.current) replyInputRef.current.value = "";
       })
+      .catch((e) => setUploadError(e instanceof Error ? e.message : "Не удалось отправить"))
       .finally(() => setReplySending(false));
   };
 
   const createTicket = () => {
-    if (!token || !newSubject.trim() || !newMessage.trim()) return;
+    if (!token || !newSubject.trim()) return;
+    if (!newMessage.trim() && newFiles.length === 0) return;
     setCreateSending(true);
+    setUploadError(null);
     api
-      .createTicket(token, { subject: newSubject.trim(), message: newMessage.trim() })
+      .createTicket(token, { subject: newSubject.trim(), message: newMessage.trim(), files: newFiles })
       .then((t) => {
         setList((prev) => [{ id: t.id, subject: t.subject, status: t.status, createdAt: t.createdAt, updatedAt: t.updatedAt }, ...prev]);
         setDetailId(t.id);
@@ -106,7 +173,10 @@ export function ClientTicketsPage() {
         setShowNewForm(false);
         setNewSubject("");
         setNewMessage("");
+        setNewFiles([]);
+        if (newInputRef.current) newInputRef.current.value = "";
       })
+      .catch((e) => setUploadError(e instanceof Error ? e.message : "Не удалось создать тикет"))
       .finally(() => setCreateSending(false));
   };
 
@@ -188,7 +258,10 @@ export function ClientTicketsPage() {
                             : "bg-primary text-primary-foreground rounded-br-sm shadow-primary/20"
                         )}
                       >
-                        <p className="whitespace-pre-wrap break-words font-medium">{m.content}</p>
+                        {m.content && (
+                          <p className="whitespace-pre-wrap break-words font-medium">{m.content}</p>
+                        )}
+                        <AttachmentsGallery items={m.attachments ?? []} align={isSupport ? "left" : "right"} />
                       </div>
                       <span className={cn("text-[10px] text-muted-foreground px-1 font-semibold", isSupport ? "text-left" : "text-right")}>
                         {formatDate(m.createdAt)}
@@ -203,7 +276,56 @@ export function ClientTicketsPage() {
 
         {detail.status === "open" && (
           <div className="p-4 sm:p-5 border-t border-border/50 bg-background/40 backdrop-blur-md shrink-0">
-            <div className="flex gap-3 items-end max-w-4xl mx-auto">
+            {replyFiles.length > 0 && (
+              <div className="max-w-4xl mx-auto mb-2.5 flex flex-wrap gap-2">
+                {replyFiles.map((f, i) => (
+                  <div
+                    key={`${f.name}-${i}`}
+                    className="relative group flex items-center gap-2 rounded-xl border border-white/10 bg-background/60 px-2 py-1.5 backdrop-blur-md"
+                  >
+                    <img
+                      src={URL.createObjectURL(f)}
+                      alt={f.name}
+                      className="h-10 w-10 rounded-lg object-cover"
+                      onLoad={(e) => URL.revokeObjectURL((e.target as HTMLImageElement).src)}
+                    />
+                    <span className="text-[11px] text-muted-foreground max-w-[140px] truncate font-medium">{f.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setReplyFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                      className="flex h-5 w-5 items-center justify-center rounded-full bg-background/80 text-muted-foreground hover:text-foreground hover:bg-background transition-colors"
+                      aria-label="Удалить"
+                    >
+                      <XIcon className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {uploadError && (
+              <p className="max-w-4xl mx-auto mb-2 text-[11px] text-destructive font-semibold text-center">{uploadError}</p>
+            )}
+            <div className="flex gap-2 items-end max-w-4xl mx-auto">
+              <input
+                ref={replyInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => addFiles(setReplyFiles, replyFiles, e.target.files)}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => replyInputRef.current?.click()}
+                disabled={replyFiles.length >= MAX_FILES}
+                className="h-[50px] w-[50px] rounded-[1.2rem] shrink-0 bg-background/60 hover:bg-background/80 text-muted-foreground"
+                aria-label="Прикрепить фото"
+                title="Прикрепить фото"
+              >
+                <Paperclip className="h-5 w-5" />
+              </Button>
               <Textarea
                 placeholder="Сообщение..."
                 value={replyText}
@@ -219,14 +341,14 @@ export function ClientTicketsPage() {
               />
               <Button
                 onClick={sendReply}
-                disabled={replySending || !replyText.trim()}
+                disabled={replySending || (!replyText.trim() && replyFiles.length === 0)}
                 className="h-[50px] w-[50px] rounded-[1.2rem] shrink-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95"
                 size="icon"
               >
                 {replySending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5 ml-1" />}
               </Button>
             </div>
-            <p className="hidden sm:block text-center text-[10px] text-muted-foreground mt-2 font-medium">Нажмите Enter для отправки, Shift + Enter для переноса строки</p>
+            <p className="hidden sm:block text-center text-[10px] text-muted-foreground mt-2 font-medium">Enter — отправить · Shift+Enter — перенос · 📎 — до {MAX_FILES} фото</p>
           </div>
         )}
       </div>
@@ -291,10 +413,59 @@ export function ClientTicketsPage() {
                   className="resize-none rounded-2xl bg-background/50 border-white/10 dark:border-white/5 shadow-inner p-4 font-medium text-sm"
                 />
               </div>
+              <div className="space-y-2">
+                <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground ml-1">Вложения</Label>
+                <div className="flex flex-wrap gap-2 items-center">
+                  <input
+                    ref={newInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => addFiles(setNewFiles, newFiles, e.target.files)}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => newInputRef.current?.click()}
+                    disabled={newFiles.length >= MAX_FILES}
+                    className="rounded-xl h-10 gap-2 px-4 text-xs font-semibold"
+                  >
+                    <ImageIcon className="h-4 w-4" />
+                    Добавить фото ({newFiles.length}/{MAX_FILES})
+                  </Button>
+                  {newFiles.map((f, i) => (
+                    <div
+                      key={`${f.name}-${i}`}
+                      className="relative group flex items-center gap-2 rounded-xl border border-white/10 bg-background/60 px-2 py-1.5 backdrop-blur-md"
+                    >
+                      <img
+                        src={URL.createObjectURL(f)}
+                        alt={f.name}
+                        className="h-10 w-10 rounded-lg object-cover"
+                        onLoad={(e) => URL.revokeObjectURL((e.target as HTMLImageElement).src)}
+                      />
+                      <span className="text-[11px] text-muted-foreground max-w-[140px] truncate font-medium">{f.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => setNewFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                        className="flex h-5 w-5 items-center justify-center rounded-full bg-background/80 text-muted-foreground hover:text-foreground hover:bg-background transition-colors"
+                        aria-label="Удалить"
+                      >
+                        <XIcon className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-muted-foreground ml-1 font-medium">До {MAX_FILES} изображений, каждое не больше {MAX_FILE_MB} MB</p>
+              </div>
+              {uploadError && (
+                <p className="text-[11px] text-destructive font-semibold ml-1">{uploadError}</p>
+              )}
               <div className="flex flex-col sm:flex-row gap-3 pt-4">
                 <Button
                   onClick={createTicket}
-                  disabled={createSending || !newSubject.trim() || !newMessage.trim()}
+                  disabled={createSending || !newSubject.trim() || (!newMessage.trim() && newFiles.length === 0)}
                   className="rounded-xl h-11 w-full sm:w-auto px-8 font-semibold tracking-wide"
                 >
                   {createSending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
@@ -302,7 +473,7 @@ export function ClientTicketsPage() {
                 </Button>
                 <Button
                   variant="ghost"
-                  onClick={() => { setShowNewForm(false); setNewSubject(""); setNewMessage(""); }}
+                  onClick={() => { setShowNewForm(false); setNewSubject(""); setNewMessage(""); setNewFiles([]); }}
                   className="rounded-xl h-11 w-full sm:w-auto bg-background/30 hover:bg-background/50 font-semibold"
                 >
                   Отмена
