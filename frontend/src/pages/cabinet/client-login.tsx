@@ -26,6 +26,8 @@ export function ClientLoginPage() {
   const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [mode, setMode] = useState<"password"|"email_code"|"forgot">("password");
   const [emailError, setEmailError] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -35,6 +37,7 @@ export function ClientLoginPage() {
   });
   const [telegramBotUsername, setTelegramBotUsername] = useState<string | null>(null);
   const [googleEnabled, setGoogleEnabled] = useState(false);
+  const [emailCodeEnabled, setEmailCodeEnabled] = useState(true);
   const [googleClientId, setGoogleClientId] = useState<string | null>(null);
   const [publicAppUrl, setPublicAppUrl] = useState<string | null>(null);
   const [appleEnabled, setAppleEnabled] = useState(false);
@@ -95,6 +98,7 @@ export function ClientLoginPage() {
         setTelegramBotUsername(c.telegramBotUsername ?? null);
         setTelegramBotId(c.telegramBotId ?? null);
         setGoogleEnabled(!!c.googleLoginEnabled);
+        setEmailCodeEnabled(c.loginEmailCodeEnabled !== false);
         setGoogleClientId(c.googleClientId ?? null);
         setPublicAppUrl(c.publicAppUrl ?? null);
         setAppleEnabled(!!c.appleLoginEnabled);
@@ -411,7 +415,17 @@ export function ClientLoginPage() {
     
     setLoading(true);
     try {
-      await login(email, password);
+      if (mode === "password") {
+        await login(email, password);
+      } else if (mode === "email_code") {
+        const res = await api.clientLoginByEmailCode(email, code);
+        if ("requires2FA" in res) throw new Error("2FA не поддерживается для этого входа");
+        localStorage.setItem("client_token", res.token);
+      } else {
+        await api.clientRequestPasswordReset(email);
+        setError("Ссылка для сброса отправлена на почту");
+        return;
+      }
       navigate("/cabinet", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : t("cabinet.login.error_login"));
@@ -487,13 +501,19 @@ export function ClientLoginPage() {
                 />
                 {emailError && <p className="text-xs text-destructive">{emailError}</p>}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">{t("cabinet.login.password_label")}</Label>
-                <Input id="password" type="password" name="login_password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="off" data-form-type="other" className="h-12 rounded-xl bg-background/50 backdrop-blur-sm border-white/10 focus-visible:ring-primary/50 transition-all" />
-              </div>
+              {mode !== "forgot" && <div className="space-y-2">
+                <Label htmlFor="password">{mode === "email_code" ? "Код из email" : t("cabinet.login.password_label")}</Label>
+                <Input id="password" type={mode === "email_code" ? "text" : "password"} name="login_password" value={mode === "email_code" ? code : password} onChange={(e) => mode === "email_code" ? setCode(e.target.value) : setPassword(e.target.value)} required autoComplete="off" data-form-type="other" className="h-12 rounded-xl bg-background/50 backdrop-blur-sm border-white/10 focus-visible:ring-primary/50 transition-all" />
+              </div>}
               <Button type="submit" className="w-full h-14 rounded-2xl text-base font-bold shadow-xl hover:scale-[1.02] transition-all gap-2" disabled={loading}>
-                {loading ? t("cabinet.login.submit_loading") : t("cabinet.login.submit")}
+                {loading ? t("cabinet.login.submit_loading") : mode === "forgot" ? "Отправить ссылку" : t("cabinet.login.submit")}
               </Button>
+              <div className="flex items-center justify-between text-sm">
+                {emailCodeEnabled ? <button type="button" className="text-primary" onClick={() => setMode(mode === "email_code" ? "password" : "email_code")}>{mode === "email_code" ? "Войти по паролю" : "Войти по коду из почты"}</button> : <span />}
+                <button type="button" className="text-primary" onClick={async () => { if (mode !== "forgot") { setMode("forgot"); return; } if (!emailCodeEnabled) return; await api.clientRequestEmailLoginCode(email); setMode("email_code"); }}>
+                  {mode === "forgot" ? "Отправить код входа" : "Забыли пароль?"}
+                </button>
+              </div>
               {(telegramBotUsername || googleEnabled || appleEnabled) && (
                 <div className="space-y-3">
                   <div className="relative flex items-center gap-2">

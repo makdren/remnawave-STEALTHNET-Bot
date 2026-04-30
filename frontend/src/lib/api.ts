@@ -1293,6 +1293,23 @@ export const api = {
     });
   },
 
+  
+  async clientRequestEmailLoginCode(email: string): Promise<{ success: boolean }> {
+    return request("/client/auth/login-email-code/request", { method: "POST", body: JSON.stringify({ email }) });
+  },
+
+  async clientLoginByEmailCode(email: string, code: string): Promise<ClientAuthResponse | ClientAuthRequires2FA> {
+    return request("/client/auth/login-email-code", { method: "POST", body: JSON.stringify({ email, code }) });
+  },
+
+  async clientRequestPasswordReset(email: string): Promise<{ success: boolean }> {
+    return request("/client/auth/password-reset/request", { method: "POST", body: JSON.stringify({ email }) });
+  },
+
+  async clientConfirmPasswordReset(token: string, password: string): Promise<{ token: string }> {
+    return request("/client/auth/password-reset/confirm", { method: "POST", body: JSON.stringify({ token, password }) });
+  },
+
   async clientMe(token: string): Promise<ClientProfile> {
     return request("/client/auth/me", { token });
   },
@@ -2117,6 +2134,7 @@ export type UpdateSettingsPayload = {
   autoBroadcastCron?: string | null;
   adminFrontNotificationsEnabled?: boolean;
   skipEmailVerification?: boolean;
+  loginEmailCodeEnabled?: boolean;
   useRemnaSubscriptionPage?: boolean;
   aiChatEnabled?: boolean;
   customBuildEnabled?: boolean;
@@ -2492,6 +2510,7 @@ export interface AdminSettings {
   adminFrontNotificationsEnabled?: boolean;
   /** Регистрация без подтверждения почты */
   skipEmailVerification?: boolean;
+  loginEmailCodeEnabled?: boolean;
   /** Кнопка VPN в боте ведёт на страницу подписки Remna */
   useRemnaSubscriptionPage?: boolean;
   /** AI-чат в кабинете включён */
@@ -3508,6 +3527,7 @@ export interface PublicConfig {
   googleAnalyticsId?: string | null;
   yandexMetrikaId?: string | null;
   skipEmailVerification?: boolean;
+  loginEmailCodeEnabled?: boolean;
   useRemnaSubscriptionPage?: boolean;
   aiChatEnabled?: boolean;
   customBuildConfig?: {
