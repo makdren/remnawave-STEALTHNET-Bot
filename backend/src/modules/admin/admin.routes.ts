@@ -1480,6 +1480,7 @@ const updateSettingsSchema = z.object({
   autoBroadcastCron: z.string().max(100).nullable().optional(),
   adminFrontNotificationsEnabled: z.boolean().optional(),
   skipEmailVerification: z.boolean().optional(),
+  loginEmailCodeEnabled: z.boolean().optional(),
   useRemnaSubscriptionPage: z.boolean().optional(),
   aiChatEnabled: z.boolean().optional(),
   customBuildEnabled: z.boolean().optional(),
@@ -2153,6 +2154,14 @@ adminRouter.patch("/settings", async (req, res) => {
     await prisma.systemSetting.upsert({
       where: { key: "skip_email_verification" },
       create: { key: "skip_email_verification", value: val },
+      update: { value: val },
+    });
+  }
+  if (updates.loginEmailCodeEnabled !== undefined) {
+    const val = updates.loginEmailCodeEnabled ? "true" : "false";
+    await prisma.systemSetting.upsert({
+      where: { key: "login_email_code_enabled" },
+      create: { key: "login_email_code_enabled", value: val },
       update: { value: val },
     });
   }
