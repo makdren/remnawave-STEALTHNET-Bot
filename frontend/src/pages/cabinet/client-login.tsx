@@ -30,6 +30,7 @@ export function ClientLoginPage() {
   const [mode, setMode] = useState<"password"|"email_code"|"forgot">("password");
   const [emailError, setEmailError] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const [brand, setBrand] = useState<{ serviceName: string; logo: string | null }>({
     serviceName: "",
@@ -408,6 +409,7 @@ export function ClientLoginPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setSuccess("");
     
     if (!validateAll()) {
       return;
@@ -423,7 +425,7 @@ export function ClientLoginPage() {
         localStorage.setItem("client_token", res.token);
       } else {
         await api.clientRequestPasswordReset(email);
-        setError("Ссылка для сброса отправлена на почту");
+        setSuccess("Ссылка для сброса отправлена на почту");
         return;
       }
       navigate("/cabinet", { replace: true });
@@ -485,6 +487,29 @@ export function ClientLoginPage() {
                   {error}
                 </div>
               )}
+              {success && (
+                <div className="rounded-md bg-emerald-500/10 text-emerald-400 text-sm p-3">
+                  {success}
+                </div>
+              )}
+              {emailCodeEnabled && (
+                <div className="grid grid-cols-2 rounded-xl border border-white/10 bg-background/30 p-1">
+                  <button
+                    type="button"
+                    className={cn("h-10 rounded-lg text-sm font-medium transition", mode === "password" ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground")}
+                    onClick={() => setMode("password")}
+                  >
+                    По паролю
+                  </button>
+                  <button
+                    type="button"
+                    className={cn("h-10 rounded-lg text-sm font-medium transition", mode === "email_code" ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground")}
+                    onClick={() => setMode("email_code")}
+                  >
+                    По коду из email
+                  </button>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input id="email"
@@ -501,15 +526,33 @@ export function ClientLoginPage() {
                 />
                 {emailError && <p className="text-xs text-destructive">{emailError}</p>}
               </div>
+              {mode === "email_code" && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full h-11 font-semibold"
+                  onClick={async () => {
+                    if (!email.trim()) return setError("Введите email для отправки кода");
+                    try {
+                      setError("");
+                      await api.clientRequestEmailLoginCode(email);
+                      setError("Код отправлен на вашу почту");
+                    } catch (e) {
+                      setError(e instanceof Error ? e.message : "Не удалось отправить код");
+                    }
+                  }}
+                >
+                  Отправить код
+                </Button>
+              )}
               {mode !== "forgot" && <div className="space-y-2">
                 <Label htmlFor="password">{mode === "email_code" ? "Код из email" : t("cabinet.login.password_label")}</Label>
-                <Input id="password" type={mode === "email_code" ? "text" : "password"} name="login_password" value={mode === "email_code" ? code : password} onChange={(e) => mode === "email_code" ? setCode(e.target.value) : setPassword(e.target.value)} required autoComplete="off" data-form-type="other" className="h-12 rounded-xl bg-background/50 backdrop-blur-sm border-white/10 focus-visible:ring-primary/50 transition-all" />
+                <Input id="password" type={mode === "email_code" ? "text" : "password"} placeholder={mode === "email_code" ? "Введите 6 цифр" : ""} name="login_password" value={mode === "email_code" ? code : password} onChange={(e) => mode === "email_code" ? setCode(e.target.value.replace(/\D/g, "").slice(0, 6)) : setPassword(e.target.value)} required autoComplete="off" data-form-type="other" className="h-12 rounded-xl bg-background/50 backdrop-blur-sm border-white/10 focus-visible:ring-primary/50 transition-all" />
               </div>}
               <Button type="submit" className="w-full h-14 rounded-2xl text-base font-bold shadow-xl hover:scale-[1.02] transition-all gap-2" disabled={loading}>
                 {loading ? t("cabinet.login.submit_loading") : mode === "forgot" ? "Отправить ссылку" : t("cabinet.login.submit")}
               </Button>
-              <div className="flex items-center justify-between text-sm">
-                {emailCodeEnabled ? <button type="button" className="text-primary" onClick={() => setMode(mode === "email_code" ? "password" : "email_code")}>{mode === "email_code" ? "Войти по паролю" : "Войти по коду из почты"}</button> : <span />}
+              <div className="flex items-center justify-end text-sm">
                 <button type="button" className="text-primary" onClick={async () => { if (mode !== "forgot") { setMode("forgot"); return; } if (!emailCodeEnabled) return; await api.clientRequestEmailLoginCode(email); setMode("email_code"); }}>
                   {mode === "forgot" ? "Отправить код входа" : "Забыли пароль?"}
                 </button>

@@ -555,6 +555,7 @@ export function SettingsPage() {
         smtpFromEmail: settings.smtpFromEmail ?? null,
         smtpFromName: settings.smtpFromName ?? null,
         skipEmailVerification: settings.skipEmailVerification ?? false,
+        loginEmailCodeEnabled: settings.loginEmailCodeEnabled ?? true,
         defaultAutoRenewEnabled: settings.defaultAutoRenewEnabled ?? false,
         autoRenewDaysBeforeExpiry: settings.autoRenewDaysBeforeExpiry ?? 1,
         autoRenewNotifyDaysBefore: settings.autoRenewNotifyDaysBefore ?? 3,
@@ -3051,6 +3052,18 @@ export function SettingsPage() {
                   <span className="text-xs text-muted-foreground ml-2">
                     ({t("admin.settings.smtp_no_confirm_hint")})
                   </span>
+                </div>
+                <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/40">
+                  <input
+                    type="checkbox"
+                    id="loginEmailCodeEnabled"
+                    checked={settings.loginEmailCodeEnabled ?? true}
+                    onChange={(e) => setSettings((s) => (s ? { ...s, loginEmailCodeEnabled: e.target.checked } : s))}
+                    className="rounded border"
+                  />
+                  <Label htmlFor="loginEmailCodeEnabled" className="cursor-pointer">
+                    Разрешить вход по коду из email
+                  </Label>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
