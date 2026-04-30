@@ -47,7 +47,7 @@ import { distributeReferralRewards } from "../referral/referral.service.js";
 import { markPaymentPaid } from "../payment/mark-paid.service.js";
 import { activateTariffForClient } from "../tariff/tariff-activation.service.js";
 import { registerBackupRoutes } from "../backup/backup.routes.js";
-import { getBroadcastRecipientsCount, startBroadcastJob, getBroadcastJob } from "../broadcast/broadcast.service.js";
+import { getBroadcastRecipientsCount, startBroadcastJob, getBroadcastJob, listBroadcastHistory, getBroadcastHistoryItem } from "../broadcast/broadcast.service.js";
 import { uploadMascotImage, uploadVideo, uploadTicketAttachment, mascotUrl, videoUploadUrl, removeUploadedFile } from "../../lib/upload.js";
 import {
   filesToAttachments,
@@ -63,6 +63,7 @@ import { runRule, runAllRules, getEligibleClientIds } from "../auto-broadcast/au
 import { testNalogConnection } from "../nalog/nalog.service.js";
 import { adminCreateGiftCode } from "../gift/gift.service.js";
 import { languageRouter } from "./language.routes.js";
+import { adminGramadsRouter } from "./gramads.routes.js";
 
 export const adminRouter = Router();
 adminRouter.use(requireAuth);
@@ -81,6 +82,8 @@ registerBackupRoutes(adminRouter, asyncRoute);
 adminRouter.use("/languages", languageRouter);
 
 adminRouter.use(requireAdminSection);
+
+adminRouter.use("/gramads", adminGramadsRouter);
 
 adminRouter.get("/me", asyncRoute(async (req, res) => {
   const adminId = (req as unknown as { adminId: string }).adminId;
@@ -410,6 +413,10 @@ function tariffToJson(t: {
   trafficLimitBytes: bigint | null;
   trafficResetMode: string;
   deviceLimit: number | null;
+  includedDevices: number;
+  pricePerExtraDevice: number;
+  maxExtraDevices: number;
+  deviceDiscountTiers: unknown;
   price: number;
   currency: string;
   sortOrder: number;
@@ -427,6 +434,12 @@ function tariffToJson(t: {
     trafficLimitBytes: t.trafficLimitBytes != null ? Number(t.trafficLimitBytes) : null,
     trafficResetMode: t.trafficResetMode,
     deviceLimit: t.deviceLimit,
+    includedDevices: t.includedDevices,
+    pricePerExtraDevice: t.pricePerExtraDevice,
+    maxExtraDevices: t.maxExtraDevices,
+    deviceDiscountTiers: Array.isArray(t.deviceDiscountTiers)
+      ? (t.deviceDiscountTiers as { minExtraDevices: number; discountPercent: number }[])
+      : [],
     price: t.price,
     currency: t.currency,
     sortOrder: t.sortOrder,
@@ -548,6 +561,11 @@ const priceOptionInputSchema = z.object({
   durationDays: z.number().int().min(1).max(3650),
   price: z.number().min(0),
 });
+// Лесенка скидок за число ДОП. устройств: {minExtraDevices, discountPercent}.
+const deviceDiscountTierSchema = z.object({
+  minExtraDevices: z.number().int().min(1).max(100),
+  discountPercent: z.number().min(0).max(90),
+});
 const createTariffSchema = z.object({
   categoryId: z.string().min(1),
   name: z.string().min(1).max(255),
@@ -557,6 +575,10 @@ const createTariffSchema = z.object({
   trafficLimitBytes: z.number().int().nonnegative().nullable().optional(),
   trafficResetMode: z.enum(TRAFFIC_RESET_MODES).optional(),
   deviceLimit: z.number().int().nonnegative().nullable().optional(),
+  includedDevices: z.number().int().min(1).max(100).optional(),
+  pricePerExtraDevice: z.number().min(0).optional(),
+  maxExtraDevices: z.number().int().min(0).max(100).optional(),
+  deviceDiscountTiers: z.array(deviceDiscountTierSchema).max(20).optional(),
   price: z.number().min(0).optional(), // legacy: используется как fallback если priceOptions не заданы
   currency: z.string().max(10).optional(),
   sortOrder: z.number().int().optional(),
@@ -570,10 +592,13 @@ const updateTariffSchema = z.object({
   trafficLimitBytes: z.number().int().nonnegative().nullable().optional(),
   trafficResetMode: z.enum(TRAFFIC_RESET_MODES).optional(),
   deviceLimit: z.number().int().nonnegative().nullable().optional(),
+  includedDevices: z.number().int().min(1).max(100).optional(),
+  pricePerExtraDevice: z.number().min(0).optional(),
+  maxExtraDevices: z.number().int().min(0).max(100).optional(),
+  deviceDiscountTiers: z.array(deviceDiscountTierSchema).max(20).optional(),
   price: z.number().min(0).optional(),
   currency: z.string().max(10).optional(),
   sortOrder: z.number().int().optional(),
-  // priceOptions: при обновлении заменяет существующие. min(1) если задано.
   priceOptions: z.array(priceOptionInputSchema).min(1).max(20).optional(),
 });
 
@@ -619,6 +644,10 @@ adminRouter.post("/tariffs", async (req, res) => {
       trafficLimitBytes: body.data.trafficLimitBytes != null ? BigInt(body.data.trafficLimitBytes) : null,
       trafficResetMode: body.data.trafficResetMode ?? "no_reset",
       deviceLimit: body.data.deviceLimit ?? null,
+      includedDevices: body.data.includedDevices ?? 1,
+      pricePerExtraDevice: body.data.pricePerExtraDevice ?? 0,
+      maxExtraDevices: body.data.maxExtraDevices ?? 0,
+      deviceDiscountTiers: body.data.deviceDiscountTiers ?? [],
       price: legacyPrice,
       currency: (body.data.currency ?? "usd").toLowerCase(),
       sortOrder: body.data.sortOrder ?? 0,
@@ -645,13 +674,17 @@ adminRouter.patch("/tariffs/:id", async (req, res) => {
   if (!idParse.success) return res.status(400).json({ message: "Invalid id" });
   const body = updateTariffSchema.safeParse(req.body);
   if (!body.success) return res.status(400).json({ message: "Неверные данные", errors: body.error.flatten() });
-  const data: { name?: string; description?: string | null; durationDays?: number; internalSquadUuids?: string[]; trafficLimitBytes?: bigint | null; trafficResetMode?: string; deviceLimit?: number | null; price?: number; currency?: string; sortOrder?: number } = {};
+  const data: { name?: string; description?: string | null; durationDays?: number; internalSquadUuids?: string[]; trafficLimitBytes?: bigint | null; trafficResetMode?: string; deviceLimit?: number | null; includedDevices?: number; pricePerExtraDevice?: number; maxExtraDevices?: number; deviceDiscountTiers?: { minExtraDevices: number; discountPercent: number }[]; price?: number; currency?: string; sortOrder?: number } = {};
   if (body.data.name != null) data.name = body.data.name;
   if (body.data.description !== undefined) data.description = body.data.description ?? null;
   if (body.data.internalSquadUuids != null) data.internalSquadUuids = body.data.internalSquadUuids;
   if (body.data.trafficLimitBytes !== undefined) data.trafficLimitBytes = body.data.trafficLimitBytes != null ? BigInt(body.data.trafficLimitBytes) : null;
   if (body.data.trafficResetMode !== undefined) data.trafficResetMode = body.data.trafficResetMode;
   if (body.data.deviceLimit !== undefined) data.deviceLimit = body.data.deviceLimit ?? null;
+  if (body.data.includedDevices !== undefined) data.includedDevices = body.data.includedDevices;
+  if (body.data.pricePerExtraDevice !== undefined) data.pricePerExtraDevice = body.data.pricePerExtraDevice;
+  if (body.data.maxExtraDevices !== undefined) data.maxExtraDevices = body.data.maxExtraDevices;
+  if (body.data.deviceDiscountTiers !== undefined) data.deviceDiscountTiers = body.data.deviceDiscountTiers;
   if (body.data.currency !== undefined) data.currency = body.data.currency.toLowerCase();
   if (body.data.sortOrder != null) data.sortOrder = body.data.sortOrder;
   // Если priceOptions переданы — синхронизируем legacy поля с минимальной опцией.
@@ -1116,6 +1149,8 @@ const grantTariffSchema = z.object({
   // Опционально: конкретная опция длительности из priceOptions тарифа.
   // Если не указано — используется опция с минимальной ценой (default).
   tariffPriceOptionId: z.string().min(1).optional(),
+  // Количество ДОП. устройств (0..tariff.maxExtraDevices). Если не задано — 0.
+  deviceCount: z.number().int().min(0).max(100).optional(),
   note: z.string().max(500).optional(),
   createPaymentRecord: z.boolean().optional(),
 });
@@ -1133,7 +1168,7 @@ adminRouter.post("/clients/:id/grant-tariff", async (req, res) => {
   if (!body.success) return res.status(400).json({ message: "Invalid input" });
 
   const clientId = parsed.data.id;
-  const { tariffId, tariffPriceOptionId, note, createPaymentRecord = true } = body.data;
+  const { tariffId, tariffPriceOptionId, deviceCount, note, createPaymentRecord = true } = body.data;
 
   const client = await prisma.client.findUnique({
     where: { id: clientId },
@@ -1162,6 +1197,10 @@ adminRouter.post("/clients/:id/grant-tariff", async (req, res) => {
   const adminId = (req as unknown as { adminId: string }).adminId;
   const now = new Date();
 
+  // Количество ДОП. устройств клиенту бонусом (0..tariff.maxExtraDevices).
+  // Параметр deviceCount в API — это extraDevices (legacy имя сохранено для совместимости фронта).
+  const effectiveExtras = Math.min(Math.max(0, deviceCount ?? 0), tariff.maxExtraDevices);
+
   let paymentId: string | null = null;
   if (createPaymentRecord) {
     const orderId = `admin-grant-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -1176,6 +1215,7 @@ adminRouter.post("/clients/:id/grant-tariff", async (req, res) => {
           provider: "admin_grant",
           tariffId: tariff.id,
           tariffPriceOptionId: selectedOption?.id ?? null,
+          deviceCount: effectiveExtras,
           paidAt: now,
           metadata: JSON.stringify({ grantedBy: adminId, note: note ?? null, kind: "admin_grant" }),
         },
@@ -1194,11 +1234,16 @@ adminRouter.post("/clients/:id/grant-tariff", async (req, res) => {
       durationDays: selectedOption?.durationDays ?? tariff.durationDays,
       trafficLimitBytes: tariff.trafficLimitBytes,
       deviceLimit: tariff.deviceLimit,
+      includedDevices: tariff.includedDevices,
+      pricePerExtraDevice: tariff.pricePerExtraDevice,
+      maxExtraDevices: tariff.maxExtraDevices,
+      deviceDiscountTiers: tariff.deviceDiscountTiers,
       internalSquadUuids: tariff.internalSquadUuids,
       trafficResetMode: tariff.trafficResetMode ?? undefined,
       price: selectedOption?.price ?? tariff.price,
     },
-    selectedOption ? { durationDays: selectedOption.durationDays, price: selectedOption.price } : undefined,
+    selectedOption ? { id: selectedOption.id, durationDays: selectedOption.durationDays, price: selectedOption.price } : undefined,
+    effectiveExtras,
   );
 
   if (!activation.ok) {
@@ -2615,6 +2660,7 @@ adminRouter.post(
         : undefined;
     // Запускаем рассылку в фоне. Для больших баз синхронная отправка
     // упирается в таймаут nginx/браузера, хотя на бэкенде всё идёт успешно.
+    const adminId = (req as unknown as { adminId?: string }).adminId;
     const jobId = startBroadcastJob({
       channel,
       subject: subject ?? "",
@@ -2622,6 +2668,7 @@ adminRouter.post(
       attachment,
       buttonText,
       buttonUrl,
+      startedByAdmin: adminId,
     });
     return res.json({ jobId });
   })
@@ -2641,6 +2688,26 @@ adminRouter.get(
       startedAt: job.startedAt.toISOString(),
       finishedAt: job.finishedAt ? job.finishedAt.toISOString() : null,
     });
+  })
+);
+
+// История рассылок: пагинированный список + получение деталей по id.
+adminRouter.get(
+  "/broadcast/history",
+  asyncRoute(async (req, res) => {
+    const limit = Number(req.query.limit) || 50;
+    const offset = Number(req.query.offset) || 0;
+    const data = await listBroadcastHistory({ limit, offset });
+    return res.json(data);
+  })
+);
+
+adminRouter.get(
+  "/broadcast/history/:id",
+  asyncRoute(async (req, res) => {
+    const item = await getBroadcastHistoryItem(req.params.id);
+    if (!item) return res.status(404).json({ message: "Not found" });
+    return res.json(item);
   })
 );
 

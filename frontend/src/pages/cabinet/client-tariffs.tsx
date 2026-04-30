@@ -9,6 +9,7 @@ import { formatRuDays } from "@/lib/i18n";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Dialog,
@@ -32,7 +33,49 @@ function formatMoney(amount: number, currency: string) {
 }
 
 type TariffPriceOption = { id: string; durationDays: number; price: number; sortOrder: number };
-type TariffForPay = { id: string; name: string; price: number; currency: string; description?: string | null; durationDays?: number; trafficLimitBytes?: number | null; trafficResetMode?: string; deviceLimit?: number | null; priceOptions?: TariffPriceOption[] };
+type DeviceDiscountTier = { minExtraDevices: number; discountPercent: number };
+type TariffForPay = {
+  id: string;
+  name: string;
+  price: number;
+  currency: string;
+  description?: string | null;
+  durationDays?: number;
+  trafficLimitBytes?: number | null;
+  trafficResetMode?: string;
+  deviceLimit?: number | null;
+  includedDevices?: number;
+  pricePerExtraDevice?: number;
+  maxExtraDevices?: number;
+  deviceDiscountTiers?: DeviceDiscountTier[];
+  priceOptions?: TariffPriceOption[];
+};
+
+/**
+ * Цена пакета доп. устройств с учётом длительности.
+ * pricePerExtra указан за 30 дней (база), для других опций умножается на durationDays/30.
+ * Скидка применяется ДО умножения на коэффициент.
+ */
+const EXTRA_DEVICE_BASE_DAYS = 30;
+function applyExtrasPrice(
+  pricePerExtra: number,
+  extras: number,
+  tiers: DeviceDiscountTier[] | undefined,
+  durationDays: number = EXTRA_DEVICE_BASE_DAYS,
+): { extrasTotal: number; pct: number } {
+  const safe = Math.max(0, Math.floor(extras));
+  if (safe === 0 || pricePerExtra <= 0) return { extrasTotal: 0, pct: 0 };
+  const sorted = [...(tiers ?? [])].sort((a, b) => b.minExtraDevices - a.minExtraDevices);
+  const tier = sorted.find((t) => safe >= t.minExtraDevices);
+  const pct = tier?.discountPercent ?? 0;
+  const safeDays = Math.max(1, durationDays);
+  const monthly = pricePerExtra * safe * (100 - pct) / 100;
+  return { extrasTotal: Math.round(monthly * (safeDays / EXTRA_DEVICE_BASE_DAYS) * 100) / 100, pct };
+}
+
+function hasExtras(t: TariffForPay): boolean {
+  return (t.pricePerExtraDevice ?? 0) > 0 && (t.maxExtraDevices ?? 0) > 0;
+}
 
 export function ClientTariffsPage() {
   const { t } = useTranslation();
@@ -60,8 +103,11 @@ export function ClientTariffsPage() {
   // Активная подписка пользователя (для предупреждения о сбросе трафика)
   const [activeSubInfo, setActiveSubInfo] = useState<{ hasActive: boolean; expireAt: string | null; tariffName: string | null; currentPricePerDay: number | null }>({ hasActive: false, expireAt: null, tariffName: null, currentPricePerDay: null });
   const [warnModal, setWarnModal] = useState<{ tariff: TariffForPay } | null>(null);
-  const [optionPickerModal, setOptionPickerModal] = useState<{ tariff: TariffForPay } | null>(null);
+  // Унифицированная модалка покупки: длительность + ДОП. устройства + скидки + total.
+  const [purchaseModal, setPurchaseModal] = useState<{ tariff: TariffForPay } | null>(null);
   const [selectedPriceOptionId, setSelectedPriceOptionId] = useState<string | null>(null);
+  /** Сколько ДОП. устройств клиент докупает поверх tariff.includedDevices (0..maxExtraDevices). */
+  const [selectedExtraDevices, setSelectedExtraDevices] = useState<number>(0);
 
   // Промокод
   const [promoInput, setPromoInput] = useState("");
@@ -132,34 +178,32 @@ export function ClientTariffsPage() {
     }).catch(() => { /* not critical */ });
   }, [token]);
 
-  // Запрос на покупку тарифа: если есть несколько priceOptions — открываем picker.
-  // Иначе если есть активная подписка — warn-modal. Иначе сразу PayModal.
+  // Запрос на покупку тарифа: открываем единую модалку.
   function requestBuy(tariff: TariffForPay) {
     const opts = tariff.priceOptions ?? [];
-    if (opts.length > 1) {
-      setOptionPickerModal({ tariff });
-      return;
-    }
-    // Если ровно одна опция — берём её id, иначе сбрасываем
-    setSelectedPriceOptionId(opts.length === 1 ? opts[0].id : null);
-    if (activeSubInfo.hasActive) {
-      setWarnModal({ tariff });
-    } else {
-      setPayModal({ tariff });
-    }
+    const defaultOpt = opts[0] ?? null;
+    setSelectedPriceOptionId(defaultOpt?.id ?? null);
+    setSelectedExtraDevices(0);
+    setPurchaseModal({ tariff });
   }
 
-  // Выбор конкретной опции в picker — модифицируем tariff копию и идём дальше по flow
-  function confirmOption(option: TariffPriceOption) {
-    if (!optionPickerModal) return;
-    const baseTariff = optionPickerModal.tariff;
+  // Подтверждение из purchaseModal: total = priceOption.price + extras × pricePerExtra × (1 − pct/100).
+  function confirmPurchase() {
+    if (!purchaseModal) return;
+    const baseTariff = purchaseModal.tariff;
+    const opts = baseTariff.priceOptions ?? [];
+    const opt = opts.find((o) => o.id === selectedPriceOptionId) ?? opts[0];
+    const unitPrice = opt?.price ?? baseTariff.price;
+    const optDays = opt?.durationDays ?? baseTariff.durationDays ?? 30;
+    const { extrasTotal } = applyExtrasPrice(baseTariff.pricePerExtraDevice ?? 0, selectedExtraDevices, baseTariff.deviceDiscountTiers, optDays);
+    const total = unitPrice + extrasTotal;
     const tariffWithOption: TariffForPay = {
       ...baseTariff,
-      durationDays: option.durationDays,
-      price: option.price,
+      durationDays: opt?.durationDays ?? baseTariff.durationDays,
+      price: total,
     };
-    setSelectedPriceOptionId(option.id);
-    setOptionPickerModal(null);
+    setSelectedPriceOptionId(opt?.id ?? null);
+    setPurchaseModal(null);
     if (activeSubInfo.hasActive) {
       setWarnModal({ tariff: tariffWithOption });
     } else {
@@ -239,6 +283,7 @@ export function ClientTariffsPage() {
         description: tariff.name,
         tariffId: tariff.id,
         tariffPriceOptionId: selectedPriceOptionId ?? undefined,
+        deviceCount: selectedExtraDevices,
         promoCode: promoResult ? promoInput.trim() : undefined,
       });
       if (res.paymentUrl) setReadyUrl({ url: res.paymentUrl, provider: "Platega" });
@@ -257,6 +302,7 @@ export function ClientTariffsPage() {
       const res = await api.clientPayByBalance(token, {
         tariffId: tariff.id,
         tariffPriceOptionId: selectedPriceOptionId ?? undefined,
+        deviceCount: selectedExtraDevices,
         promoCode: promoResult ? promoInput.trim() : undefined,
       });
       setPayModal(null);
@@ -285,6 +331,7 @@ export function ClientTariffsPage() {
         paymentType: "AC",
         tariffId: tariff.id,
         tariffPriceOptionId: selectedPriceOptionId ?? undefined,
+        deviceCount: selectedExtraDevices,
         promoCode: promoResult ? promoInput.trim() : undefined,
       });
       if (res.paymentUrl) setReadyUrl({ url: res.paymentUrl, provider: "ЮMoney" });
@@ -309,6 +356,7 @@ export function ClientTariffsPage() {
         currency: "RUB",
         tariffId: tariff.id,
         tariffPriceOptionId: selectedPriceOptionId ?? undefined,
+        deviceCount: selectedExtraDevices,
         promoCode: promoResult ? promoInput.trim() : undefined,
       });
       if (res.confirmationUrl) setReadyUrl({ url: res.confirmationUrl, provider: "ЮKassa" });
@@ -329,6 +377,7 @@ export function ClientTariffsPage() {
         currency: tariff.currency,
         tariffId: tariff.id,
         tariffPriceOptionId: selectedPriceOptionId ?? undefined,
+        deviceCount: selectedExtraDevices,
         promoCode: promoResult ? promoInput.trim() : undefined,
       });
       if (res.payUrl) setReadyUrl({ url: res.payUrl, provider: "Crypto Bot" });
@@ -349,6 +398,7 @@ export function ClientTariffsPage() {
         currency: tariff.currency,
         tariffId: tariff.id,
         tariffPriceOptionId: selectedPriceOptionId ?? undefined,
+        deviceCount: selectedExtraDevices,
         promoCode: promoResult ? promoInput.trim() : undefined,
       });
       if (res.payUrl) setReadyUrl({ url: res.payUrl, provider: "Heleket" });
@@ -369,6 +419,7 @@ export function ClientTariffsPage() {
         currency: tariff.currency,
         tariffId: tariff.id,
         tariffPriceOptionId: selectedPriceOptionId ?? undefined,
+        deviceCount: selectedExtraDevices,
         promoCode: promoResult ? promoInput.trim() : undefined,
       });
       if (res.payUrl) setReadyUrl({ url: res.payUrl, provider: "LAVA" });
@@ -389,6 +440,7 @@ export function ClientTariffsPage() {
         currency: tariff.currency,
         tariffId: tariff.id,
         tariffPriceOptionId: selectedPriceOptionId ?? undefined,
+        deviceCount: selectedExtraDevices,
         promoCode: promoResult ? promoInput.trim() : undefined,
       });
       if (res.payUrl) setReadyUrl({ url: res.payUrl, provider: "Overpay" });
@@ -1091,98 +1143,291 @@ export function ClientTariffsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Picker длительности (множественные priceOptions у тарифа) */}
-      <Dialog open={!!optionPickerModal} onOpenChange={(open) => !open && setOptionPickerModal(null)}>
-        <DialogContent className="bg-background/85 backdrop-blur-3xl border-white/10 rounded-[2rem] sm:max-w-lg overflow-hidden">
-          <div className="absolute -top-16 -right-16 h-48 w-48 rounded-full bg-gradient-to-br from-primary/25 to-primary/10 blur-3xl pointer-events-none" />
-          <DialogHeader className="relative">
-            <div className="flex items-center gap-3 mb-1">
-              <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary/30 to-primary/15 border border-white/10 flex items-center justify-center shadow-inner shrink-0">
-                <Calendar className="h-6 w-6 text-primary" />
-              </div>
-              <DialogTitle className="text-xl font-bold tracking-tight">
-                Выберите длительность
-              </DialogTitle>
-            </div>
-            <DialogDescription className="text-sm text-muted-foreground leading-relaxed pt-2">
-              {optionPickerModal?.tariff.name}
-            </DialogDescription>
-          </DialogHeader>
+      {/* Унифицированная модалка покупки: длительность + ДОП. устройства + total */}
+      <UnifiedPurchaseModal
+        modal={purchaseModal}
+        selectedPriceOptionId={selectedPriceOptionId}
+        setSelectedPriceOptionId={setSelectedPriceOptionId}
+        selectedExtraDevices={selectedExtraDevices}
+        setSelectedExtraDevices={setSelectedExtraDevices}
+        onClose={() => setPurchaseModal(null)}
+        onConfirm={confirmPurchase}
+      />
+    </>
+  );
+}
 
-          {(() => {
-            const tariff = optionPickerModal?.tariff;
-            if (!tariff) return null;
-            const opts = [...(tariff.priceOptions ?? [])].sort((a, b) =>
-              a.sortOrder !== b.sortOrder ? a.sortOrder - b.sortOrder : a.durationDays - b.durationDays
-            );
-            // Best deal — минимальная цена за день
-            let bestDealId: string | null = null;
-            if (opts.length > 1) {
-              let bestRatio = Infinity;
-              for (const o of opts) {
-                if (o.durationDays <= 0) continue;
-                const ratio = o.price / o.durationDays;
-                if (ratio < bestRatio) {
-                  bestRatio = ratio;
-                  bestDealId = o.id;
-                }
-              }
-            }
-            return (
-              <div className="relative grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+// ─────────────── Унифицированная модалка покупки тарифа ───────────────
+// Длительность (chips) → Устройства (плитки со скидкой) → итог + кнопка дальше.
+function UnifiedPurchaseModal({
+  modal,
+  selectedPriceOptionId,
+  setSelectedPriceOptionId,
+  selectedExtraDevices,
+  setSelectedExtraDevices,
+  onClose,
+  onConfirm,
+}: {
+  modal: { tariff: TariffForPay } | null;
+  selectedPriceOptionId: string | null;
+  setSelectedPriceOptionId: (v: string | null) => void;
+  selectedExtraDevices: number;
+  setSelectedExtraDevices: (v: number) => void;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const tariff = modal?.tariff;
+  if (!tariff) return null;
+
+  const opts = [...(tariff.priceOptions ?? [])].sort((a, b) =>
+    a.sortOrder !== b.sortOrder ? a.sortOrder - b.sortOrder : a.durationDays - b.durationDays
+  );
+  const selectedOpt = opts.find((o) => o.id === selectedPriceOptionId) ?? opts[0] ?? null;
+  const unitPrice = selectedOpt?.price ?? tariff.price;
+  const includedDevices = tariff.includedDevices ?? 1;
+  const pricePerExtra = tariff.pricePerExtraDevice ?? 0;
+  const maxExtras = tariff.maxExtraDevices ?? 0;
+  const extrasEnabled = hasExtras(tariff);
+  const tiers = tariff.deviceDiscountTiers ?? [];
+
+  // Best-deal по длительности (минимальная цена за день).
+  let bestDurationId: string | null = null;
+  if (opts.length > 1) {
+    let bestRatio = Infinity;
+    for (const o of opts) {
+      if (o.durationDays <= 0) continue;
+      const ratio = o.price / o.durationDays;
+      if (ratio < bestRatio) {
+        bestRatio = ratio;
+        bestDurationId = o.id;
+      }
+    }
+  }
+
+  // Длительность выбранной опции — нужна для масштаба цены доп. устройств.
+  const selectedDays = selectedOpt?.durationDays ?? tariff.durationDays ?? 30;
+
+  // Плитки доп. устройств: +0..+maxExtras.
+  const deviceTiles = Array.from({ length: maxExtras + 1 }, (_, i) => {
+    const extras = i;
+    const { extrasTotal, pct } = applyExtrasPrice(pricePerExtra, extras, tiers, selectedDays);
+    return { extras, total: unitPrice + extrasTotal, pct, totalDevices: includedDevices + extras };
+  });
+  const bestExtra = deviceTiles.slice(1).reduce((best, cur) => {
+    const perDev = cur.totalDevices > 0 ? cur.total / cur.totalDevices : Infinity;
+    if (best == null || perDev < best.perDev) return { extras: cur.extras, perDev };
+    return best;
+  }, null as { extras: number; perDev: number } | null);
+
+  const { extrasTotal: appliedExtras, pct: appliedPct } = applyExtrasPrice(pricePerExtra, selectedExtraDevices, tiers, selectedDays);
+  const finalTotal = unitPrice + appliedExtras;
+  // Базовая сумма без скидки = pricePerExtra × extras × коэффициент длительности (для отображения «сэкономлено»).
+  const baseExtrasNoDiscount = pricePerExtra * selectedExtraDevices * (selectedDays / EXTRA_DEVICE_BASE_DAYS);
+  const savedAmount = baseExtrasNoDiscount - appliedExtras;
+
+  return (
+    <Dialog open={!!modal} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="bg-background/85 backdrop-blur-3xl border-white/10 rounded-[2rem] sm:max-w-lg max-h-[92vh] overflow-y-auto overflow-x-hidden">
+        <div className="absolute -top-20 -right-20 h-56 w-56 rounded-full bg-gradient-to-br from-primary/30 via-fuchsia-500/15 to-purple-500/20 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -left-16 h-52 w-52 rounded-full bg-gradient-to-tr from-cyan-500/15 to-primary/15 blur-3xl pointer-events-none" />
+
+        <DialogHeader className="relative">
+          <div className="flex items-center gap-3">
+            <motion.div
+              animate={{ rotate: [0, -6, 6, 0] }}
+              transition={{ duration: 1.6, repeat: Infinity, repeatDelay: 4 }}
+              className="h-14 w-14 rounded-3xl bg-gradient-to-br from-primary/30 via-fuchsia-500/20 to-purple-500/30 border border-white/15 flex items-center justify-center shadow-xl shrink-0"
+            >
+              <Package className="h-7 w-7 text-primary" />
+            </motion.div>
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="text-2xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary via-fuchsia-500 to-purple-500">
+                {tariff.name}
+              </DialogTitle>
+              {tariff.description && (
+                <DialogDescription className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                  {tariff.description}
+                </DialogDescription>
+              )}
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="relative space-y-5 mt-2">
+          {/* ── 1. Длительность ── */}
+          {opts.length > 0 && (
+            <section>
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2.5 block">
+                <Calendar className="inline h-3 w-3 mr-1" /> Длительность
+              </Label>
+              <div className={cn(
+                "grid gap-2",
+                opts.length === 1 ? "grid-cols-1" : opts.length === 2 ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3"
+              )}>
                 {opts.map((opt) => {
+                  const isActive = (selectedOpt?.id ?? opts[0]?.id) === opt.id;
+                  const isBest = opt.id === bestDurationId;
                   const perDay = opt.durationDays > 0 ? opt.price / opt.durationDays : 0;
-                  const isBest = opt.id === bestDealId;
                   return (
-                    <motion.div
+                    <button
                       key={opt.id}
-                      whileHover={{ y: -2 }}
-                      whileTap={{ scale: 0.98 }}
-                      transition={{ duration: 0.15 }}
+                      type="button"
+                      onClick={() => setSelectedPriceOptionId(opt.id)}
+                      className={cn(
+                        "relative overflow-hidden rounded-2xl border p-3 transition-all text-center",
+                        "hover:scale-[1.03] hover:shadow-lg",
+                        isActive
+                          ? "bg-gradient-to-br from-primary/25 via-fuchsia-500/10 to-purple-500/15 border-primary/50 ring-2 ring-primary/40 shadow-lg shadow-primary/20"
+                          : "bg-foreground/[0.03] dark:bg-white/[0.02] border-white/10 hover:border-white/20"
+                      )}
                     >
-                      <button
-                        type="button"
-                        onClick={() => confirmOption(opt)}
-                        className={cn(
-                          "w-full text-left rounded-2xl border p-4 transition-colors relative overflow-hidden",
-                          isBest
-                            ? "border-amber-500/40 bg-amber-500/5 hover:bg-amber-500/10"
-                            : "border-white/10 bg-foreground/[0.03] dark:bg-white/[0.02] hover:bg-foreground/[0.05] dark:hover:bg-white/[0.04]"
-                        )}
-                      >
-                        {isBest && (
-                          <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 dark:text-amber-400 text-[10px] font-bold uppercase tracking-wider">
-                            <Sparkles className="h-3 w-3" />
-                            Best
-                          </div>
-                        )}
-                        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                          <Calendar className="h-4 w-4 text-primary shrink-0" />
-                          {opt.durationDays} {formatRuDays(opt.durationDays).replace(/^\d+\s/, "")}
-                        </div>
-                        <div className="mt-3 flex items-baseline gap-2">
-                          <span className="text-2xl font-black text-foreground tabular-nums">
-                            {formatMoney(opt.price, tariff.currency)}
-                          </span>
-                        </div>
-                        <div className="mt-1 text-[11px] text-muted-foreground font-medium tabular-nums">
-                          {formatMoney(Math.round(perDay * 100) / 100, tariff.currency)}/день
-                        </div>
-                      </button>
-                    </motion.div>
+                      {isBest && (
+                        <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 rounded-md bg-amber-500 text-white text-[9px] font-black shadow">
+                          ★
+                        </span>
+                      )}
+                      <p className={cn("text-sm font-bold", isActive && "text-primary")}>
+                        {opt.durationDays} {formatRuDays(opt.durationDays).replace(/^\d+\s/, "")}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5 tabular-nums">
+                        {formatMoney(Math.round(perDay * 100) / 100, tariff.currency)}/день
+                      </p>
+                    </button>
                   );
                 })}
               </div>
-            );
-          })()}
+            </section>
+          )}
 
-          <DialogFooter className="mt-2 gap-2 sm:gap-2 flex-col sm:flex-row">
-            <Button variant="outline" onClick={() => setOptionPickerModal(null)} className="rounded-xl">
-              Отмена
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+          {/* ── 2. Доп. устройства (только если включены в тарифе) ── */}
+          {extrasEnabled && (
+            <section>
+              <div className="flex items-center justify-between mb-2.5">
+                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                  <Smartphone className="inline h-3 w-3 mr-1" /> Доп. устройства
+                </Label>
+                <span className="text-[10px] text-muted-foreground tabular-nums">
+                  В тарифе: <strong className="text-foreground">{includedDevices}</strong>
+                </span>
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {deviceTiles.map((tile) => {
+                  const isActive = tile.extras === selectedExtraDevices;
+                  const isBest = bestExtra?.extras === tile.extras && tile.extras > 0 && tile.pct === 0;
+                  return (
+                    <motion.button
+                      key={tile.extras}
+                      type="button"
+                      onClick={() => setSelectedExtraDevices(tile.extras)}
+                      whileTap={{ scale: 0.96 }}
+                      className={cn(
+                        "relative overflow-hidden rounded-2xl border p-3 transition-all",
+                        "hover:scale-[1.04] hover:shadow-lg",
+                        isActive
+                          ? "bg-gradient-to-br from-primary/25 via-fuchsia-500/15 to-purple-500/20 border-primary/50 ring-2 ring-primary/40 shadow-lg shadow-primary/20"
+                          : tile.pct > 0
+                            ? "bg-gradient-to-br from-emerald-500/[0.06] to-cyan-500/[0.04] border-emerald-500/25 hover:border-emerald-500/40"
+                            : "bg-foreground/[0.03] dark:bg-white/[0.02] border-white/10 hover:border-white/20"
+                      )}
+                    >
+                      {tile.pct > 0 && (
+                        <div className={cn(
+                          "absolute -top-1 -right-1 px-1.5 py-0.5 rounded-md text-[9px] font-black shadow z-10",
+                          isActive ? "bg-fuchsia-500 text-white" : "bg-emerald-500 text-white"
+                        )}>
+                          −{tile.pct}%
+                        </div>
+                      )}
+                      {isBest && (
+                        <Sparkles className="absolute top-1.5 right-1.5 h-3 w-3 text-fuchsia-500" />
+                      )}
+                      <div className="flex items-center justify-center gap-1 mb-1">
+                        <Smartphone className={cn("h-3.5 w-3.5", isActive ? "text-primary" : "text-muted-foreground")} />
+                        <span className={cn("text-sm font-bold", isActive && "text-primary")}>
+                          {tile.extras === 0 ? "Без доп." : `+${tile.extras}`}
+                        </span>
+                      </div>
+                      <p className="text-[11px] font-bold text-foreground/90 tabular-nums text-center">
+                        {formatMoney(tile.total, tariff.currency)}
+                      </p>
+                      <p className="text-[9px] text-muted-foreground/80 text-center mt-0.5">
+                        {tile.totalDevices} устр
+                      </p>
+                      {isBest && (
+                        <p className="text-[9px] font-medium text-fuchsia-500 dark:text-fuchsia-400 text-center mt-0.5">
+                          выгоднее всего
+                        </p>
+                      )}
+                    </motion.button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* ── 3. Итог ── */}
+          <section className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/[0.08] via-fuchsia-500/[0.04] to-purple-500/[0.06] p-4">
+            <div className="flex items-baseline justify-between mb-1">
+              <span className="text-xs text-muted-foreground">Длительность</span>
+              <span className="text-xs font-medium tabular-nums">
+                {selectedOpt?.durationDays ?? 0} {formatRuDays(selectedOpt?.durationDays ?? 0).replace(/^\d+\s/, "")}
+              </span>
+            </div>
+            <div className="flex items-baseline justify-between mb-1">
+              <span className="text-xs text-muted-foreground">Тариф ({includedDevices} устр)</span>
+              <span className="text-xs font-medium tabular-nums">
+                {formatMoney(unitPrice, tariff.currency)}
+              </span>
+            </div>
+            {extrasEnabled && selectedExtraDevices > 0 && (
+              <div className="flex items-baseline justify-between mb-1">
+                <span className="text-xs text-muted-foreground">+{selectedExtraDevices} доп. устр</span>
+                <span className="text-xs font-medium tabular-nums">
+                  {formatMoney(pricePerExtra * (selectedDays / EXTRA_DEVICE_BASE_DAYS), tariff.currency)} × {selectedExtraDevices}
+                </span>
+              </div>
+            )}
+            {savedAmount > 0 && (
+              <div className="flex items-baseline justify-between mb-1 text-emerald-500 dark:text-emerald-400">
+                <span className="text-xs flex items-center gap-1">
+                  <Sparkles className="h-3 w-3" /> Скидка {appliedPct}%
+                </span>
+                <span className="text-xs font-bold tabular-nums">
+                  −{formatMoney(savedAmount, tariff.currency)}
+                </span>
+              </div>
+            )}
+            <div className="border-t border-primary/20 mt-2 pt-2 flex items-baseline justify-between">
+              <span className="text-sm font-medium">К оплате</span>
+              <AnimatePresence mode="popLayout">
+                <motion.span
+                  key={finalTotal}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-primary to-fuchsia-500 tabular-nums"
+                >
+                  {formatMoney(finalTotal, tariff.currency)}
+                </motion.span>
+              </AnimatePresence>
+            </div>
+          </section>
+        </div>
+
+        <DialogFooter className="relative mt-4 gap-2 sm:gap-2 flex-col sm:flex-row">
+          <Button variant="outline" onClick={onClose} className="rounded-xl">
+            Отмена
+          </Button>
+          <Button
+            onClick={onConfirm}
+            disabled={!selectedOpt}
+            className="rounded-xl gap-2 h-11 px-6 text-base font-bold bg-gradient-to-r from-primary via-fuchsia-500 to-purple-500 hover:from-primary/90 hover:via-fuchsia-500/90 hover:to-purple-500/90 shadow-lg shadow-primary/30"
+          >
+            <CreditCard className="h-4 w-4" />
+            К оплате
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

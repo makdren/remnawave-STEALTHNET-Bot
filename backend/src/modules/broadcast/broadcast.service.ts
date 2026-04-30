@@ -354,6 +354,7 @@ export function startBroadcastJob(options: {
   attachment?: BroadcastAttachment;
   buttonText?: string;
   buttonUrl?: string;
+  startedByAdmin?: string;
 }): string {
   const jobId = randomUUID();
   const job: BroadcastJob = {
@@ -374,13 +375,54 @@ export function startBroadcastJob(options: {
   // Запускаем в фоне — HTTP-запрос на POST /admin/broadcast возвращается сразу
   // с jobId, а реальная отправка продолжается без таймаут-рисков.
   void (async () => {
+    // 1) Создаём запись истории (status=running) — id совпадает с jobId.
+    let historyCreated = false;
+    try {
+      await prisma.broadcastHistory.create({
+        data: {
+          id: jobId,
+          status: "running",
+          channel: options.channel,
+          subject: options.subject ?? "",
+          message: options.message,
+          buttonText: options.buttonText || null,
+          buttonUrl: options.buttonUrl || null,
+          attachmentName: options.attachment?.originalname || null,
+          startedByAdmin: options.startedByAdmin || null,
+        },
+      });
+      historyCreated = true;
+    } catch (e) {
+      // История — best-effort: если создать запись не удалось, рассылку всё равно запускаем.
+      console.warn("[broadcast] failed to create history record:", e instanceof Error ? e.message : e);
+    }
+
+    // Пишем прогресс в БД не чаще раза в 5 сек, чтобы не нагружать запись на каждое сообщение.
+    let lastDbWriteAt = 0;
+    const PROGRESS_FLUSH_MS = 5000;
+
     try {
       job.result = await runBroadcast({
         ...options,
         onProgress: (p) => {
-          // Копируем в состояние джобы, чтобы статус-эндпоинт всегда
-          // возвращал актуальные счётчики.
           job.progress = { ...p };
+          if (!historyCreated) return;
+          const now = Date.now();
+          if (now - lastDbWriteAt < PROGRESS_FLUSH_MS) return;
+          lastDbWriteAt = now;
+          void prisma.broadcastHistory
+            .update({
+              where: { id: jobId },
+              data: {
+                totalTelegram: p.totalTelegram,
+                sentTelegram: p.sentTelegram,
+                failedTelegram: p.failedTelegram,
+                totalEmail: p.totalEmail,
+                sentEmail: p.sentEmail,
+                failedEmail: p.failedEmail,
+              },
+            })
+            .catch((e: unknown) => console.warn("[broadcast] progress update failed:", e instanceof Error ? e.message : e));
         },
       });
       job.status = "completed";
@@ -389,6 +431,28 @@ export function startBroadcastJob(options: {
       job.error = e instanceof Error ? e.message : String(e);
     } finally {
       job.finishedAt = new Date();
+      // 2) Финализируем запись истории с итоговыми результатами.
+      if (historyCreated) {
+        try {
+          await prisma.broadcastHistory.update({
+            where: { id: jobId },
+            data: {
+              status: job.status,
+              finishedAt: job.finishedAt,
+              totalTelegram: job.progress.totalTelegram,
+              sentTelegram: job.result?.sentTelegram ?? job.progress.sentTelegram,
+              failedTelegram: job.result?.failedTelegram ?? job.progress.failedTelegram,
+              totalEmail: job.progress.totalEmail,
+              sentEmail: job.result?.sentEmail ?? job.progress.sentEmail,
+              failedEmail: job.result?.failedEmail ?? job.progress.failedEmail,
+              errors: job.result?.errors?.length ? job.result.errors.slice(0, 50) : undefined,
+              error: job.error || null,
+            },
+          });
+        } catch (e) {
+          console.warn("[broadcast] history finalize failed:", e instanceof Error ? e.message : e);
+        }
+      }
     }
   })();
 
@@ -397,4 +461,89 @@ export function startBroadcastJob(options: {
 
 export function getBroadcastJob(jobId: string): BroadcastJob | null {
   return broadcastJobs.get(jobId) ?? null;
+}
+
+export type BroadcastHistoryItem = {
+  id: string;
+  startedAt: string;
+  finishedAt: string | null;
+  status: string;
+  channel: string;
+  subject: string;
+  message: string;
+  buttonText: string | null;
+  buttonUrl: string | null;
+  attachmentName: string | null;
+  totalTelegram: number;
+  sentTelegram: number;
+  failedTelegram: number;
+  totalEmail: number;
+  sentEmail: number;
+  failedEmail: number;
+  errors: string[] | null;
+  error: string | null;
+  startedByAdmin: string | null;
+};
+
+function rowToItem(row: {
+  id: string;
+  startedAt: Date;
+  finishedAt: Date | null;
+  status: string;
+  channel: string;
+  subject: string;
+  message: string;
+  buttonText: string | null;
+  buttonUrl: string | null;
+  attachmentName: string | null;
+  totalTelegram: number;
+  sentTelegram: number;
+  failedTelegram: number;
+  totalEmail: number;
+  sentEmail: number;
+  failedEmail: number;
+  errors: unknown;
+  error: string | null;
+  startedByAdmin: string | null;
+}): BroadcastHistoryItem {
+  return {
+    id: row.id,
+    startedAt: row.startedAt.toISOString(),
+    finishedAt: row.finishedAt?.toISOString() ?? null,
+    status: row.status,
+    channel: row.channel,
+    subject: row.subject,
+    message: row.message,
+    buttonText: row.buttonText,
+    buttonUrl: row.buttonUrl,
+    attachmentName: row.attachmentName,
+    totalTelegram: row.totalTelegram,
+    sentTelegram: row.sentTelegram,
+    failedTelegram: row.failedTelegram,
+    totalEmail: row.totalEmail,
+    sentEmail: row.sentEmail,
+    failedEmail: row.failedEmail,
+    errors: Array.isArray(row.errors) ? (row.errors as string[]) : null,
+    error: row.error,
+    startedByAdmin: row.startedByAdmin,
+  };
+}
+
+export async function listBroadcastHistory(opts: { limit?: number; offset?: number } = {}): Promise<{ items: BroadcastHistoryItem[]; total: number }> {
+  const limit = Math.min(Math.max(opts.limit ?? 50, 1), 200);
+  const offset = Math.max(opts.offset ?? 0, 0);
+  const [rows, total] = await Promise.all([
+    prisma.broadcastHistory.findMany({
+      orderBy: { startedAt: "desc" },
+      take: limit,
+      skip: offset,
+    }),
+    prisma.broadcastHistory.count(),
+  ]);
+  return { items: rows.map(rowToItem), total };
+}
+
+export async function getBroadcastHistoryItem(id: string): Promise<BroadcastHistoryItem | null> {
+  const row = await prisma.broadcastHistory.findUnique({ where: { id } });
+  return row ? rowToItem(row) : null;
 }

@@ -1,11 +1,51 @@
 import cron from "node-cron";
 import { prisma } from "../../db.js";
 import { randomUUID } from "crypto";
-import { activateTariffByPaymentId } from "../tariff/tariff-activation.service.js";
+import { activateTariffByPaymentId, applyExtraDevicesPrice, parseDeviceDiscountTiers } from "../tariff/tariff-activation.service.js";
 import { remnaGetUser, isRemnaConfigured } from "../remna/remna.client.js";
 import { getSystemConfig } from "../client/client.service.js";
 import { createYookassaAutopayment } from "../yookassa/yookassa.service.js";
 import { applyPercent } from "../client/personal-discount.js";
+
+/**
+ * Считает базовую сумму автопродления для клиента: priceOption.price + extras × pricePerExtra × scaling × discount.
+ * Если у клиента сохранён autoRenewPriceOptionId — использует его, иначе берёт минимальную опцию тарифа.
+ * Возвращает также priceOption и extras — для записи в Payment.
+ */
+async function computeAutoRenewBaseAmount(client: {
+  id: string;
+  autoRenewExtraDevices: number;
+  autoRenewPriceOptionId: string | null;
+  autoRenewTariff: { id: string; price: number; durationDays: number; pricePerExtraDevice: number; deviceDiscountTiers: unknown } | null;
+}): Promise<{ amount: number; priceOptionId: string | null; durationDays: number; extras: number }> {
+  if (!client.autoRenewTariff) return { amount: 0, priceOptionId: null, durationDays: 30, extras: 0 };
+  const tariff = client.autoRenewTariff;
+  let opt: { id: string; durationDays: number; price: number } | null = null;
+  if (client.autoRenewPriceOptionId) {
+    const savedOpt = await prisma.tariffPriceOption.findFirst({
+      where: { id: client.autoRenewPriceOptionId, tariffId: tariff.id },
+    });
+    if (savedOpt) opt = { id: savedOpt.id, durationDays: savedOpt.durationDays, price: savedOpt.price };
+  }
+  if (!opt) {
+    const fallback = await prisma.tariffPriceOption.findFirst({
+      where: { tariffId: tariff.id },
+      orderBy: { price: "asc" },
+    });
+    if (fallback) opt = { id: fallback.id, durationDays: fallback.durationDays, price: fallback.price };
+  }
+  const unitPrice = opt?.price ?? tariff.price;
+  const durationDays = opt?.durationDays ?? tariff.durationDays;
+  const extras = Math.max(0, client.autoRenewExtraDevices ?? 0);
+  const tiers = parseDeviceDiscountTiers(tariff.deviceDiscountTiers);
+  const { extrasTotal } = applyExtraDevicesPrice(tariff.pricePerExtraDevice ?? 0, extras, tiers, durationDays);
+  return {
+    amount: unitPrice + extrasTotal,
+    priceOptionId: opt?.id ?? null,
+    durationDays,
+    extras,
+  };
+}
 import {
   notifyAutoRenewSuccess,
   notifyAutoRenewFailed,
@@ -120,6 +160,9 @@ export async function processAutoRenewals() {
 
       const timeLeft = expireAtDate.getTime() - now;
 
+      // Считаем сумму к списанию по сохранённой опции + extras (с учётом коэффициента длительности).
+      const renewBase = await computeAutoRenewBaseAmount(client);
+
       // === Phase 1: "Upcoming charge" notification ===
       // Notify when timeLeft <= notifyThreshold AND hasn't been notified in the last 24h
       if (timeLeft > 0 && timeLeft <= notifyThreshold) {
@@ -132,7 +175,7 @@ export async function processAutoRenewals() {
         const personalPctPhase1 = typeof client.personalDiscountPercent === "number" && client.personalDiscountPercent > 0
           ? Math.min(100, client.personalDiscountPercent)
           : 0;
-        const upcomingPrice = applyPercent(client.autoRenewTariff.price, personalPctPhase1);
+        const upcomingPrice = applyPercent(renewBase.amount, personalPctPhase1);
 
         if (shouldNotify && client.balance < upcomingPrice) {
           await notifyAutoRenewUpcoming(
@@ -152,7 +195,7 @@ export async function processAutoRenewals() {
       // === Phase 2: Renewal logic ===
       // Only attempt renewal when within threshold, and not expired too long ago (3 days max)
       if (timeLeft <= renewThreshold && timeLeft >= -(3 * DAY_MS)) {
-        const baseTariffPrice = client.autoRenewTariff.price;
+        const baseTariffPrice = renewBase.amount;
 
         // Персональная скидка админа применяется ДО промокода.
         const personalPct = typeof client.personalDiscountPercent === "number" && client.personalDiscountPercent > 0
@@ -196,6 +239,8 @@ export async function processAutoRenewals() {
                 status: "PAID",
                 provider: "balance",
                 tariffId: client.autoRenewTariff!.id,
+                tariffPriceOptionId: renewBase.priceOptionId,
+                deviceCount: renewBase.extras,
                 paidAt: new Date(),
                 metadata: hasExtras ? JSON.stringify(metaObj) : null,
               },
@@ -325,6 +370,8 @@ export async function processAutoRenewals() {
                       status: "PAID",
                       provider: "yookassa",
                       tariffId: client.autoRenewTariff!.id,
+                      tariffPriceOptionId: renewBase.priceOptionId,
+                      deviceCount: renewBase.extras,
                       paidAt: new Date(),
                       externalId: autopayResult.paymentId,
                       metadata: ypHasExtras ? JSON.stringify(ypMeta) : null,

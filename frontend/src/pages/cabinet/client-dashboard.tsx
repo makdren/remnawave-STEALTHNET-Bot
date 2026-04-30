@@ -24,6 +24,7 @@ import {
   Smartphone,
   Tag,
   X,
+  RotateCcw,
 } from "lucide-react";
 import { useClientAuth } from "@/contexts/client-auth";
 import { useCabinetConfig } from "@/contexts/cabinet-config";
@@ -117,6 +118,7 @@ export function ClientDashboardPage() {
   const [subscription, setSubscription] = useState<unknown>(null);
   const [secondarySubscriptions, setSecondarySubscriptions] = useState<Array<{ type: string; id: string; subscriptionIndex: number | null; subscription: unknown; tariffDisplayName: string; remnawaveUuid: string | null }>>([]);
   const [tariffDisplayName, setTariffDisplayName] = useState<string | null>(null);
+  const [autoRenewNext, setAutoRenewNext] = useState<{ amount: number | null; at: string | null; currency: string | null }>({ amount: null, at: null, currency: null });
   const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
   const [_payments, setPayments] = useState<ClientPayment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -175,6 +177,11 @@ export function ClientDashboardPage() {
         if (cancelled) return;
         setSubscription(subRes.subscription ?? null);
         setTariffDisplayName(subRes.tariffDisplayName ?? null);
+        setAutoRenewNext({
+          amount: subRes.autoRenewNextChargeAmount ?? null,
+          at: subRes.autoRenewNextChargeAt ?? null,
+          currency: subRes.autoRenewCurrency ?? null,
+        });
         if (subRes.message) setSubscriptionError(subRes.message);
         setPayments(payRes.items ?? []);
         setDeviceCount(devRes.total ?? null);
@@ -615,14 +622,28 @@ export function ClientDashboardPage() {
             </div>
           </div>
           <div className="flex items-center justify-between p-3 rounded-2xl bg-background/40 border border-border/50">
-            <div className="flex flex-col">
+            <div className="flex flex-col min-w-0">
               <Label className="text-sm font-semibold">{t("cabinet.dashboard.auto_renew")}</Label>
-              <span className="text-[11px] text-muted-foreground mt-0.5 leading-tight">
-                {config?.yookassaRecurringEnabled
-                  ? <>Сначала с баланса{client.yookassaPaymentMethodTitle ? <>, затем с карты <span className="font-medium">{client.yookassaPaymentMethodTitle}</span></> : ", затем с карты (если ранее оплачивали через ЮKassa)"}</>
-                  : <>Автоматическое списание<br/>при окончании подписки</>
-                }
-              </span>
+              {client.autoRenewEnabled && autoRenewNext.amount != null ? (
+                <span className="text-[11px] mt-0.5 leading-tight inline-flex items-center gap-1 truncate">
+                  <RotateCcw className="h-3 w-3 text-primary shrink-0" />
+                  <span className="font-bold tabular-nums text-foreground">
+                    {autoRenewNext.amount.toLocaleString("ru-RU")} {autoRenewNext.currency === "RUB" ? "₽" : autoRenewNext.currency === "USD" ? "$" : autoRenewNext.currency}
+                  </span>
+                  {autoRenewNext.at && (
+                    <span className="text-muted-foreground">
+                      · {new Date(autoRenewNext.at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}
+                    </span>
+                  )}
+                </span>
+              ) : (
+                <span className="text-[11px] text-muted-foreground mt-0.5 leading-tight">
+                  {config?.yookassaRecurringEnabled
+                    ? <>Сначала с баланса{client.yookassaPaymentMethodTitle ? <>, затем с карты <span className="font-medium">{client.yookassaPaymentMethodTitle}</span></> : ", затем с карты"}</>
+                    : "Списание с баланса"
+                  }
+                </span>
+              )}
             </div>
             <Switch
               checked={client.autoRenewEnabled ?? false}
@@ -863,14 +884,28 @@ export function ClientDashboardPage() {
             </div>
             
             <div className="flex items-center justify-between p-4 rounded-2xl bg-background/40 border border-border/50 text-left">
-              <div className="flex flex-col">
+              <div className="flex flex-col min-w-0">
                 <Label className="text-[15px] font-semibold">{t("cabinet.dashboard.auto_renew")}</Label>
-                <span className="text-sm text-muted-foreground mt-0.5">
-                  {config?.yookassaRecurringEnabled
-                    ? <>Сначала с баланса{client.yookassaPaymentMethodTitle ? <>, затем с карты <span className="font-medium">{client.yookassaPaymentMethodTitle}</span></> : ", затем с карты (если ранее оплачивали через ЮKassa)"}</>
-                    : "Списание с баланса"
-                  }
-                </span>
+                {client.autoRenewEnabled && autoRenewNext.amount != null ? (
+                  <span className="text-sm mt-0.5 inline-flex items-center gap-1.5 truncate">
+                    <RotateCcw className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span className="font-bold tabular-nums text-foreground">
+                      {autoRenewNext.amount.toLocaleString("ru-RU")} {autoRenewNext.currency === "RUB" ? "₽" : autoRenewNext.currency === "USD" ? "$" : autoRenewNext.currency}
+                    </span>
+                    {autoRenewNext.at && (
+                      <span className="text-muted-foreground">
+                        · {new Date(autoRenewNext.at).toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}
+                      </span>
+                    )}
+                  </span>
+                ) : (
+                  <span className="text-sm text-muted-foreground mt-0.5">
+                    {config?.yookassaRecurringEnabled
+                      ? <>Сначала с баланса{client.yookassaPaymentMethodTitle ? <>, затем с карты <span className="font-medium">{client.yookassaPaymentMethodTitle}</span></> : ", затем с карты"}</>
+                      : "Списание с баланса"
+                    }
+                  </span>
+                )}
               </div>
               <Switch
                 checked={client.autoRenewEnabled ?? false}

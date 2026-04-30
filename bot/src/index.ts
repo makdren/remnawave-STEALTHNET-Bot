@@ -18,6 +18,8 @@ import {
   tariffsOfCategoryButtons,
   tariffPaymentMethodButtons,
   tariffOptionPickerButtons,
+  tariffDevicePickerButtons,
+  type InnerButtonStyles,
   proxyTariffPayButtons,
   proxyTariffsOfCategoryButtons,
   proxyCategoryButtons,
@@ -229,6 +231,7 @@ async function enforceSubscription(
 }
 
 type TariffPriceOption = { id: string; durationDays: number; price: number; sortOrder: number };
+type DeviceDiscountTier = { minExtraDevices: number; discountPercent: number };
 type TariffItem = {
   id: string;
   name: string;
@@ -237,10 +240,56 @@ type TariffItem = {
   trafficLimitBytes?: number | null;
   trafficResetMode?: string;
   deviceLimit?: number | null;
+  includedDevices?: number;
+  pricePerExtraDevice?: number;
+  maxExtraDevices?: number;
+  deviceDiscountTiers?: DeviceDiscountTier[];
   price: number;
   currency: string;
   priceOptions?: TariffPriceOption[];
 };
+
+/**
+ * Цена пакета доп. устройств с учётом длительности.
+ * pricePerExtra указан за 30 дней (база). Для других опций умножаем на (days/30).
+ * Формула: extrasTotal = pricePerExtra × extras × (100 − discount) / 100 × (durationDays / 30)
+ */
+const EXTRA_DEVICE_BASE_DAYS = 30;
+function applyExtraDevicesPriceBot(
+  pricePerExtra: number,
+  extraCount: number,
+  tiers: DeviceDiscountTier[] | undefined,
+  durationDays: number = EXTRA_DEVICE_BASE_DAYS,
+): { extrasTotal: number; pct: number } {
+  const safeCount = Math.max(0, Math.floor(extraCount));
+  if (safeCount === 0 || pricePerExtra <= 0) return { extrasTotal: 0, pct: 0 };
+  const sorted = [...(tiers ?? [])].sort((a, b) => b.minExtraDevices - a.minExtraDevices);
+  const tier = sorted.find((t) => safeCount >= t.minExtraDevices);
+  const pct = tier?.discountPercent ?? 0;
+  const safeDays = Math.max(1, durationDays);
+  const monthly = pricePerExtra * safeCount * (100 - pct) / 100;
+  const extrasTotal = Math.round(monthly * (safeDays / EXTRA_DEVICE_BASE_DAYS) * 100) / 100;
+  return { extrasTotal, pct };
+}
+
+/** Включена ли продажа доп. устройств для тарифа. */
+function hasExtraDevices(t: TariffItem): boolean {
+  return (t.pricePerExtraDevice ?? 0) > 0 && (t.maxExtraDevices ?? 0) > 0;
+}
+
+/**
+ * Помечает каждый тариф флагом `hasOptions` для отображения «от» в кнопках.
+ * "от" показывается если: несколько priceOptions ИЛИ включены доп. устройства.
+ */
+function markHasOptions<T extends { tariffs: TariffItem[] }>(categories: T[]): (T & { tariffs: (TariffItem & { hasOptions: boolean })[] })[] {
+  return categories.map((c) => ({
+    ...c,
+    tariffs: c.tariffs.map((t) => ({
+      ...t,
+      hasOptions: (t.priceOptions?.length ?? 0) > 1 || hasExtraDevices(t),
+    })),
+  }));
+}
 type TariffCategory = { id: string; name: string; emoji?: string; emojiKey?: string | null; tariffs: TariffItem[] };
 
 /**
@@ -273,8 +322,12 @@ function bestPricePerDayOptionId(options: TariffPriceOption[]): string | null {
 
 /** Кэш списка priceOptions тарифа для пользователя — для разрешения индекса из callback_data. */
 const tariffOptionsCache = new Map<number, { tariffId: string; options: TariffPriceOption[] }>();
-/** Выбранная пользователем опция цены тарифа (id опции, длительность, цена). */
-const selectedTariffOption = new Map<number, { tariffId: string; option: TariffPriceOption }>();
+/** Выбранная опция цены тарифа + кол-во ДОП. устройств (extras), которые клиент докупил. */
+const selectedTariffOption = new Map<number, { tariffId: string; option: TariffPriceOption; extraDevices: number }>();
+/** Аналог для подарков: выбранная опция + extras для дополнительной подписки. */
+const selectedGiftOption = new Map<number, { tariffId: string; option: TariffPriceOption | null; extraDevices: number }>();
+/** Кэш priceOptions для подарков — для разрешения индекса из callback. */
+const giftOptionsCache = new Map<number, { tariffId: string; options: TariffPriceOption[] }>();
 
 // Токены по telegram_id (в памяти; автоматическая переавторизация при потере)
 const tokenStore = new Map<number, string>();
@@ -1036,6 +1089,105 @@ bot.command("link", async (ctx) => {
   }
 });
 
+/**
+ * Показать экран «способы оплаты» для тарифа с уже выбранными опцией и числом ДОП. устройств.
+ * effectivePrice = priceOption.price + (extras × pricePerExtraDevice × (100 − discount) / 100).
+ */
+type ConfigSnapshot = Awaited<ReturnType<typeof api.getPublicConfig>>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function showPaymentMethodsForTariff(ctx: any, userId: number, tariff: TariffItem, option: TariffPriceOption | null, extraDevices: number, config: ConfigSnapshot | null, innerStyles: InnerButtonStyles | undefined, innerEmojiIds: InnerEmojiIds | undefined, token: string): Promise<void> {
+  const opts = sortedPriceOptions(tariff.priceOptions);
+  const eff = option ?? opts[0] ?? null;
+  const unitPrice = eff?.price ?? tariff.price;
+  const effectiveDays = eff?.durationDays ?? tariff.durationDays;
+  const includedDevices = tariff.includedDevices ?? 1;
+  const { extrasTotal } = applyExtraDevicesPriceBot(tariff.pricePerExtraDevice ?? 0, extraDevices, tariff.deviceDiscountTiers, effectiveDays);
+  const effectivePrice = unitPrice + extrasTotal;
+  const methods = config?.plategaMethods ?? [];
+  const client = await api.getMe(token);
+  const balanceLabel = client && client.balance >= effectivePrice ? `💰 Оплатить балансом (${formatMoney(client.balance, client.preferredCurrency ?? "RUB")})` : null;
+  const discountInfo = activeDiscountCode.get(userId);
+  const discountArg = discountInfo ? {
+    originalPrice: formatMoney(effectivePrice, tariff.currency),
+    discountedPrice: formatMoney(getDiscountedPrice(effectivePrice, discountInfo), tariff.currency),
+  } : undefined;
+  const totalDevices = includedDevices + extraDevices;
+  const devicesSuffix = extraDevices > 0 ? ` · ${totalDevices} устр (+${extraDevices} доп.)` : "";
+  const nameWithDays = opts.length > 1 || option
+    ? `${tariff.name} · ${formatRuDays(effectiveDays)}${devicesSuffix}`
+    : `${tariff.name}${devicesSuffix}`;
+  const pay = buildPaymentMessage(config, {
+    name: nameWithDays,
+    price: formatMoney(effectivePrice, tariff.currency),
+    amount: String(effectivePrice),
+    currency: tariff.currency,
+    action: "Выберите способ оплаты:",
+  }, discountArg);
+  await editMessageContent(ctx, pay.text, tariffPaymentMethodButtons(tariff.id, methods, config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds, balanceLabel, !!config?.yoomoneyEnabled, !!config?.yookassaEnabled, !!config?.cryptopayEnabled, tariff.currency), pay.entities);
+}
+
+/** Picker доп. устройств для подарочной подписки. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function showGiftDevicePicker(ctx: any, userId: number, tariff: TariffItem, option: TariffPriceOption | null, config: ConfigSnapshot | null, innerStyles: InnerButtonStyles | undefined, innerEmojiIds: InnerEmojiIds | undefined): Promise<void> {
+  const opts = sortedPriceOptions(tariff.priceOptions);
+  const eff = option ?? opts[0] ?? null;
+  const unitPrice = eff?.price ?? tariff.price;
+  const days = eff?.durationDays ?? tariff.durationDays;
+  const tiers = tariff.deviceDiscountTiers;
+  const pricePerExtra = tariff.pricePerExtraDevice ?? 0;
+  const maxExtras = tariff.maxExtraDevices ?? 0;
+  const includedDevices = tariff.includedDevices ?? 1;
+  const sym = tariff.currency.toUpperCase() === "RUB" ? "₽" : tariff.currency.toUpperCase() === "USD" ? "$" : tariff.currency;
+
+  const tiles = Array.from({ length: maxExtras + 1 }, (_, i) => {
+    const extras = i;
+    const { extrasTotal, pct } = applyExtraDevicesPriceBot(pricePerExtra, extras, tiers, days);
+    return { extras, total: unitPrice + extrasTotal, pct };
+  });
+  const bestExtra = tiles.slice(1).reduce((best, cur) => {
+    const perDev = cur.total / (includedDevices + cur.extras);
+    if (best == null || perDev < best.perDev) return { extras: cur.extras, perDev };
+    return best;
+  }, null as { extras: number; perDev: number } | null);
+
+  const rows: { text: string; callback_data: string }[][] = [];
+  let row: { text: string; callback_data: string }[] = [];
+  for (const tile of tiles) {
+    const isBest = bestExtra?.extras === tile.extras && tile.extras > 0 && tile.pct === 0;
+    const badge = tile.pct > 0 ? ` 🎁−${tile.pct}%` : isBest ? " ⭐" : "";
+    const prefix = tile.extras === 0 ? "Без доп." : `+${tile.extras} устр`;
+    const label = `${prefix} · ${tile.total} ${sym}${badge}`.slice(0, 64);
+    row.push({ text: label, callback_data: `gift_tdev:${tile.extras}` });
+    if (row.length >= 2) { rows.push(row); row = []; }
+  }
+  if (row.length > 0) rows.push(row);
+  rows.push([{ text: config?.botBackLabel ?? "◀️ В меню", callback_data: "menu:gift" }]);
+
+  const text = `🎁 ${tariff.name} · ${days} ${formatRuDays(days)}\n\n📱 В тариф включено: ${includedDevices} устр.\nДобавьте дополнительные:`;
+  // Mark unused params to satisfy linter
+  void innerStyles; void innerEmojiIds;
+  await editMessageContent(ctx, text, { inline_keyboard: rows } as InlineMarkup);
+}
+
+/** Финальный экран оплаты подарка балансом (с уже выбранной длительностью + extras). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function showGiftPaymentConfirm(ctx: any, userId: number, tariff: TariffItem, option: TariffPriceOption | null, extras: number, config: ConfigSnapshot | null, innerStyles: InnerButtonStyles | undefined, innerEmojiIds: InnerEmojiIds | undefined, token: string): Promise<void> {
+  const opts = sortedPriceOptions(tariff.priceOptions);
+  const eff = option ?? opts[0] ?? null;
+  const unitPrice = eff?.price ?? tariff.price;
+  const days = eff?.durationDays ?? tariff.durationDays;
+  const includedDevices = tariff.includedDevices ?? 1;
+  const { extrasTotal } = applyExtraDevicesPriceBot(tariff.pricePerExtraDevice ?? 0, extras, tariff.deviceDiscountTiers, days);
+  const total = unitPrice + extrasTotal;
+  const totalDevices = includedDevices + extras;
+  const client = await api.getMe(token);
+  const balanceLabel = `💰 Оплатить балансом (${formatMoney(client?.balance ?? 0, client?.preferredCurrency ?? "RUB")})`;
+  const devicesSuffix = extras > 0 ? ` · ${totalDevices} устр (+${extras} доп.)` : "";
+  const text = `🛒 ${tariff.name} · ${days} ${formatRuDays(days)}${devicesSuffix}\n\nСтоимость: ${formatMoney(total, tariff.currency)}\n\nПодтвердите оплату:`;
+  void userId;
+  await editMessageContent(ctx, text, giftPaymentButtons(tariff.id, balanceLabel, config?.botBackLabel ?? null, innerStyles, innerEmojiIds));
+}
+
 // ——— Callback: меню и действия
 bot.on("callback_query:data", async (ctx) => {
   const data = ctx.callbackQuery.data;
@@ -1602,7 +1754,7 @@ bot.on("callback_query:data", async (ctx) => {
           card: botEmojis.CARD?.tgEmojiId,
           tariff: botEmojis.PACKAGE?.tgEmojiId || botEmojis.TARIFFS?.tgEmojiId,
           trial: botEmojis.TRIAL?.tgEmojiId,
-          profile: botEmojis.PUZZLE?.tgEmojiId || botEmojis.PROFILE?.tgEmojiId,
+          profile: botEmojis.PROFILE?.tgEmojiId || botEmojis.PUZZLE?.tgEmojiId,
           connect: botEmojis.SERVERS?.tgEmojiId || botEmojis.CONNECT?.tgEmojiId,
         }
       : undefined;
@@ -1793,7 +1945,7 @@ bot.on("callback_query:data", async (ctx) => {
         : innerEmojiIds;
       if (items.length > 1) {
         const { text, entities } = titleWithOptionalEmoji(tariffsEmojiKey, "Тарифы\n\nВыберите категорию:", config?.botEmojis);
-        await editMessageContent(ctx, text, tariffPayButtons(items, config?.botBackLabel ?? null, innerStyles, tariffsEmojiIds, tariffsEmojiUnicode), entities);
+        await editMessageContent(ctx, text, tariffPayButtons(markHasOptions(items), config?.botBackLabel ?? null, innerStyles, tariffsEmojiIds, tariffsEmojiUnicode), entities);
         return;
       }
       const cat = items[0]!;
@@ -1804,7 +1956,7 @@ bot.on("callback_query:data", async (ctx) => {
       const tariffLines = cat.tariffs.map((t: TariffItem) => formatTariffLine(t, tariffFields)).join("\n");
       const body = renderTariffsText(template, head, tariffLines);
       const { text, entities } = titleWithOptionalEmoji(tariffsEmojiKey, body, config?.botEmojis);
-      await editMessageContent(ctx, text, tariffPayButtons(items, config?.botBackLabel ?? null, innerStyles, tariffsEmojiIds, tariffsEmojiUnicode), entities);
+      await editMessageContent(ctx, text, tariffPayButtons(markHasOptions(items), config?.botBackLabel ?? null, innerStyles, tariffsEmojiIds, tariffsEmojiUnicode), entities);
       return;
     }
 
@@ -1831,7 +1983,7 @@ bot.on("callback_query:data", async (ctx) => {
       const tariffLines = category.tariffs.map((t: TariffItem) => formatTariffLine(t, tariffFields)).join("\n");
       const body = renderTariffsText(template, head, tariffLines);
       const { text, entities } = titleWithOptionalEmoji(tariffsEmojiKey, body, config?.botEmojis);
-      await editMessageContent(ctx, text, tariffsOfCategoryButtons(category, config?.botBackLabel ?? null, innerStyles, "menu:tariffs", tariffsEmojiIds, tariffsEmojiUnicode), entities);
+      await editMessageContent(ctx, text, tariffsOfCategoryButtons(markHasOptions([category])[0]!, config?.botBackLabel ?? null, innerStyles, "menu:tariffs", tariffsEmojiIds, tariffsEmojiUnicode), entities);
       return;
     }
 
@@ -2243,7 +2395,8 @@ bot.on("callback_query:data", async (ctx) => {
         const promoCode = discountInfoBal?.code;
         const sel = selectedTariffOption.get(userId);
         const tariffPriceOptionId = sel?.tariffId === tariffId ? sel.option.id : undefined;
-        const result = await api.payByBalance(token, { tariffId, tariffPriceOptionId, promoCode });
+        const extraDevices = sel?.tariffId === tariffId ? sel.extraDevices : 0;
+        const result = await api.payByBalance(token, { tariffId, tariffPriceOptionId, deviceCount: extraDevices, promoCode });
         if (promoCode) activeDiscountCode.delete(userId);
         selectedTariffOption.delete(userId);
         await editMessageContent(ctx, `✅ ${result.message}`, backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
@@ -2268,13 +2421,17 @@ bot.on("callback_query:data", async (ctx) => {
         const sel = selectedTariffOption.get(userId);
         const opts = sortedPriceOptions(tariff.priceOptions);
         const eff = sel?.tariffId === tariff.id ? sel.option : (opts.length === 1 ? opts[0]! : null);
-        const effectivePrice = eff?.price ?? tariff.price;
+        const unitPrice = eff?.price ?? tariff.price;
         const effectiveDays = eff?.durationDays ?? tariff.durationDays;
+        const extraDevices = sel?.tariffId === tariff.id ? sel.extraDevices : 0;
+        const { extrasTotal } = applyExtraDevicesPriceBot(tariff.pricePerExtraDevice ?? 0, extraDevices, tariff.deviceDiscountTiers, effectiveDays);
+        const effectivePrice = unitPrice + extrasTotal;
         const payment = await api.createYoomoneyPayment(token, {
           amount: effectivePrice,
           paymentType: "AC",
           tariffId: tariff.id,
           tariffPriceOptionId: eff?.id,
+          deviceCount: extraDevices,
           promoCode,
         });
         if (promoCode) activeDiscountCode.delete(userId);
@@ -2284,7 +2441,7 @@ bot.on("callback_query:data", async (ctx) => {
           discountedPrice: formatMoney(getDiscountedPrice(effectivePrice, discountInfoYm), tariff.currency),
         } : undefined;
         const nameWithDays = (opts.length > 1 || (sel?.tariffId === tariff.id))
-          ? `${tariff.name} · ${effectiveDays} ${formatRuDays(effectiveDays)}`
+          ? `${tariff.name} · ${formatRuDays(effectiveDays)}`
           : tariff.name;
         const msg = buildPaymentMessage(config, {
           name: nameWithDays,
@@ -2319,13 +2476,17 @@ bot.on("callback_query:data", async (ctx) => {
         const sel = selectedTariffOption.get(userId);
         const opts = sortedPriceOptions(tariff.priceOptions);
         const eff = sel?.tariffId === tariff.id ? sel.option : (opts.length === 1 ? opts[0]! : null);
-        const effectivePrice = eff?.price ?? tariff.price;
+        const unitPrice = eff?.price ?? tariff.price;
         const effectiveDays = eff?.durationDays ?? tariff.durationDays;
+        const extraDevices = sel?.tariffId === tariff.id ? sel.extraDevices : 0;
+        const { extrasTotal } = applyExtraDevicesPriceBot(tariff.pricePerExtraDevice ?? 0, extraDevices, tariff.deviceDiscountTiers, effectiveDays);
+        const effectivePrice = unitPrice + extrasTotal;
         const payment = await api.createYookassaPayment(token, {
           amount: effectivePrice,
           currency: "RUB",
           tariffId: tariff.id,
           tariffPriceOptionId: eff?.id,
+          deviceCount: extraDevices,
           promoCode,
         });
         if (promoCode) activeDiscountCode.delete(userId);
@@ -2335,7 +2496,7 @@ bot.on("callback_query:data", async (ctx) => {
           discountedPrice: formatMoney(getDiscountedPrice(effectivePrice, discountInfoYk), tariff.currency),
         } : undefined;
         const nameWithDays = (opts.length > 1 || (sel?.tariffId === tariff.id))
-          ? `${tariff.name} · ${effectiveDays} ${formatRuDays(effectiveDays)}`
+          ? `${tariff.name} · ${formatRuDays(effectiveDays)}`
           : tariff.name;
         const msg = buildPaymentMessage(config, {
           name: nameWithDays,
@@ -2366,9 +2527,12 @@ bot.on("callback_query:data", async (ctx) => {
         const sel = selectedTariffOption.get(userId);
         const opts = sortedPriceOptions(tariff.priceOptions);
         const eff = sel?.tariffId === tariff.id ? sel.option : (opts.length === 1 ? opts[0]! : null);
-        const effectivePrice = eff?.price ?? tariff.price;
+        const unitPrice = eff?.price ?? tariff.price;
         const effectiveDays = eff?.durationDays ?? tariff.durationDays;
-        const payment = await api.createCryptopayPayment(token, { amount: effectivePrice, currency: tariff.currency, tariffId: tariff.id, tariffPriceOptionId: eff?.id, promoCode });
+        const extraDevices = sel?.tariffId === tariff.id ? sel.extraDevices : 0;
+        const { extrasTotal } = applyExtraDevicesPriceBot(tariff.pricePerExtraDevice ?? 0, extraDevices, tariff.deviceDiscountTiers, effectiveDays);
+        const effectivePrice = unitPrice + extrasTotal;
+        const payment = await api.createCryptopayPayment(token, { amount: effectivePrice, currency: tariff.currency, tariffId: tariff.id, tariffPriceOptionId: eff?.id, deviceCount: extraDevices, promoCode });
         if (promoCode) activeDiscountCode.delete(userId);
         selectedTariffOption.delete(userId);
         const discountArgCp = discountInfoCp ? {
@@ -2376,7 +2540,7 @@ bot.on("callback_query:data", async (ctx) => {
           discountedPrice: formatMoney(getDiscountedPrice(effectivePrice, discountInfoCp), tariff.currency),
         } : undefined;
         const nameWithDays = (opts.length > 1 || (sel?.tariffId === tariff.id))
-          ? `${tariff.name} · ${effectiveDays} ${formatRuDays(effectiveDays)}`
+          ? `${tariff.name} · ${formatRuDays(effectiveDays)}`
           : tariff.name;
         const msg = buildPaymentMessage(config, { name: nameWithDays, price: formatMoney(effectivePrice, tariff.currency), amount: String(effectivePrice), currency: tariff.currency, action: "Нажмите кнопку ниже для оплаты через Crypto Bot:" }, discountArgCp);
         await editMessageContent(ctx, msg.text, payUrlMarkup(payment.payUrl, config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds), msg.entities);
@@ -2602,7 +2766,7 @@ bot.on("callback_query:data", async (ctx) => {
     }
 
     if (data.startsWith("topt:")) {
-      // Выбор пользователем конкретной опции цены тарифа из picker'а.
+      // Шаг 1: выбрана опция длительности. Дальше — picker доп. устройств (если включены).
       const idxStr = data.slice("topt:".length);
       const idx = parseInt(idxStr, 10);
       const cache = tariffOptionsCache.get(userId);
@@ -2611,31 +2775,64 @@ bot.on("callback_query:data", async (ctx) => {
         return;
       }
       const option = cache.options[idx]!;
-      selectedTariffOption.set(userId, { tariffId: cache.tariffId, option });
-      // Перерисовываем экран выбора метода оплаты с уже выбранной опцией.
+      selectedTariffOption.set(userId, { tariffId: cache.tariffId, option, extraDevices: 0 });
       const { items } = await api.getPublicTariffs();
       const tariff = items?.flatMap((c: TariffCategory) => c.tariffs).find((t: TariffItem) => t.id === cache.tariffId);
       if (!tariff) {
         await editMessageContent(ctx, "Тариф не найден.", backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
         return;
       }
-      const methods = config?.plategaMethods ?? [];
-      const client = await api.getMe(token);
-      const balanceLabel = client && client.balance >= option.price ? `💰 Оплатить балансом (${formatMoney(client.balance, client.preferredCurrency ?? "RUB")})` : null;
-      const discountInfoOpt = activeDiscountCode.get(userId);
-      const discountArgOpt = discountInfoOpt ? {
-        originalPrice: formatMoney(option.price, tariff.currency),
-        discountedPrice: formatMoney(getDiscountedPrice(option.price, discountInfoOpt), tariff.currency),
-      } : undefined;
-      const nameWithDays = `${tariff.name} · ${option.durationDays} ${formatRuDays(option.durationDays)}`;
-      const pay2 = buildPaymentMessage(config, {
-        name: nameWithDays,
-        price: formatMoney(option.price, tariff.currency),
-        amount: String(option.price),
-        currency: tariff.currency,
-        action: "Выберите способ оплаты:",
-      }, discountArgOpt);
-      await editMessageContent(ctx, pay2.text, tariffPaymentMethodButtons(tariff.id, methods, config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds, balanceLabel, !!config?.yoomoneyEnabled, !!config?.yookassaEnabled, !!config?.cryptopayEnabled, tariff.currency), pay2.entities);
+      // Если в тарифе ВКЛЮЧЕНЫ доп. устройства — показываем picker.
+      if (hasExtraDevices(tariff)) {
+        const tiers = tariff.deviceDiscountTiers;
+        const pricePerExtra = tariff.pricePerExtraDevice ?? 0;
+        const maxExtras = tariff.maxExtraDevices ?? 0;
+        const includedDevices = tariff.includedDevices ?? 1;
+        // Плитка «+0» = базовая цена тарифа, дальше +1, +2, ... до maxExtras.
+        const tiles = Array.from({ length: maxExtras + 1 }, (_, i) => {
+          const extras = i;
+          const { extrasTotal, pct } = applyExtraDevicesPriceBot(pricePerExtra, extras, tiers, option.durationDays);
+          return { extras, total: option.price + extrasTotal, pct };
+        });
+        const bestExtra = tiles.slice(1).reduce((best, cur) => {
+          const perDev = cur.total / (includedDevices + cur.extras);
+          if (best == null || perDev < best.perDev) return { extras: cur.extras, perDev };
+          return best;
+        }, null as { extras: number; perDev: number } | null);
+        const tilesWithBest = tiles.map((t) => ({
+          extras: t.extras,
+          included: includedDevices,
+          total: t.total,
+          pct: t.pct,
+          isBest: bestExtra?.extras === t.extras && t.extras > 0 && t.pct === 0,
+        }));
+        const text = `${tariff.name} · ${formatRuDays(option.durationDays)}\n\n📱 В тариф включено: ${includedDevices} устр.\nДобавьте дополнительные:`;
+        await editMessageContent(ctx, text, tariffDevicePickerButtons(tilesWithBest, tariff.currency, config?.botBackLabel ?? null, innerStyles, innerEmojiIds));
+        return;
+      }
+      // Доп. устройств нет — сразу способы оплаты с extras=0.
+      await showPaymentMethodsForTariff(ctx, userId, tariff, option, 0, config, innerStyles, innerEmojiIds, token);
+      return;
+    }
+
+    if (data.startsWith("tdev:")) {
+      // Шаг 2: выбрано количество ДОП. устройств (extras). Применяем скидку и показываем способы оплаты.
+      const nStr = data.slice("tdev:".length);
+      const extraDevices = parseInt(nStr, 10);
+      const sel = selectedTariffOption.get(userId);
+      if (!sel || !Number.isFinite(extraDevices) || extraDevices < 0) {
+        await editMessageContent(ctx, "Сессия выбора устройств истекла. Откройте тарифы заново.", backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
+        return;
+      }
+      const { items } = await api.getPublicTariffs();
+      const tariff = items?.flatMap((c: TariffCategory) => c.tariffs).find((t: TariffItem) => t.id === sel.tariffId);
+      if (!tariff) {
+        await editMessageContent(ctx, "Тариф не найден.", backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
+        return;
+      }
+      const cappedExtras = Math.min(Math.max(0, extraDevices), tariff.maxExtraDevices ?? 0);
+      selectedTariffOption.set(userId, { ...sel, extraDevices: cappedExtras });
+      await showPaymentMethodsForTariff(ctx, userId, tariff, sel.option, cappedExtras, config, innerStyles, innerEmojiIds, token);
       return;
     }
 
@@ -2650,69 +2847,93 @@ bot.on("callback_query:data", async (ctx) => {
         await editMessageContent(ctx, "Тариф не найден.", backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
         return;
       }
-      const methods = config?.plategaMethods ?? [];
-      // Опции цен тарифа: если несколько — показываем picker (только при первичном входе, без methodIdFromBtn).
       const opts = sortedPriceOptions(tariff.priceOptions);
       const existingSelection = selectedTariffOption.get(userId);
       const matchesThisTariff = existingSelection?.tariffId === tariff.id;
-      if (opts.length > 1 && methodIdFromBtn == null && !matchesThisTariff) {
-        tariffOptionsCache.set(userId, { tariffId: tariff.id, options: opts });
-        const bestId = bestPricePerDayOptionId(opts);
-        const text = `${tariff.name}\n\nВыберите длительность подписки:`;
-        await editMessageContent(ctx, text, tariffOptionPickerButtons(opts, tariff.currency, bestId, config?.botBackLabel ?? null, innerStyles, innerEmojiIds));
+
+      // При первичном входе (без methodId): picker длительности (если опций > 1),
+      // потом picker доп. устройств (если включены), потом — методы оплаты.
+      if (methodIdFromBtn == null) {
+        if (opts.length > 1) {
+          tariffOptionsCache.set(userId, { tariffId: tariff.id, options: opts });
+          const bestId = bestPricePerDayOptionId(opts);
+          const text = `${tariff.name}\n\nВыберите длительность подписки:`;
+          await editMessageContent(ctx, text, tariffOptionPickerButtons(opts, tariff.currency, bestId, config?.botBackLabel ?? null, innerStyles, innerEmojiIds));
+          return;
+        }
+        const onlyOpt = opts[0] ?? null;
+        if (onlyOpt) {
+          selectedTariffOption.set(userId, { tariffId: tariff.id, option: onlyOpt, extraDevices: 0 });
+          if (hasExtraDevices(tariff)) {
+            const tiers = tariff.deviceDiscountTiers;
+            const pricePerExtra = tariff.pricePerExtraDevice ?? 0;
+            const maxExtras = tariff.maxExtraDevices ?? 0;
+            const includedDevices = tariff.includedDevices ?? 1;
+            const tiles = Array.from({ length: maxExtras + 1 }, (_, i) => {
+              const extras = i;
+              const { extrasTotal, pct } = applyExtraDevicesPriceBot(pricePerExtra, extras, tiers, onlyOpt.durationDays);
+              return { extras, total: onlyOpt.price + extrasTotal, pct };
+            });
+            const bestExtra = tiles.slice(1).reduce((best, cur) => {
+              const perDev = cur.total / (includedDevices + cur.extras);
+              if (best == null || perDev < best.perDev) return { extras: cur.extras, perDev };
+              return best;
+            }, null as { extras: number; perDev: number } | null);
+            const tilesWithBest = tiles.map((t) => ({
+              extras: t.extras,
+              included: includedDevices,
+              total: t.total,
+              pct: t.pct,
+              isBest: bestExtra?.extras === t.extras && t.extras > 0 && t.pct === 0,
+            }));
+            const text = `${tariff.name} · ${formatRuDays(onlyOpt.durationDays)}\n\n📱 В тариф включено: ${includedDevices} устр.\nДобавьте дополнительные:`;
+            await editMessageContent(ctx, text, tariffDevicePickerButtons(tilesWithBest, tariff.currency, config?.botBackLabel ?? null, innerStyles, innerEmojiIds));
+            return;
+          }
+        }
+        await showPaymentMethodsForTariff(ctx, userId, tariff, onlyOpt, 0, config, innerStyles, innerEmojiIds, token);
         return;
       }
-      // Эффективная опция (выбранная пользователем) или fallback на legacy tariff.price/durationDays.
-      const effectiveOption: { id?: string; durationDays: number; price: number } = matchesThisTariff && existingSelection
-        ? { id: existingSelection.option.id, durationDays: existingSelection.option.durationDays, price: existingSelection.option.price }
-        : opts.length === 1
-          ? { id: opts[0]!.id, durationDays: opts[0]!.durationDays, price: opts[0]!.price }
-          : { durationDays: tariff.durationDays, price: tariff.price };
-      const client = await api.getMe(token);
-      const balanceLabel = client && client.balance >= effectiveOption.price ? `💰 Оплатить балансом (${formatMoney(client.balance, client.preferredCurrency ?? "RUB")})` : null;
 
+      // Метод выбран: считаем effectivePrice с учётом extras + создаём Platega-платёж.
+      const eff = matchesThisTariff && existingSelection ? existingSelection.option : (opts.length === 1 ? opts[0]! : null);
+      const unitPrice = eff?.price ?? tariff.price;
+      const effectiveDays = eff?.durationDays ?? tariff.durationDays;
+      const extraDevices = matchesThisTariff && existingSelection ? existingSelection.extraDevices : 0;
+      const includedDevices = tariff.includedDevices ?? 1;
+      const { extrasTotal } = applyExtraDevicesPriceBot(tariff.pricePerExtraDevice ?? 0, extraDevices, tariff.deviceDiscountTiers);
+      const effectivePrice = unitPrice + extrasTotal;
       const discountInfoTariff = activeDiscountCode.get(userId);
       const discountArgTariff = discountInfoTariff ? {
-        originalPrice: formatMoney(effectiveOption.price, tariff.currency),
-        discountedPrice: formatMoney(getDiscountedPrice(effectiveOption.price, discountInfoTariff), tariff.currency),
+        originalPrice: formatMoney(effectivePrice, tariff.currency),
+        discountedPrice: formatMoney(getDiscountedPrice(effectivePrice, discountInfoTariff), tariff.currency),
       } : undefined;
-
+      const totalDevices = includedDevices + extraDevices;
+      const devicesSuffix = extraDevices > 0 ? ` · ${totalDevices} устр (+${extraDevices} доп.)` : "";
       const nameWithDays = opts.length > 1 || matchesThisTariff
-        ? `${tariff.name} · ${effectiveOption.durationDays} ${formatRuDays(effectiveOption.durationDays)}`
-        : tariff.name;
-
-      if (methodIdFromBtn != null && Number.isFinite(methodIdFromBtn)) {
-        const promoCode = discountInfoTariff?.code;
-        const payment = await api.createPlategaPayment(token, {
-          amount: effectiveOption.price,
-          currency: tariff.currency,
-          paymentMethod: methodIdFromBtn,
-          description: `Тариф: ${tariff.name}`,
-          tariffId: tariff.id,
-          tariffPriceOptionId: effectiveOption.id,
-          promoCode,
-        });
-        if (promoCode) activeDiscountCode.delete(userId);
-        selectedTariffOption.delete(userId);
-        const msg = buildPaymentMessage(config, {
-          name: nameWithDays,
-          price: formatMoney(effectiveOption.price, tariff.currency),
-          amount: String(effectiveOption.price),
-          currency: tariff.currency,
-          action: "Нажмите кнопку ниже для оплаты:",
-        }, discountArgTariff);
-        await editMessageContent(ctx, msg.text, payUrlMarkup(payment.paymentUrl, config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds), msg.entities);
-        return;
-      }
-      // Показываем способы оплаты (всегда, чтобы была кнопка баланса)
-      const pay2 = buildPaymentMessage(config, {
-        name: nameWithDays,
-        price: formatMoney(effectiveOption.price, tariff.currency),
-        amount: String(effectiveOption.price),
+        ? `${tariff.name} · ${formatRuDays(effectiveDays)}${devicesSuffix}`
+        : `${tariff.name}${devicesSuffix}`;
+      const promoCode = discountInfoTariff?.code;
+      const payment = await api.createPlategaPayment(token, {
+        amount: effectivePrice,
         currency: tariff.currency,
-        action: "Выберите способ оплаты:",
+        paymentMethod: methodIdFromBtn,
+        description: `Тариф: ${tariff.name}`,
+        tariffId: tariff.id,
+        tariffPriceOptionId: eff?.id,
+        deviceCount: extraDevices,
+        promoCode,
+      });
+      if (promoCode) activeDiscountCode.delete(userId);
+      selectedTariffOption.delete(userId);
+      const msg = buildPaymentMessage(config, {
+        name: nameWithDays,
+        price: formatMoney(effectivePrice, tariff.currency),
+        amount: String(effectivePrice),
+        currency: tariff.currency,
+        action: "Нажмите кнопку ниже для оплаты:",
       }, discountArgTariff);
-      await editMessageContent(ctx, pay2.text, tariffPaymentMethodButtons(tariffId, methods, config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds, balanceLabel, !!config?.yoomoneyEnabled, !!config?.yookassaEnabled, !!config?.cryptopayEnabled, tariff.currency), pay2.entities);
+      await editMessageContent(ctx, msg.text, payUrlMarkup(payment.paymentUrl, config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds), msg.entities);
       return;
     }
 
@@ -3095,7 +3316,7 @@ bot.on("callback_query:data", async (ctx) => {
       await editMessageContent(
         ctx,
         "🛒 Купить доп. подписку\n\nВыберите тариф:",
-        giftTariffButtons(items, config?.botBackLabel ?? null, innerStyles, innerEmojiIds),
+        giftTariffButtons(markHasOptions(items), config?.botBackLabel ?? null, innerStyles, innerEmojiIds),
       );
       return;
     }
@@ -3108,20 +3329,86 @@ bot.on("callback_query:data", async (ctx) => {
         await editMessageContent(ctx, "Тариф не найден.", backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
         return;
       }
-      const client = await api.getMe(token);
-      const balanceLabel = `💰 Оплатить балансом (${formatMoney(client?.balance ?? 0, client?.preferredCurrency ?? "RUB")})`;
-      await editMessageContent(
-        ctx,
-        `🛒 ${tariff.name}\n\nСтоимость: ${formatMoney(tariff.price, tariff.currency)}\n\nПодтвердите оплату:`,
-        giftPaymentButtons(tariffId, balanceLabel, config?.botBackLabel ?? null, innerStyles, innerEmojiIds),
-      );
+      const opts = sortedPriceOptions(tariff.priceOptions);
+      // Если опций > 1 — показываем picker длительности.
+      if (opts.length > 1) {
+        giftOptionsCache.set(userId, { tariffId, options: opts });
+        const bestId = bestPricePerDayOptionId(opts);
+        const text = `🎁 ${tariff.name}\n\nВыберите длительность подписки:`;
+        // Используем тот же picker длительности что и для основных тарифов, но с другим callback prefix.
+        // Для этого собираем кнопки вручную.
+        const tariffPay = "success" as const;
+        const rows: { text: string; callback_data: string }[][] = opts.map((o, idx) => {
+          const star = bestId && o.id === bestId ? "🌟 " : "";
+          const sym = tariff.currency.toUpperCase() === "RUB" ? "₽" : tariff.currency.toUpperCase() === "USD" ? "$" : tariff.currency;
+          return [{ text: `${star}${o.durationDays} дн — ${o.price} ${sym}`.slice(0, 64), callback_data: `gift_topt:${idx}` }];
+        });
+        rows.push([{ text: config?.botBackLabel ?? "◀️ В меню", callback_data: "menu:gift" }]);
+        await editMessageContent(ctx, text, { inline_keyboard: rows.map((r) => r.map((b) => ({ ...b, style: tariffPay }))) } as InlineMarkup);
+        return;
+      }
+      // Одна опция — сохраняем её и идём к picker'у устройств (если включены)
+      const onlyOpt = opts[0] ?? null;
+      selectedGiftOption.set(userId, { tariffId, option: onlyOpt, extraDevices: 0 });
+      if (hasExtraDevices(tariff)) {
+        await showGiftDevicePicker(ctx, userId, tariff, onlyOpt, config, innerStyles, innerEmojiIds);
+        return;
+      }
+      // Без опций и без extras — сразу подтверждение оплаты.
+      await showGiftPaymentConfirm(ctx, userId, tariff, onlyOpt, 0, config, innerStyles, innerEmojiIds, token);
+      return;
+    }
+
+    if (data.startsWith("gift_topt:")) {
+      const idx = parseInt(data.slice("gift_topt:".length), 10);
+      const cache = giftOptionsCache.get(userId);
+      if (!cache || !Number.isFinite(idx) || idx < 0 || idx >= cache.options.length) {
+        await editMessageContent(ctx, "Сессия истекла. Откройте подарки заново.", backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
+        return;
+      }
+      const option = cache.options[idx]!;
+      selectedGiftOption.set(userId, { tariffId: cache.tariffId, option, extraDevices: 0 });
+      const { items } = await api.getPublicTariffs();
+      const tariff = items?.flatMap((c: TariffCategory) => c.tariffs).find((t: TariffItem) => t.id === cache.tariffId);
+      if (!tariff) {
+        await editMessageContent(ctx, "Тариф не найден.", backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
+        return;
+      }
+      if (hasExtraDevices(tariff)) {
+        await showGiftDevicePicker(ctx, userId, tariff, option, config, innerStyles, innerEmojiIds);
+        return;
+      }
+      await showGiftPaymentConfirm(ctx, userId, tariff, option, 0, config, innerStyles, innerEmojiIds, token);
+      return;
+    }
+
+    if (data.startsWith("gift_tdev:")) {
+      const extras = parseInt(data.slice("gift_tdev:".length), 10);
+      const sel = selectedGiftOption.get(userId);
+      if (!sel || !Number.isFinite(extras) || extras < 0) {
+        await editMessageContent(ctx, "Сессия истекла. Откройте подарки заново.", backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
+        return;
+      }
+      const { items } = await api.getPublicTariffs();
+      const tariff = items?.flatMap((c: TariffCategory) => c.tariffs).find((t: TariffItem) => t.id === sel.tariffId);
+      if (!tariff) {
+        await editMessageContent(ctx, "Тариф не найден.", backToMenu(config?.botBackLabel ?? null, innerStyles?.back, innerEmojiIds));
+        return;
+      }
+      const cappedExtras = Math.min(Math.max(0, extras), tariff.maxExtraDevices ?? 0);
+      selectedGiftOption.set(userId, { ...sel, extraDevices: cappedExtras });
+      await showGiftPaymentConfirm(ctx, userId, tariff, sel.option, cappedExtras, config, innerStyles, innerEmojiIds, token);
       return;
     }
 
     if (data.startsWith("gift_pay_balance:")) {
       const tariffId = data.slice("gift_pay_balance:".length);
       try {
-        const result = await api.buyGiftSubscription(token, { tariffId });
+        const sel = selectedGiftOption.get(userId);
+        const tariffPriceOptionId = sel?.tariffId === tariffId ? sel.option?.id : undefined;
+        const extraDevices = sel?.tariffId === tariffId ? sel.extraDevices : 0;
+        const result = await api.buyGiftSubscription(token, { tariffId, tariffPriceOptionId, extraDevices });
+        selectedGiftOption.delete(userId);
         await editMessageContent(
           ctx,
           `✅ Дополнительная подписка создана!\n\nПодписка #${result.subscriptionIndex}\n\nВы можете активировать её на своём аккаунте или подарить другу.`,
@@ -3571,7 +3858,7 @@ bot.on("message:text", async (ctx) => {
           card: botEmojis.CARD?.tgEmojiId,
           tariff: botEmojis.PACKAGE?.tgEmojiId || botEmojis.TARIFFS?.tgEmojiId,
           trial: botEmojis.TRIAL?.tgEmojiId,
-          profile: botEmojis.PUZZLE?.tgEmojiId || botEmojis.PROFILE?.tgEmojiId,
+          profile: botEmojis.PROFILE?.tgEmojiId || botEmojis.PUZZLE?.tgEmojiId,
           connect: botEmojis.SERVERS?.tgEmojiId || botEmojis.CONNECT?.tgEmojiId,
         }
       : undefined;
