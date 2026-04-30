@@ -64,6 +64,10 @@ type AuthedReq = Request & { clientId: string };
 
 const buySchema = z.object({
   tariffId: z.string().min(1, "tariffId обязателен"),
+  /** Конкретная опция длительности тарифа (необязательно — fallback на минимум). */
+  tariffPriceOptionId: z.string().min(1).optional(),
+  /** Количество ДОП. устройств которые клиент докупает поверх includedDevices (0..maxExtraDevices). */
+  extraDevices: z.number().int().min(0).max(100).optional(),
 });
 
 const createCodeSchema = z.object({
@@ -94,7 +98,7 @@ giftRouter.post("/buy", async (req: Request, res: Response) => {
     return res.status(400).json({ message: "Некорректные данные", errors: body.error.flatten() });
   }
 
-  // Получаем тариф
+  // Получаем тариф со всеми полями новой модели устройств.
   const tariff = await prisma.tariff.findUnique({
     where: { id: body.data.tariffId },
     select: {
@@ -105,14 +109,40 @@ giftRouter.post("/buy", async (req: Request, res: Response) => {
       durationDays: true,
       trafficLimitBytes: true,
       deviceLimit: true,
+      includedDevices: true,
+      pricePerExtraDevice: true,
+      maxExtraDevices: true,
+      deviceDiscountTiers: true,
       internalSquadUuids: true,
       trafficResetMode: true,
+      priceOptions: { orderBy: [{ sortOrder: "asc" }, { durationDays: "asc" }] },
     },
   });
 
   if (!tariff) {
     return res.status(404).json({ message: "Тариф не найден" });
   }
+
+  // Выбранная опция длительности: явный priceOptionId → найти; иначе минимальная по цене.
+  let selectedOption: { id: string; durationDays: number; price: number } | null = null;
+  if (body.data.tariffPriceOptionId) {
+    const opt = tariff.priceOptions.find((o) => o.id === body.data.tariffPriceOptionId);
+    if (!opt) return res.status(400).json({ message: "Опция цены не найдена в этом тарифе" });
+    selectedOption = { id: opt.id, durationDays: opt.durationDays, price: opt.price };
+  } else if (tariff.priceOptions.length > 0) {
+    const sorted = [...tariff.priceOptions].sort((a, b) => a.price - b.price);
+    selectedOption = { id: sorted[0].id, durationDays: sorted[0].durationDays, price: sorted[0].price };
+  }
+
+  // Применяем формулу: базовая цена опции + extras × pricePerExtra × коэф длительности × (1 − скидка).
+  const { applyExtraDevicesPrice, parseDeviceDiscountTiers } = await import("../tariff/tariff-activation.service.js");
+  const maxExtras = tariff.maxExtraDevices ?? 0;
+  const requestedExtras = Math.min(Math.max(0, body.data.extraDevices ?? 0), maxExtras);
+  const unitPrice = selectedOption?.price ?? tariff.price;
+  const effectiveDays = selectedOption?.durationDays ?? tariff.durationDays;
+  const tiers = parseDeviceDiscountTiers(tariff.deviceDiscountTiers);
+  const { extrasTotal } = applyExtraDevicesPrice(tariff.pricePerExtraDevice ?? 0, requestedExtras, tiers, effectiveDays);
+  const price = unitPrice + extrasTotal;
 
   // Проверяем баланс
   const client = await prisma.client.findUnique({
@@ -122,8 +152,6 @@ giftRouter.post("/buy", async (req: Request, res: Response) => {
   if (!client) {
     return res.status(404).json({ message: "Клиент не найден" });
   }
-
-  const price = Number(tariff.price);
   if (client.balance < price) {
     return res.status(400).json({ message: "Недостаточно средств на балансе" });
   }
@@ -134,17 +162,18 @@ giftRouter.post("/buy", async (req: Request, res: Response) => {
     data: { balance: { decrement: price } },
   });
 
-  // Создаём дополнительную подписку
+  // Создаём дополнительную подписку с новой моделью устройств.
   const result = await createAdditionalSubscription(clientId, {
     id: tariff.id,
     name: tariff.name,
     price,
-    durationDays: tariff.durationDays,
+    durationDays: effectiveDays,
     trafficLimitBytes: tariff.trafficLimitBytes,
     deviceLimit: tariff.deviceLimit,
+    includedDevices: tariff.includedDevices,
     internalSquadUuids: tariff.internalSquadUuids,
     trafficResetMode: tariff.trafficResetMode ?? undefined,
-  });
+  }, { extraDevices: requestedExtras });
 
   if (!result.ok) {
     // Возвращаем баланс при ошибке
@@ -155,17 +184,20 @@ giftRouter.post("/buy", async (req: Request, res: Response) => {
     return res.status(result.status).json({ message: result.error });
   }
 
-  // Создаём запись Payment для истории
+  // Создаём запись Payment для истории — с привязкой опции и количеством extras.
   await prisma.payment.create({
     data: {
       clientId,
       orderId: randomUUID(),
       tariffId: tariff.id,
-      amount: tariff.price,
+      tariffPriceOptionId: selectedOption?.id ?? null,
+      deviceCount: requestedExtras,
+      amount: price,
       currency: tariff.currency.toUpperCase(),
-      status: "COMPLETED",
-      provider: "BALANCE",
+      status: "PAID",
+      provider: "balance",
       paidAt: new Date(),
+      metadata: JSON.stringify({ isAdditionalSubscription: true }),
     },
   });
 

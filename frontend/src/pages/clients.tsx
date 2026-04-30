@@ -193,7 +193,18 @@ export function ClientsPage() {
         personalDiscountPercent: editForm.personalDiscountPercent ?? null,
       });
       setEditing(updated);
-      setEditForm({});
+      // Пересоздаём форму из обновлённых данных, иначе input'ы (привязанные к editForm)
+      // показали бы пустые значения после save, и нужно было бы переоткрыть карточку.
+      setEditForm({
+        email: updated.email ?? undefined,
+        preferredLang: updated.preferredLang,
+        preferredCurrency: updated.preferredCurrency,
+        balance: updated.balance,
+        isBlocked: updated.isBlocked,
+        blockReason: updated.blockReason ?? undefined,
+        referralPercent: updated.referralPercent ?? undefined,
+        personalDiscountPercent: updated.personalDiscountPercent ?? undefined,
+      });
       setActionMessage(t("admin.clients.saved"));
       loadClients();
     } catch (e) {

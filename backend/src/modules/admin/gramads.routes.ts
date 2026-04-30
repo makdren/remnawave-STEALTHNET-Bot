@@ -1,10 +1,10 @@
 import { Router } from "express";
 import { prisma } from "../../db.js";
-import { requireAuth, requireAdminSection } from "../auth/middleware.js";
 
+// Mounted on adminRouter at "/gramads" — parent already runs requireAuth + requireAdminSection.
+// Local section check would compute section from "/status" (returns "status"), breaking
+// managers who only have "promo-vpn" allowed. So no auth middleware here.
 export const adminGramadsRouter = Router();
-adminGramadsRouter.use(requireAuth);
-adminGramadsRouter.use(requireAdminSection);
 
 const GRAMADS_BASE = "https://api.gramads.net";
 
@@ -112,9 +112,9 @@ adminGramadsRouter.all(/^\/proxy\/(.+)$/, async (req, res) => {
 
     // Diagnostics: surface upstream failures and non-zero notSuccessExplanation in server logs.
     if (!r.ok) {
-      const safeBody = body ? body.slice(0, 500) : "";
+      const safeBody = body ? body.slice(0, 2000) : "";
       console.warn(
-        `[gramads] ${req.method} ${normalized} -> HTTP ${r.status} | req=${safeBody} | resp=${text.slice(0, 500)}`,
+        `[gramads] ${req.method} ${normalized} -> HTTP ${r.status} | req=${safeBody} | resp=${text.slice(0, 2000)}`,
       );
     } else if (ct.includes("application/json")) {
       try {

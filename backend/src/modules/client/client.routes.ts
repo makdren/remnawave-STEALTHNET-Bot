@@ -1176,9 +1176,40 @@ clientRouter.patch("/auto-renew", async (req, res) => {
   const body = updateAutoRenewSchema.safeParse(req.body);
   if (!body.success) return res.status(400).json({ message: "Invalid input", errors: body.error.flatten() });
 
-  const updates: { autoRenewEnabled?: boolean; autoRenewTariffId?: string | null; autoRenewPromoCode?: string | null } = {};
+  const updates: {
+    autoRenewEnabled?: boolean;
+    autoRenewTariffId?: string | null;
+    autoRenewPriceOptionId?: string | null;
+    autoRenewExtraDevices?: number;
+    autoRenewPromoCode?: string | null;
+  } = {};
   if (body.data.enabled !== undefined) updates.autoRenewEnabled = body.data.enabled;
   if (body.data.tariffId !== undefined) updates.autoRenewTariffId = body.data.tariffId;
+
+  // При включении автопродления (без явного tariffId) — авто-подтягиваем контекст из последнего
+  // успешного тарифного платежа: тариф + опция длительности + кол-во доп. устройств. Без этого
+  // плашка «следующее списание» не появится для клиентов, которые до изменений уже включали
+  // автопродление, но мы не сохраняли priceOption / extras.
+  if (body.data.enabled === true && body.data.tariffId === undefined) {
+    const lastPaid = await prisma.payment.findFirst({
+      where: { clientId: client.id, status: "PAID", tariffId: { not: null } },
+      orderBy: { paidAt: "desc" },
+      select: { tariffId: true, tariffPriceOptionId: true, deviceCount: true },
+    });
+    if (lastPaid?.tariffId) {
+      updates.autoRenewTariffId = lastPaid.tariffId;
+      updates.autoRenewPriceOptionId = lastPaid.tariffPriceOptionId;
+      updates.autoRenewExtraDevices = lastPaid.deviceCount ?? 0;
+    } else {
+      // Нет тарифной истории — fallback на currentTariffId.
+      const cur = await prisma.client.findUnique({
+        where: { id: client.id },
+        select: { currentTariffId: true },
+      });
+      if (cur?.currentTariffId) updates.autoRenewTariffId = cur.currentTariffId;
+    }
+  }
+
   if (body.data.promoCode !== undefined) {
     const code = body.data.promoCode?.trim() ?? "";
     // Пустая строка = удалить промокод из автопродления.
@@ -1855,7 +1886,17 @@ clientRouter.get("/subscription", async (req, res) => {
   // Берём currentTariffId + currentPricePerDay (для UI отображения и для расчёта конвертации в warn-модалке)
   const dbClient = await prisma.client.findUnique({
     where: { id: client.id },
-    select: { currentTariff: { select: { name: true } }, currentPricePerDay: true },
+    select: {
+      currentTariff: { select: { name: true } },
+      currentPricePerDay: true,
+      autoRenewEnabled: true,
+      autoRenewTariffId: true,
+      autoRenewPriceOptionId: true,
+      autoRenewExtraDevices: true,
+      autoRenewPromoCode: true,
+      personalDiscountPercent: true,
+      autoRenewTariff: { select: { id: true, price: true, durationDays: true, currency: true, pricePerExtraDevice: true, deviceDiscountTiers: true } },
+    },
   });
   let tariffDisplayName: string;
   if (dbClient?.currentTariff?.name?.trim()) {
@@ -1872,10 +1913,72 @@ clientRouter.get("/subscription", async (req, res) => {
       if (name) tariffDisplayName = name;
     }
   }
+
+  // Автопродление: считаем следующее списание (сумма + дата) если включено.
+  let autoRenewNextChargeAmount: number | null = null;
+  let autoRenewNextChargeAt: string | null = null;
+  let autoRenewCurrency: string | null = null;
+  if (dbClient?.autoRenewEnabled && dbClient.autoRenewTariff) {
+    try {
+      const { applyExtraDevicesPrice, parseDeviceDiscountTiers } = await import("../tariff/tariff-activation.service.js");
+      // Опция длительности
+      let opt: { id: string; durationDays: number; price: number } | null = null;
+      if (dbClient.autoRenewPriceOptionId) {
+        const savedOpt = await prisma.tariffPriceOption.findFirst({
+          where: { id: dbClient.autoRenewPriceOptionId, tariffId: dbClient.autoRenewTariff.id },
+        });
+        if (savedOpt) opt = { id: savedOpt.id, durationDays: savedOpt.durationDays, price: savedOpt.price };
+      }
+      if (!opt) {
+        const fallback = await prisma.tariffPriceOption.findFirst({
+          where: { tariffId: dbClient.autoRenewTariff.id },
+          orderBy: { price: "asc" },
+        });
+        if (fallback) opt = { id: fallback.id, durationDays: fallback.durationDays, price: fallback.price };
+      }
+      const unitPrice = opt?.price ?? dbClient.autoRenewTariff.price;
+      const durationDays = opt?.durationDays ?? dbClient.autoRenewTariff.durationDays;
+      const tiers = parseDeviceDiscountTiers(dbClient.autoRenewTariff.deviceDiscountTiers);
+      const { extrasTotal } = applyExtraDevicesPrice(
+        dbClient.autoRenewTariff.pricePerExtraDevice ?? 0,
+        dbClient.autoRenewExtraDevices ?? 0,
+        tiers,
+        durationDays,
+      );
+      let nextAmount = unitPrice + extrasTotal;
+      // Персональная скидка
+      if (typeof dbClient.personalDiscountPercent === "number" && dbClient.personalDiscountPercent > 0) {
+        const pct = Math.min(100, dbClient.personalDiscountPercent);
+        nextAmount = Math.round(nextAmount * (100 - pct)) / 100;
+      }
+      autoRenewNextChargeAmount = nextAmount;
+      autoRenewCurrency = dbClient.autoRenewTariff.currency.toUpperCase();
+
+      // Дата = expireAt − autoRenewDaysBeforeExpiry дней (config, default 1).
+      const respObj = (result.data as Record<string, unknown> | null);
+      const remnaResp = (respObj?.response ?? respObj) as Record<string, unknown> | null;
+      const expireRaw = remnaResp?.expireAt;
+      if (typeof expireRaw === "string") {
+        const expDate = new Date(expireRaw);
+        if (!Number.isNaN(expDate.getTime())) {
+          const cfg = await getSystemConfig();
+          const daysBefore = cfg.autoRenewDaysBeforeExpiry ?? 1;
+          const chargeDate = new Date(expDate.getTime() - daysBefore * 24 * 60 * 60 * 1000);
+          autoRenewNextChargeAt = chargeDate.toISOString();
+        }
+      }
+    } catch (e) {
+      console.warn("[subscription] failed to compute auto-renew next charge:", e instanceof Error ? e.message : e);
+    }
+  }
+
   return res.json({
     subscription: result.data ?? null,
     tariffDisplayName,
     currentPricePerDay: dbClient?.currentPricePerDay ?? null,
+    autoRenewNextChargeAmount,
+    autoRenewNextChargeAt,
+    autoRenewCurrency,
   });
 });
 
@@ -2035,6 +2138,7 @@ const createPlategaPaymentSchema = z.object({
   description: z.string().max(500).optional(),
   tariffId: z.string().min(1).optional(),
   tariffPriceOptionId: z.string().min(1).optional(),
+  deviceCount: z.number().int().min(0).max(100).optional(),
   proxyTariffId: z.string().min(1).optional(),
   singboxTariffId: z.string().min(1).optional(),
   promoCode: z.string().max(50).optional(),
@@ -2227,6 +2331,7 @@ clientRouter.post("/payments/platega", async (req, res) => {
       provider: "platega",
       tariffId: tariffIdToStore,
       tariffPriceOptionId: parsed.data.tariffPriceOptionId ?? null,
+      deviceCount: parsed.data.deviceCount ?? null,
       proxyTariffId: proxyTariffIdToStore,
       singboxTariffId: singboxTariffIdToStore,
       metadata: paymentMeta ? JSON.stringify(paymentMeta) : null,
@@ -2269,6 +2374,7 @@ clientRouter.post("/payments/platega", async (req, res) => {
 const payByBalanceSchema = z.object({
   tariffId: z.string().min(1).optional(),
   tariffPriceOptionId: z.string().min(1).optional(),
+  deviceCount: z.number().int().min(0).max(100).optional(),
   proxyTariffId: z.string().min(1).optional(),
   singboxTariffId: z.string().min(1).optional(),
   promoCode: z.string().max(50).optional(),
@@ -2279,7 +2385,7 @@ clientRouter.post("/payments/balance", async (req, res) => {
   const parsed = payByBalanceSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ message: "Invalid input", errors: parsed.error.flatten() });
 
-  const { tariffId, tariffPriceOptionId, proxyTariffId, singboxTariffId, promoCode: promoCodeStr } = parsed.data;
+  const { tariffId, tariffPriceOptionId, deviceCount, proxyTariffId, singboxTariffId, promoCode: promoCodeStr } = parsed.data;
 
   if (proxyTariffId) {
     const tariff = await prisma.proxyTariff.findUnique({ where: { id: proxyTariffId } });
@@ -2383,7 +2489,16 @@ clientRouter.post("/payments/balance", async (req, res) => {
     selectedOption = { id: sorted[0].id, durationDays: sorted[0].durationDays, price: sorted[0].price };
   }
 
-  const basePriceForTariff = selectedOption?.price ?? tariff.price;
+  // Цена = base + extras × pricePerExtraDevice × (100 − discount) / 100.
+  // Параметр deviceCount в API — это число ДОП. устройств (extras), не общее.
+  const { applyExtraDevicesPrice, parseDeviceDiscountTiers } = await import("../tariff/tariff-activation.service.js");
+  const maxExtras = tariff.maxExtraDevices ?? 0;
+  const requestedExtras = Math.min(Math.max(0, deviceCount ?? 0), maxExtras);
+  const unitPrice = selectedOption?.price ?? tariff.price;
+  const effectiveDays = selectedOption?.durationDays ?? tariff.durationDays;
+  const tiers = parseDeviceDiscountTiers(tariff.deviceDiscountTiers);
+  const { extrasTotal } = applyExtraDevicesPrice(tariff.pricePerExtraDevice ?? 0, requestedExtras, tiers, effectiveDays);
+  const basePriceForTariff = unitPrice + extrasTotal;
   let finalPrice = basePriceForTariff;
 
   // Персональная скидка админа — применяется первой.
@@ -2420,11 +2535,12 @@ clientRouter.post("/payments/balance", async (req, res) => {
     return res.status(400).json({ message: `Недостаточно средств. Баланс: ${clientDb.balance.toFixed(2)}, нужно: ${finalPrice.toFixed(2)}` });
   }
 
-  // Активируем тариф в Remnawave (с конкретной выбранной опцией для конвертации)
+  // Активируем тариф в Remnawave с выбранной опцией + числом ДОП. устройств.
   const activateResult = await activateTariffForClient(
     { id: clientRaw.id, remnawaveUuid: clientDb.remnawaveUuid, email: clientDb.email, telegramId: clientDb.telegramId },
     tariff,
-    selectedOption ? { durationDays: selectedOption.durationDays, price: selectedOption.price } : undefined,
+    selectedOption ? { id: selectedOption.id, durationDays: selectedOption.durationDays, price: selectedOption.price } : undefined,
+    requestedExtras,
   );
   if (!activateResult.ok) return res.status(activateResult.status).json({ message: activateResult.error });
 
@@ -2452,6 +2568,7 @@ clientRouter.post("/payments/balance", async (req, res) => {
       provider: "balance",
       tariffId,
       tariffPriceOptionId: selectedOption?.id ?? null,
+      deviceCount: requestedExtras,
       paidAt: new Date(),
       metadata: Object.keys(tariffMeta).length > 0 ? JSON.stringify(tariffMeta) : null,
     },
@@ -2828,6 +2945,7 @@ const yoomoneyFormPaymentSchema = z.object({
   paymentType: z.enum(["PC", "AC"]), // PC = с кошелька, AC = с карты
   tariffId: z.string().min(1).optional(),
   tariffPriceOptionId: z.string().min(1).optional(),
+  deviceCount: z.number().int().min(0).max(100).optional(),
   proxyTariffId: z.string().min(1).optional(),
   singboxTariffId: z.string().min(1).optional(),
   promoCode: z.string().max(50).optional(),
@@ -2974,6 +3092,7 @@ clientRouter.post("/yoomoney/create-form-payment", async (req, res) => {
       provider: "yoomoney_form",
       tariffId: tariffIdToStore,
       tariffPriceOptionId: parsed.data.tariffPriceOptionId ?? null,
+      deviceCount: parsed.data.deviceCount ?? null,
       proxyTariffId: proxyTariffIdToStore,
       singboxTariffId: singboxTariffIdToStore,
       metadata: JSON.stringify(metadataObj),
@@ -3059,6 +3178,7 @@ const yookassaCreatePaymentSchema = z.object({
   currency: z.string().min(1).max(10).optional(),
   tariffId: z.string().min(1).optional(),
   tariffPriceOptionId: z.string().min(1).optional(),
+  deviceCount: z.number().int().min(0).max(100).optional(),
   proxyTariffId: z.string().min(1).optional(),
   singboxTariffId: z.string().min(1).optional(),
   promoCode: z.string().optional(),
@@ -3228,6 +3348,7 @@ clientRouter.post("/yookassa/create-payment", async (req, res) => {
         provider: "yookassa",
         tariffId: tariffIdToStore,
         tariffPriceOptionId: parsed.data.tariffPriceOptionId ?? null,
+        deviceCount: parsed.data.deviceCount ?? null,
         proxyTariffId: proxyTariffIdToStore,
         singboxTariffId: singboxTariffIdToStore,
         metadata: Object.keys(metadataObj).length > 0 ? JSON.stringify(metadataObj) : null,
@@ -3304,6 +3425,7 @@ const cryptopayCreatePaymentSchema = z.object({
   currency: z.string().min(1).max(10).optional(),
   tariffId: z.string().min(1).optional(),
   tariffPriceOptionId: z.string().min(1).optional(),
+  deviceCount: z.number().int().min(0).max(100).optional(),
   proxyTariffId: z.string().min(1).optional(),
   singboxTariffId: z.string().min(1).optional(),
   promoCode: z.string().max(50).optional(),
@@ -3447,6 +3569,7 @@ clientRouter.post("/cryptopay/create-payment", async (req, res) => {
         provider: "cryptopay",
         tariffId: tariffIdToStore,
         tariffPriceOptionId: parsed.data.tariffPriceOptionId ?? null,
+        deviceCount: parsed.data.deviceCount ?? null,
         proxyTariffId: proxyTariffIdToStore,
         singboxTariffId: singboxTariffIdToStore,
         metadata: Object.keys(metadataObj).length > 0 ? JSON.stringify(metadataObj) : null,
@@ -3500,6 +3623,7 @@ const heleketCreatePaymentSchema = z.object({
   currency: z.string().min(1).max(10).optional(),
   tariffId: z.string().min(1).optional(),
   tariffPriceOptionId: z.string().min(1).optional(),
+  deviceCount: z.number().int().min(0).max(100).optional(),
   proxyTariffId: z.string().min(1).optional(),
   singboxTariffId: z.string().min(1).optional(),
   promoCode: z.string().max(50).optional(),
@@ -3641,6 +3765,7 @@ clientRouter.post("/heleket/create-payment", async (req, res) => {
         provider: "heleket",
         tariffId: tariffIdToStore,
         tariffPriceOptionId: parsed.data.tariffPriceOptionId ?? null,
+        deviceCount: parsed.data.deviceCount ?? null,
         proxyTariffId: proxyTariffIdToStore,
         singboxTariffId: singboxTariffIdToStore,
         metadata: Object.keys(metadataObj).length > 0 ? JSON.stringify(metadataObj) : null,
@@ -3695,6 +3820,7 @@ const lavaCreatePaymentSchema = z.object({
   currency: z.string().min(1).max(10).optional(),
   tariffId: z.string().min(1).optional(),
   tariffPriceOptionId: z.string().min(1).optional(),
+  deviceCount: z.number().int().min(0).max(100).optional(),
   proxyTariffId: z.string().min(1).optional(),
   singboxTariffId: z.string().min(1).optional(),
   promoCode: z.string().max(50).optional(),
@@ -3837,6 +3963,7 @@ clientRouter.post("/lava/create-payment", async (req, res) => {
         provider: "lava",
         tariffId: tariffIdToStore,
         tariffPriceOptionId: parsed.data.tariffPriceOptionId ?? null,
+        deviceCount: parsed.data.deviceCount ?? null,
         proxyTariffId: proxyTariffIdToStore,
         singboxTariffId: singboxTariffIdToStore,
         metadata: Object.keys(metadataObj).length > 0 ? JSON.stringify(metadataObj) : null,
@@ -3892,6 +4019,7 @@ const overpayCreatePaymentSchema = z.object({
   currency: z.string().min(1).max(10).optional(),
   tariffId: z.string().min(1).optional(),
   tariffPriceOptionId: z.string().min(1).optional(),
+  deviceCount: z.number().int().min(0).max(100).optional(),
   proxyTariffId: z.string().min(1).optional(),
   singboxTariffId: z.string().min(1).optional(),
   promoCode: z.string().max(50).optional(),
@@ -4040,6 +4168,7 @@ clientRouter.post("/overpay/create-payment", async (req, res) => {
         provider: "overpay",
         tariffId: tariffIdToStore,
         tariffPriceOptionId: parsed.data.tariffPriceOptionId ?? null,
+        deviceCount: parsed.data.deviceCount ?? null,
         proxyTariffId: proxyTariffIdToStore,
         singboxTariffId: singboxTariffIdToStore,
         metadata: Object.keys(metadataObj).length > 0 ? JSON.stringify(metadataObj) : null,
@@ -4613,6 +4742,10 @@ function tariffToJson(t: {
   trafficLimitBytes: bigint | null;
   trafficResetMode?: string;
   deviceLimit: number | null;
+  includedDevices?: number;
+  pricePerExtraDevice?: number;
+  maxExtraDevices?: number;
+  deviceDiscountTiers?: unknown;
   price: number;
   currency: string;
   priceOptions?: { id: string; durationDays: number; price: number; sortOrder: number }[];
@@ -4625,6 +4758,12 @@ function tariffToJson(t: {
     trafficLimitBytes: t.trafficLimitBytes != null ? Number(t.trafficLimitBytes) : null,
     trafficResetMode: t.trafficResetMode ?? "no_reset",
     deviceLimit: t.deviceLimit,
+    includedDevices: t.includedDevices ?? 1,
+    pricePerExtraDevice: t.pricePerExtraDevice ?? 0,
+    maxExtraDevices: t.maxExtraDevices ?? 0,
+    deviceDiscountTiers: Array.isArray(t.deviceDiscountTiers)
+      ? (t.deviceDiscountTiers as { minExtraDevices: number; discountPercent: number }[])
+      : [],
     price: t.price,
     currency: t.currency,
     priceOptions: (t.priceOptions ?? []).map((o) => ({

@@ -118,10 +118,12 @@ export async function createAdditionalSubscription(
     durationDays: number;
     trafficLimitBytes: bigint | null;
     deviceLimit: number | null;
+    /** Сколько устройств включено в базовую цену тарифа (новая модель). */
+    includedDevices?: number;
     internalSquadUuids: string[];
     trafficResetMode?: string;
   },
-  options?: { skipConfigCheck?: boolean },
+  options?: { skipConfigCheck?: boolean; extraDevices?: number },
 ): Promise<GiftResult<{ secondarySubscriptionId: string; subscriptionIndex: number }>> {
   if (!isRemnaConfigured()) {
     return { ok: false, error: "Сервис временно недоступен", status: 503 };
@@ -167,6 +169,14 @@ export async function createAdditionalSubscription(
   const trafficLimitStrategy =
     trafficResetMode === "monthly" ? "MONTH" : trafficResetMode === "monthly_rolling" ? "MONTH_ROLLING" : "NO_RESET";
 
+  // HWID лимит: новая модель — includedDevices + extras. Если ни того, ни другого нет —
+  // fallback на legacy deviceLimit (для совместимости со старыми вызовами).
+  const includedDevices = tariff.includedDevices ?? null;
+  const extraDevices = Math.max(0, options?.extraDevices ?? 0);
+  const hwidDeviceLimit = includedDevices != null
+    ? includedDevices + extraDevices
+    : tariff.deviceLimit ?? undefined;
+
   // Retry с инкрементом индекса — если username уже занят в Remnawave
   const MAX_ATTEMPTS = 5;
   let remnaUuid: string | undefined;
@@ -180,7 +190,7 @@ export async function createAdditionalSubscription(
       trafficLimitBytes,
       trafficLimitStrategy,
       expireAt,
-      hwidDeviceLimit: tariff.deviceLimit ?? undefined,
+      hwidDeviceLimit: hwidDeviceLimit ?? undefined,
       activeInternalSquads: tariff.internalSquadUuids,
     });
 

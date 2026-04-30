@@ -94,6 +94,7 @@ export function GramadsPromoPage() {
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [apiKeyVisible, setApiKeyVisible] = useState(false);
   const [savingKey, setSavingKey] = useState(false);
+  const [keyMessage, setKeyMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   // Данные кабинета
   const [balance, setBalance] = useState<GramadsBalanceDto | null>(null);
@@ -161,10 +162,17 @@ export function GramadsPromoPage() {
   // Сохранение API-ключа (через /admin/settings)
   const saveApiKey = async () => {
     setSavingKey(true);
+    setKeyMessage(null);
     try {
       await api.updateSettings(token, { gramadsApiKey: apiKeyInput.trim() } as Partial<AdminSettings> as never);
       setApiKeyInput("");
       await loadStatus();
+      // loadStatus() обновит status — если valid=false покажем баннер.
+      // Здесь сообщаем что save прошёл (Gramads validation — отдельная проверка ниже).
+      setKeyMessage({ type: "ok", text: "Ключ сохранён. Проверяем валидность…" });
+      setTimeout(() => setKeyMessage(null), 4000);
+    } catch (e) {
+      setKeyMessage({ type: "err", text: e instanceof Error ? e.message : "Ошибка сохранения" });
     } finally {
       setSavingKey(false);
     }
@@ -172,6 +180,7 @@ export function GramadsPromoPage() {
 
   const clearApiKey = async () => {
     setSavingKey(true);
+    setKeyMessage(null);
     try {
       await api.updateSettings(token, { gramadsApiKey: "" } as Partial<AdminSettings> as never);
       setApiKeyInput("");
@@ -180,6 +189,10 @@ export function GramadsPromoPage() {
       setIncomes(null);
       setTopups(null);
       setPosts(null);
+      setKeyMessage({ type: "ok", text: "Ключ удалён" });
+      setTimeout(() => setKeyMessage(null), 3000);
+    } catch (e) {
+      setKeyMessage({ type: "err", text: e instanceof Error ? e.message : "Ошибка" });
     } finally {
       setSavingKey(false);
     }
@@ -268,8 +281,8 @@ export function GramadsPromoPage() {
         </div>
       </div>
 
-      {/* Настройка ключа */}
-      {!status?.configured || !status?.valid ? (
+      {/* Если ключ ещё не введён в БД — показываем форму подключения. */}
+      {!status?.configured ? (
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -286,11 +299,6 @@ export function GramadsPromoPage() {
                 <li>{t("admin.gramads.step_3")}</li>
               </ol>
             </div>
-            {status?.configured && !status.valid && (
-              <div className="p-3 rounded-lg border border-red-500/40 bg-red-500/10 text-sm text-red-300">
-                {t("admin.gramads.invalid_key")} {status.error && <span className="opacity-70">({status.error})</span>}
-              </div>
-            )}
             <div className="space-y-2">
               <Label>{t("admin.gramads.api_key")}</Label>
               <div className="flex gap-2">
@@ -310,16 +318,45 @@ export function GramadsPromoPage() {
               <Button onClick={saveApiKey} disabled={!apiKeyInput.trim() || savingKey}>
                 {savingKey ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> {t("admin.settings.saving")}</> : <><Check className="h-4 w-4 mr-2" /> {t("admin.gramads.connect")}</>}
               </Button>
-              {status?.configured && (
-                <Button variant="outline" onClick={clearApiKey} disabled={savingKey}>
-                  <X className="h-4 w-4 mr-2" /> {t("admin.gramads.disconnect")}
-                </Button>
-              )}
             </div>
+            {keyMessage && (
+              <div className={`text-xs rounded-lg px-3 py-2 border ${
+                keyMessage.type === "ok"
+                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                  : "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20"
+              }`}>
+                {keyMessage.text}
+              </div>
+            )}
           </CardContent>
         </Card>
       ) : (
         <>
+          {/* Баннер если ключ есть, но не валиден */}
+          {!status?.valid && (
+            <Card className="border-red-500/40 bg-red-500/5">
+              <CardContent className="py-4 flex flex-wrap items-center gap-3">
+                <AlertCircle className="h-5 w-5 text-red-500 dark:text-red-400 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-red-600 dark:text-red-400">
+                    {t("admin.gramads.invalid_key", "API-ключ сохранён, но Gramads его отклонил")}
+                  </p>
+                  {status?.error && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Причина: {status.error}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Перейдите на вкладку «API ключ» чтобы заменить или удалить ключ.
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => setActiveTab("settings")}>
+                  <KeyRound className="h-4 w-4 mr-2" /> Заменить ключ
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+          {/* Кабинет — вкладки показываются всегда когда configured */}
           {/* Кабинет */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList>
@@ -422,18 +459,56 @@ export function GramadsPromoPage() {
             <TabsContent value="settings" className="space-y-4 mt-4">
               <Card>
                 <CardHeader><CardTitle>{t("admin.gramads.api_key")}</CardTitle></CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="text-sm text-muted-foreground">{t("admin.gramads.key_is_saved")}</p>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={clearApiKey} disabled={savingKey}>
-                      <X className="h-4 w-4 mr-2" />
-                      {t("admin.gramads.disconnect")}
+                <CardContent className="space-y-4">
+                  <div className={`text-sm rounded-lg px-3 py-2 border ${
+                    status?.valid
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                      : "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20"
+                  }`}>
+                    {status?.valid
+                      ? "✓ Ключ сохранён и валиден"
+                      : `✕ Ключ сохранён, но Gramads его отклоняет${status?.error ? ` (${status.error})` : ""}`}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Заменить ключ</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type={apiKeyVisible ? "text" : "password"}
+                        value={apiKeyInput}
+                        onChange={(e) => setApiKeyInput(e.target.value)}
+                        placeholder="Новый API-ключ из кабинета Gramads"
+                        className="font-mono"
+                      />
+                      <Button type="button" variant="outline" size="icon" onClick={() => setApiKeyVisible((v) => !v)}>
+                        {apiKeyVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button onClick={saveApiKey} disabled={!apiKeyInput.trim() || savingKey}>
+                      {savingKey ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> {t("admin.settings.saving")}</> : <><Check className="h-4 w-4 mr-2" /> Сохранить новый</>}
                     </Button>
                     <Button variant="outline" onClick={loadStatus}>
                       <RefreshCw className="h-4 w-4 mr-2" />
                       {t("admin.gramads.recheck")}
                     </Button>
+                    <Button variant="outline" onClick={clearApiKey} disabled={savingKey} className="text-red-500 dark:text-red-400 border-red-500/30 hover:bg-red-500/10">
+                      <X className="h-4 w-4 mr-2" />
+                      {t("admin.gramads.disconnect")}
+                    </Button>
                   </div>
+
+                  {keyMessage && (
+                    <div className={`text-xs rounded-lg px-3 py-2 border ${
+                      keyMessage.type === "ok"
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                        : "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20"
+                    }`}>
+                      {keyMessage.text}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

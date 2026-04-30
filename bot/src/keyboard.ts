@@ -19,8 +19,18 @@ export type InlineMarkup = { inline_keyboard: (InlineButton | WebAppButton | Url
 
 export type BotButtonConfig = { id: string; visible: boolean; label: string; order: number; style?: string; iconCustomEmojiId?: string; onePerRow?: boolean };
 
+// Стрип ведущего unicode-эмодзи (с опциональным VS16, ZWJ-секвенциями и пробелом).
+// Когда у кнопки задан `icon_custom_emoji_id`, Telegram рендерит премиум-иконку слева
+// от текста, а unicode-эмодзи в лейбле даёт второй значок — двойная иконка. Чтобы избежать
+// дублирования, при наличии premium-icon вырезаем ведущий эмодзи из текста.
+const LEADING_EMOJI_RE = /^(?:\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic})*)\s*/u;
+function stripLeadingEmoji(text: string): string {
+  return text.replace(LEADING_EMOJI_RE, "");
+}
+
 function btn(text: string, data: string, style?: ButtonStyle | null, iconCustomEmojiId?: string): InlineButton {
-  const b: InlineButton = { text, callback_data: data };
+  const finalText = iconCustomEmojiId ? stripLeadingEmoji(text) : text;
+  const b: InlineButton = { text: finalText, callback_data: data };
   if (style) b.style = style;
   if (iconCustomEmojiId) b.icon_custom_emoji_id = iconCustomEmojiId;
   return b;
@@ -143,24 +153,25 @@ export function mainMenu(opts: {
   for (const b of list) {
     const iconId = b.iconCustomEmojiId;
     const onePerRow = b.onePerRow === true;
+    const labelForIcon = iconId ? stripLeadingEmoji(b.label) : b.label;
     if (b.id === "cabinet") {
       if (base) {
-        const w: WebAppButton = { text: b.label, web_app: { url: `${base}/cabinet` } };
+        const w: WebAppButton = { text: labelForIcon, web_app: { url: `${base}/cabinet` } };
         if (iconId) w.icon_custom_emoji_id = iconId;
         items.push({ node: w, onePerRow });
       }
     } else     if (b.id === "vpn" && (opts.remnaSubscriptionUrl || base)) {
       if (opts.remnaSubscriptionUrl) {
-        const u: UrlButton = { text: b.label, url: opts.remnaSubscriptionUrl };
+        const u: UrlButton = { text: labelForIcon, url: opts.remnaSubscriptionUrl };
         if (iconId) u.icon_custom_emoji_id = iconId;
         items.push({ node: u, onePerRow });
       } else {
-        const w: WebAppButton = { text: b.label, web_app: { url: `${base}/cabinet/subscribe` } };
+        const w: WebAppButton = { text: labelForIcon, web_app: { url: `${base}/cabinet/subscribe` } };
         if (iconId) w.icon_custom_emoji_id = iconId;
         items.push({ node: w, onePerRow });
       }
     } else if (b.id === "tickets" && base) {
-      const w: WebAppButton = { text: b.label, web_app: { url: `${base}/cabinet/tickets` } };
+      const w: WebAppButton = { text: labelForIcon, web_app: { url: `${base}/cabinet/tickets` } };
       if (iconId) w.icon_custom_emoji_id = iconId;
       items.push({ node: w, onePerRow });
     } else if (MENU_IDS[b.id]) {
@@ -309,7 +320,7 @@ export function tariffCategoryButtons(
 
 /** Кнопки тарифов одной категории. Только эмодзи категории (ordinary/premium), без общего эмодзи «Тарифы». */
 export function tariffsOfCategoryButtons(
-  category: { name: string; emoji?: string; tariffs: { id: string; name: string; price: number; currency: string }[] },
+  category: { name: string; emoji?: string; tariffs: { id: string; name: string; price: number; currency: string; hasOptions?: boolean }[] },
   backLabel?: string | null,
   innerStyles?: InnerButtonStyles,
   backData: string = "menu:tariffs",
@@ -323,7 +334,8 @@ export function tariffsOfCategoryButtons(
   const prefix = (category.emoji && category.emoji.trim()) ? `${category.emoji} ` : "";
   const tariffId = emojiIds?.tariff;
   for (const t of category.tariffs) {
-    const label = `${prefix}${t.name} — ${t.price} ${t.currency}`.slice(0, 64);
+    const fromPrefix = t.hasOptions ? "от " : "";
+    const label = `${prefix}${t.name} — ${fromPrefix}${t.price} ${currencySymbol(t.currency)}`.slice(0, 64);
     rows.push([btn(label, `pay_tariff:${t.id}`, tariffPay, tariffId)]);
   }
   rows.push([btn(back, backData, backSty, emojiIds?.back)]);
@@ -336,7 +348,7 @@ export function tariffPayButtons(
     id: string;
     name: string;
     emoji?: string;
-    tariffs: { id: string; name: string; price: number; currency: string }[];
+    tariffs: { id: string; name: string; price: number; currency: string; hasOptions?: boolean }[];
   }[],
   backLabel?: string | null,
   innerStyles?: InnerButtonStyles,
@@ -371,11 +383,62 @@ export function tariffOptionPickerButtons(
   const back = (backLabel && backLabel.trim()) || DEFAULT_BACK_LABEL;
   const backSty = resolveStyle(toStyle(innerStyles?.back), "danger");
   const tariffId = emojiIds?.tariff;
+  const sym = currencySymbol(currency);
   const rows: InlineButton[][] = options.map((o, idx) => {
     const star = bestId && o.id === bestId ? "🌟 " : "";
-    const label = `${star}${o.durationDays} дн — ${o.price} ${currency}`.slice(0, 64);
+    const label = `${star}${o.durationDays} дн — ${o.price} ${sym}`.slice(0, 64);
     return [btn(label, `topt:${idx}`, tariffPay, tariffId)];
   });
+  rows.push([btn(back, "menu:tariffs", backSty, emojiIds?.back)]);
+  return { inline_keyboard: rows };
+}
+
+/**
+ * Символ валюты для коротких inline-лейблов кнопок (₽/$/₴).
+ * formatMoney() в index.ts даёт то же поведение, но для лейблов кнопок проще inline.
+ */
+function currencySymbol(currency: string): string {
+  const c = currency.toUpperCase();
+  return c === "RUB" ? "₽" : c === "USD" ? "$" : c === "UAH" ? "₴" : c;
+}
+
+/**
+ * Шаг 2: выбор количества ДОП. устройств (extras). Показывается после выбора длительности
+ * (topt:), только если у тарифа включены доп. устройства.
+ *
+ * Каждая плитка — кнопка с текстом "+N · {total} {sym} [discount?]".
+ * Плитка «+0» — без доп. устройств, базовая цена тарифа.
+ * callback_data: `tdev:<N>` — N = количество ДОП. устройств (0..maxExtras).
+ *
+ * Скидочные плитки выделяются эмодзи 🎁; лучшая цена за устройство — ⭐.
+ */
+export function tariffDevicePickerButtons(
+  tiles: { extras: number; included: number; total: number; pct: number; isBest: boolean }[],
+  currency: string,
+  backLabel?: string | null,
+  innerStyles?: InnerButtonStyles,
+  emojiIds?: InnerEmojiIds,
+): InlineMarkup {
+  const tariffPay = resolveStyle(toStyle(innerStyles?.tariffPay), "success");
+  const back = (backLabel && backLabel.trim()) || DEFAULT_BACK_LABEL;
+  const backSty = resolveStyle(toStyle(innerStyles?.back), "danger");
+  const tariffId = emojiIds?.tariff;
+  const sym = currencySymbol(currency);
+  // По 2 плитки в ряд для удобства на мобиле.
+  const rows: InlineButton[][] = [];
+  let row: InlineButton[] = [];
+  for (const t of tiles) {
+    const badge = t.pct > 0 ? ` 🎁−${t.pct}%` : t.isBest ? " ⭐" : "";
+    // Префикс: «Без доп.» для +0, иначе «+N устр».
+    const prefix = t.extras === 0 ? "Без доп." : `+${t.extras} устр`;
+    const label = `${prefix} · ${t.total} ${sym}${badge}`.slice(0, 64);
+    row.push(btn(label, `tdev:${t.extras}`, tariffPay, tariffId));
+    if (row.length >= 2) {
+      rows.push(row);
+      row = [];
+    }
+  }
+  if (row.length > 0) rows.push(row);
   rows.push([btn(back, "menu:tariffs", backSty, emojiIds?.back)]);
   return { inline_keyboard: rows };
 }
@@ -421,7 +484,7 @@ export function tariffPaymentMethodButtons(
 
 /** Кнопки категорий прокси (аналогично тарифам) */
 export function proxyCategoryButtons(
-  categories: { id: string; name: string; tariffs: { id: string; name: string; price: number; currency: string }[] }[],
+  categories: { id: string; name: string; tariffs: { id: string; name: string; price: number; currency: string; hasOptions?: boolean }[] }[],
   backLabel?: string | null,
   innerStyles?: InnerButtonStyles,
   emojiIds?: InnerEmojiIds
@@ -440,7 +503,7 @@ export function proxyCategoryButtons(
 
 /** Кнопки тарифов прокси одной категории */
 export function proxyTariffsOfCategoryButtons(
-  category: { name: string; tariffs: { id: string; name: string; price: number; currency: string }[] },
+  category: { name: string; tariffs: { id: string; name: string; price: number; currency: string; hasOptions?: boolean }[] },
   backLabel?: string | null,
   innerStyles?: InnerButtonStyles,
   backData = "menu:proxy",
@@ -452,7 +515,7 @@ export function proxyTariffsOfCategoryButtons(
   const backSty = resolveStyle(toStyle(innerStyles?.back), "danger");
   const tariffId = emojiIds?.tariff;
   for (const t of category.tariffs) {
-    rows.push([btn(`${t.name} — ${t.price} ${t.currency}`.slice(0, 64), `pay_proxy:${t.id}`, tariffPay, tariffId)]);
+    rows.push([btn(`${t.name} — ${t.price} ${currencySymbol(t.currency)}`.slice(0, 64), `pay_proxy:${t.id}`, tariffPay, tariffId)]);
   }
   rows.push([btn(back, backData, backSty, emojiIds?.back)]);
   return { inline_keyboard: rows };
@@ -460,7 +523,7 @@ export function proxyTariffsOfCategoryButtons(
 
 /** Кнопки прокси-тарифов (категории или список тарифов) */
 export function proxyTariffPayButtons(
-  categories: { id: string; name: string; tariffs: { id: string; name: string; price: number; currency: string }[] }[],
+  categories: { id: string; name: string; tariffs: { id: string; name: string; price: number; currency: string; hasOptions?: boolean }[] }[],
   backLabel?: string | null,
   innerStyles?: InnerButtonStyles,
   emojiIds?: InnerEmojiIds
@@ -508,7 +571,7 @@ export function proxyPaymentMethodButtons(
 
 /** Кнопки категорий Sing-box (доступы) */
 export function singboxCategoryButtons(
-  categories: { id: string; name: string; tariffs: { id: string; name: string; price: number; currency: string }[] }[],
+  categories: { id: string; name: string; tariffs: { id: string; name: string; price: number; currency: string; hasOptions?: boolean }[] }[],
   backLabel?: string | null,
   innerStyles?: InnerButtonStyles,
   emojiIds?: InnerEmojiIds
@@ -527,7 +590,7 @@ export function singboxCategoryButtons(
 
 /** Кнопки тарифов Sing-box одной категории */
 export function singboxTariffsOfCategoryButtons(
-  category: { name: string; tariffs: { id: string; name: string; price: number; currency: string }[] },
+  category: { name: string; tariffs: { id: string; name: string; price: number; currency: string; hasOptions?: boolean }[] },
   backLabel?: string | null,
   innerStyles?: InnerButtonStyles,
   backData = "menu:singbox",
@@ -539,7 +602,7 @@ export function singboxTariffsOfCategoryButtons(
   const backSty = resolveStyle(toStyle(innerStyles?.back), "danger");
   const tariffId = emojiIds?.tariff;
   for (const t of category.tariffs) {
-    rows.push([btn(`${t.name} — ${t.price} ${t.currency}`.slice(0, 64), `pay_singbox:${t.id}`, tariffPay, tariffId)]);
+    rows.push([btn(`${t.name} — ${t.price} ${currencySymbol(t.currency)}`.slice(0, 64), `pay_singbox:${t.id}`, tariffPay, tariffId)]);
   }
   rows.push([btn(back, backData, backSty, emojiIds?.back)]);
   return { inline_keyboard: rows };
@@ -547,7 +610,7 @@ export function singboxTariffsOfCategoryButtons(
 
 /** Кнопки тарифов Sing-box (категории или список) */
 export function singboxTariffPayButtons(
-  categories: { id: string; name: string; tariffs: { id: string; name: string; price: number; currency: string }[] }[],
+  categories: { id: string; name: string; tariffs: { id: string; name: string; price: number; currency: string; hasOptions?: boolean }[] }[],
   backLabel?: string | null,
   innerStyles?: InnerButtonStyles,
   emojiIds?: InnerEmojiIds
@@ -641,7 +704,7 @@ export function extraOptionsButtons(
   const cardId = emojiIds?.card;
   const rows: InlineButton[][] = options.map((o) => {
     const extra = o.kind === "servers" && (o.trafficGb ?? 0) > 0 ? ` + ${o.trafficGb} ГБ` : "";
-    const label = `${o.name || o.kind}${extra} — ${o.price} ${o.currency}`.slice(0, 64);
+    const label = `${o.name || o.kind}${extra} — ${o.price} ${currencySymbol(o.currency)}`.slice(0, 64);
     return [btn(label, `pay_option:${o.kind}:${o.id}`, "success", cardId)];
   });
   rows.push([btn(back, "menu:main", backSty, emojiIds?.back)]);
@@ -843,7 +906,7 @@ export function giftTariffButtons(
     id: string;
     name: string;
     emoji?: string;
-    tariffs: { id: string; name: string; price: number; currency: string }[];
+    tariffs: { id: string; name: string; price: number; currency: string; hasOptions?: boolean }[];
   }[],
   backLabel?: string | null,
   innerStyles?: InnerButtonStyles,
@@ -857,7 +920,8 @@ export function giftTariffButtons(
   for (const cat of categories) {
     const prefix = (cat.emoji && cat.emoji.trim()) ? `${cat.emoji} ` : "";
     for (const t of cat.tariffs) {
-      const label = `${prefix}${t.name} — ${t.price} ${t.currency}`.slice(0, 64);
+      const fromPrefix = t.hasOptions ? "от " : "";
+    const label = `${prefix}${t.name} — ${fromPrefix}${t.price} ${currencySymbol(t.currency)}`.slice(0, 64);
       rows.push([btn(label, `gift_tariff:${t.id}`, tariffPay, tariffId)]);
     }
   }

@@ -95,6 +95,8 @@ model Client {
   appleId             String?  @unique @map("apple_id")
   autoRenewEnabled    Boolean  @default(false) @map("auto_renew_enabled")
   autoRenewTariffId   String?  @map("auto_renew_tariff_id")
+  autoRenewPriceOptionId String? @map("auto_renew_price_option_id") // Конкретная опция длительности для авто-продления
+  autoRenewExtraDevices Int    @default(0) @map("auto_renew_extra_devices") // Сколько доп. устройств продлевать
   autoRenewRetryCount Int      @default(0) @map("auto_renew_retry_count")
   autoRenewNotifiedAt DateTime? @map("auto_renew_notified_at")
   autoRenewPromoCode  String?  @map("auto_renew_promo_code")
@@ -226,6 +228,7 @@ model Payment {
   externalId            String?   @map("external_id")
   tariffId              String?   @map("tariff_id")
   tariffPriceOptionId   String?   @map("tariff_price_option_id")
+  deviceCount           Int?      @map("device_count") // сколько устройств куплено в этом платеже (1..tariff.maxDevices)
   proxyTariffId         String?   @map("proxy_tariff_id")
   singboxTariffId       String?   @map("singbox_tariff_id")
   remnawaveUserId       String?   @map("remnawave_user_id")
@@ -367,7 +370,16 @@ model Tariff {
   internalSquadUuids String[] @map("internal_squad_uuids")
   trafficLimitBytes  BigInt?  @map("traffic_limit_bytes")
   trafficResetMode   String   @default("no_reset") @map("traffic_reset_mode")
-  deviceLimit        Int?     @map("device_limit")
+  deviceLimit        Int?     @map("device_limit") // legacy: «фиксированный лимит». Не используется в новой модели.
+  // Новая модель устройств:
+  //   priceOption.price = базовая цена тарифа, в которую УЖЕ включено `includedDevices` устройств.
+  //   Клиент может докупить до `maxExtraDevices` доп. устройств по цене `pricePerExtraDevice` за штуку.
+  //   К количеству доп. устройств применяется лесенка скидок `deviceDiscountTiers`.
+  //   HWID лимит на Remna = includedDevices + extraDevices (выбранных клиентом).
+  includedDevices    Int      @default(1) @map("included_devices")
+  pricePerExtraDevice Float   @default(0) @map("price_per_extra_device")
+  maxExtraDevices    Int      @default(0) @map("max_extra_devices")
+  deviceDiscountTiers Json?   @map("device_discount_tiers") // [{ minExtraDevices: number, discountPercent: number }]
   price              Float    @default(0)
   currency           String   @default("usd") @map("currency")
   sortOrder          Int      @default(0) @map("sort_order")
@@ -440,6 +452,33 @@ model AutoBroadcastLog {
   @@index([clientId])
   @@index([sentAt])
   @@map("auto_broadcast_logs")
+}
+
+// История ручных рассылок: сохраняем дату, контент и результаты для аудита.
+model BroadcastHistory {
+  id              String    @id @default(cuid())
+  startedAt       DateTime  @default(now()) @map("started_at")
+  finishedAt      DateTime? @map("finished_at")
+  status          String    @default("running") // running | completed | error
+  channel         String // telegram | email | both
+  subject         String    @default("")
+  message         String    @db.Text
+  buttonText      String?   @map("button_text")
+  buttonUrl       String?   @map("button_url")
+  attachmentName  String?   @map("attachment_name")
+  totalTelegram   Int       @default(0) @map("total_telegram")
+  sentTelegram    Int       @default(0) @map("sent_telegram")
+  failedTelegram  Int       @default(0) @map("failed_telegram")
+  totalEmail      Int       @default(0) @map("total_email")
+  sentEmail       Int       @default(0) @map("sent_email")
+  failedEmail     Int       @default(0) @map("failed_email")
+  errors          Json?
+  error           String?   @db.Text
+  startedByAdmin  String?   @map("started_by_admin") // admin id, без FK чтобы запись пережила удаление админа
+
+  @@index([startedAt(sort: Desc)])
+  @@index([status])
+  @@map("broadcast_history")
 }
 
 // ——— Прокси-ноды и продажа прокси ———
