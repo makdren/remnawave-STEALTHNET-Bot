@@ -2862,6 +2862,7 @@ const updateSettingsSchema = z.object({
   trialDeviceLimit: z.number().int().min(0).nullable().optional(),
   trialTrafficLimitBytes: z.number().int().min(0).nullable().optional(),
   serviceName: z.string().max(200).optional(),
+  serviceDescription: z.string().max(500).nullable().optional(),
   logo: z.string().max(5_500_000).nullable().optional(),
   logoBot: z.string().max(5_500_000).nullable().optional(),
   favicon: z.string().max(5_500_000).nullable().optional(),
@@ -3268,6 +3269,15 @@ adminRouter.patch("/settings", async (req, res) => {
       where: { key: "service_name" },
       create: { key: "service_name", value: updates.serviceName },
       update: { value: updates.serviceName },
+    });
+    invalidateBrandCache();
+  }
+  if (updates.serviceDescription !== undefined) {
+    const val = updates.serviceDescription ?? "";
+    await prisma.systemSetting.upsert({
+      where: { key: "service_description" },
+      create: { key: "service_description", value: val },
+      update: { value: val },
     });
     invalidateBrandCache();
   }
@@ -5409,7 +5419,7 @@ adminRouter.get("/analytics", async (_req, res) => {
 adminRouter.post("/backup/send-to-telegram", asyncRoute(async (_req, res) => {
   const { runAutoBackup } = await import("../backup/auto-backup.scheduler.js");
   try {
-    await runAutoBackup();
+    await runAutoBackup({ force: true });
     return res.json({ ok: true, message: "Бэкап создан и отправлен в Telegram" });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

@@ -766,6 +766,7 @@ export function SettingsPage() {
         trialDeviceLimit: settings.trialDeviceLimit ?? null,
         trialTrafficLimitBytes: settings.trialTrafficLimitBytes ?? null,
         serviceName: settings.serviceName,
+        serviceDescription: settings.serviceDescription ?? null,
         logo: settings.logo ?? null,
         logoBot: settings.logoBot ?? null,
         favicon: settings.favicon ?? null,
@@ -1364,6 +1365,15 @@ export function SettingsPage() {
                       onChange={(e) => setSettings((s) => (s ? { ...s, serviceName: e.target.value } : s))}
                     />
                     <p className="text-[11px] text-muted-foreground">{t("admin.settings.service_name_hint")}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">{t("admin.settings.service_description")}</Label>
+                    <Textarea
+                      value={settings.serviceDescription ?? ""}
+                      onChange={(e) => setSettings((s) => (s ? { ...s, serviceDescription: e.target.value || null } : s))}
+                      rows={2}
+                    />
+                    <p className="text-[11px] text-muted-foreground">{t("admin.settings.service_description_hint")}</p>
                   </div>
                 <div className="space-y-2">
                   <Label>{t("admin.settings.logo")}</Label>
@@ -2327,7 +2337,7 @@ export function SettingsPage() {
                           <p className="text-[11px] text-muted-foreground mb-2">Username аккаунта поддержки или t.me-ссылка. Появляется в кнопке «Поддержка» в главном меню.</p>
                           <Input
                             value={settings.supportLink ?? ""}
-                            onChange={(e) => setSettings((s) => (s ? { ...s, supportLink: e.target.value || undefined } : s))}
+                            onChange={(e) => setSettings((s) => (s ? { ...s, supportLink: e.target.value } : s))}
                             placeholder={t("admin.settings.bot_support_placeholder")}
                           />
                         </div>
@@ -2339,7 +2349,7 @@ export function SettingsPage() {
                           <p className="text-[11px] text-muted-foreground mb-2">Telegra.ph или внешняя страница с правилами использования сервиса.</p>
                           <Input
                             value={settings.agreementLink ?? ""}
-                            onChange={(e) => setSettings((s) => (s ? { ...s, agreementLink: e.target.value || undefined } : s))}
+                            onChange={(e) => setSettings((s) => (s ? { ...s, agreementLink: e.target.value } : s))}
                             placeholder="https://telegra.ph/..."
                           />
                         </div>
@@ -2351,7 +2361,7 @@ export function SettingsPage() {
                           <p className="text-[11px] text-muted-foreground mb-2">Юридическая оферта (особенно нужна при работе через ИП/самозанятость).</p>
                           <Input
                             value={settings.offerLink ?? ""}
-                            onChange={(e) => setSettings((s) => (s ? { ...s, offerLink: e.target.value || undefined } : s))}
+                            onChange={(e) => setSettings((s) => (s ? { ...s, offerLink: e.target.value } : s))}
                             placeholder="https://telegra.ph/..."
                           />
                         </div>
@@ -2363,7 +2373,7 @@ export function SettingsPage() {
                           <p className="text-[11px] text-muted-foreground mb-2">Инструкции для клиентов как подключить VPN на разных устройствах.</p>
                           <Input
                             value={settings.instructionsLink ?? ""}
-                            onChange={(e) => setSettings((s) => (s ? { ...s, instructionsLink: e.target.value || undefined } : s))}
+                            onChange={(e) => setSettings((s) => (s ? { ...s, instructionsLink: e.target.value } : s))}
                             placeholder="https://telegra.ph/..."
                           />
                         </div>
@@ -2376,7 +2386,7 @@ export function SettingsPage() {
                           <p className="text-[11px] text-muted-foreground mb-2">Telegra.ph-статья «Как пользоваться рефералкой». Кнопка «📖 Инструкции» под «Поделиться ссылкой» в разделе рефералки бота. Пусто = дефолтная ссылка.</p>
                           <Input
                             value={settings.referralInstructionsUrl ?? ""}
-                            onChange={(e) => setSettings((s) => (s ? { ...s, referralInstructionsUrl: e.target.value || undefined } : s))}
+                            onChange={(e) => setSettings((s) => (s ? { ...s, referralInstructionsUrl: e.target.value } : s))}
                             placeholder="https://telegra.ph/Kak-polzovatsya-referalnoj-programmoj-i-zarabatyvat-05-28"
                           />
                         </div>
@@ -2389,7 +2399,7 @@ export function SettingsPage() {
                           <p className="text-[11px] text-muted-foreground mb-2">Telegra.ph-страница с правилами возврата средств. Появляется кнопкой в «Помощь → Документы».</p>
                           <Input
                             value={(settings as { refundLink?: string | null }).refundLink ?? ""}
-                            onChange={(e) => setSettings((s) => (s ? { ...s, refundLink: e.target.value || undefined } as typeof s : s))}
+                            onChange={(e) => setSettings((s) => (s ? { ...s, refundLink: e.target.value } as typeof s : s))}
                             placeholder="https://telegra.ph/..."
                           />
                         </div>
@@ -5139,7 +5149,7 @@ export function SettingsPage() {
                 </Button>
               </div>
 
-              <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4 text-sm text-blue-200 space-y-2">
+              <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4 text-sm text-blue-700 dark:text-blue-200 space-y-2">
                 <p><strong>{t("admin.settings.nalog_how_title")}</strong></p>
                 <ul className="list-disc list-inside space-y-1 text-xs">
                   <li>{t("admin.settings.nalog_how_1")}</li>
@@ -5209,7 +5219,7 @@ export function SettingsPage() {
                 </p>
               </div>
 
-              <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4 text-sm text-blue-200 space-y-2">
+              <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4 text-sm text-blue-700 dark:text-blue-200 space-y-2">
                 <p><strong>{t("admin.settings.map_maxmind_title")}</strong></p>
                 <ul className="list-disc list-inside space-y-1 text-xs">
                   <li>{t("admin.settings.map_maxmind_1")}</li>
